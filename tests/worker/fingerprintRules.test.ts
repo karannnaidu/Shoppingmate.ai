@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { detectPlatform } from '../../apps/worker/src/steps/fingerprintRules/index.js';
 
 const fixturesDir = resolve(import.meta.dirname, '..', 'fixtures');
-const shopifyHtml = readFileSync(resolve(fixturesDir, 'shopifyHomepage.html'), 'utf8');
 const customHtml = readFileSync(resolve(fixturesDir, 'customHomepage.html'), 'utf8');
+const shopifyHtml = readFileSync(resolve(fixturesDir, 'shopifyHomepage.html'), 'utf8');
+const wooHtml = readFileSync(resolve(fixturesDir, 'wooHomepage.html'), 'utf8');
 
 describe('detectPlatform', () => {
   it('detects Shopify by Shopify.shop variable', () => {
@@ -20,5 +21,28 @@ describe('detectPlatform', () => {
 
   it('falls back to custom when nothing matches', () => {
     expect(detectPlatform(customHtml, {})).toBe('custom');
+  });
+});
+
+describe('detectPlatform — WooCommerce', () => {
+  it('detects Woo by generator meta', () => {
+    expect(detectPlatform(wooHtml, {})).toBe('woocommerce');
+  });
+
+  it('detects Woo by woocommerce body class', () => {
+    const html = '<html><body class="woocommerce">x</body></html>';
+    expect(detectPlatform(html, {})).toBe('woocommerce');
+  });
+
+  it('detects Woo by wp-content/plugins/woocommerce path', () => {
+    const html =
+      '<html><body><script src="/wp-content/plugins/woocommerce/x.js"></script></body></html>';
+    expect(detectPlatform(html, {})).toBe('woocommerce');
+  });
+
+  it('Shopify wins when both signals are present (Shopify rule registered first)', () => {
+    const html =
+      '<html><body class="woocommerce"><script>window.Shopify={};</script></body></html>';
+    expect(detectPlatform(html, {})).toBe('shopify');
   });
 });
