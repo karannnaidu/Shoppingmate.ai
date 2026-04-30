@@ -19,7 +19,8 @@
     "db:migrate": "pnpm --filter @shoppingmate/db db:migrate",
     "db:studio": "pnpm --filter @shoppingmate/db db:studio",
     "shoppingmate": "node packages/cli/dist/index.js",
-    "shoppingmate:dev": "pnpm --filter @shoppingmate/cli dev"
+    "shoppingmate:dev": "pnpm --filter @shoppingmate/cli dev",
+    "smoke:safety": "tsx --env-file-if-exists=.env scripts/smoke-safety.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
