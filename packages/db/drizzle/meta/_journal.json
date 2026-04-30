@@ -8,6 +8,13 @@
       "when": 1777550470118,
       "tag": "0000_tough_moon_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777564553991,
+      "tag": "0001_cooing_speed",
+      "breakpoints": true
     }
   ]
 }
