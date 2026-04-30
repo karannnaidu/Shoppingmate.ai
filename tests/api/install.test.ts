@@ -36,6 +36,7 @@ function call(body: object, headers: Record<string, string> = {}): Promise<Respo
     headers: {
       'content-type': 'application/json',
       'user-agent': 'test',
+      'x-real-ip': '127.0.0.1',
       ...headers,
     },
     body: JSON.stringify(body),
