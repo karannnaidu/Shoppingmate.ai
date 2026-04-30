@@ -15,7 +15,8 @@
     "@shoppingmate/db": "workspace:*",
     "@shoppingmate/jobs": "workspace:*",
     "@shoppingmate/shared": "workspace:*",
-    "hono": "^4.6.10"
+    "hono": "^4.6.10",
+    "ioredis": "^5.4.1"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
