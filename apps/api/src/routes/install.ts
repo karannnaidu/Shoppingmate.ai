@@ -92,7 +92,12 @@ installRoute.post('/', async (c) => {
     .limit(1);
 
   if (!merchant) {
-    await recordAttempt(c, { ...body, referrer: refererHeader }, sourceIp, 'merchant_not_found');
+    await recordAttempt(
+      c,
+      { ...body, merchantId: null, referrer: refererHeader },
+      sourceIp,
+      'merchant_not_found',
+    );
     return c.json({ error: 'merchant_not_found', message: 'unknown merchantId' }, 404);
   }
 
