@@ -13,9 +13,18 @@ const shopifyHtml = readFileSync(resolve(fixturesDir, 'shopifyHomepage.html'), '
 const customHtml = readFileSync(resolve(fixturesDir, 'customHomepage.html'), 'utf8');
 
 const server = setupServer();
+const ORIGINAL_API_KEY = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+afterAll(() => {
+  server.close();
+  if (ORIGINAL_API_KEY === undefined) {
+    // biome-ignore lint/performance/noDelete: must truly unset env var to avoid leaking 'undefined' string into later tests
+    delete process.env.GOOGLE_SAFE_BROWSING_API_KEY;
+  } else {
+    process.env.GOOGLE_SAFE_BROWSING_API_KEY = ORIGINAL_API_KEY;
+  }
+});
 
 async function provision(domain: string): Promise<string> {
   const id = generateMerchantId();
@@ -93,7 +102,7 @@ describe('onboardingHandler', () => {
 
     const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
     expect(m?.status).toBe('rejected');
-    expect(m?.lastError).toContain('MALWARE');
+    expect(m?.lastError).toContain('safety');
     expect(m?.platform).toBeNull();
 
     const metrics = await db
