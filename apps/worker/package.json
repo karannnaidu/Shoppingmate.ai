@@ -11,9 +11,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@shoppingmate/db": "workspace:*",
     "@shoppingmate/jobs": "workspace:*",
     "@shoppingmate/shared": "workspace:*",
-    "bullmq": "^5.27.0"
+    "bullmq": "^5.27.0",
+    "drizzle-orm": "^0.36.4"
   },
   "devDependencies": {
     "msw": "^2.6.0",

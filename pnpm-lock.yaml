@@ -84,6 +84,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@shoppingmate/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@shoppingmate/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
@@ -93,6 +96,9 @@ importers:
       bullmq:
         specifier: ^5.27.0
         version: 5.76.4
+      drizzle-orm:
+        specifier: ^0.36.4
+        version: 0.36.4(postgres@3.4.9)
     devDependencies:
       msw:
         specifier: ^2.6.0
