@@ -91,6 +91,9 @@ importers:
       '@shoppingmate/shared':
         specifier: workspace:*
         version: link:../shared
+      drizzle-orm:
+        specifier: ^0.36.4
+        version: 0.36.4(postgres@3.4.9)
     devDependencies:
       tsx:
         specifier: ^4.19.2

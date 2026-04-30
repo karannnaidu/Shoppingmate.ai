@@ -15,7 +15,8 @@
   "dependencies": {
     "@shoppingmate/db": "workspace:*",
     "@shoppingmate/jobs": "workspace:*",
-    "@shoppingmate/shared": "workspace:*"
+    "@shoppingmate/shared": "workspace:*",
+    "drizzle-orm": "^0.36.4"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
