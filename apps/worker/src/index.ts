@@ -1,4 +1,4 @@
-import { createRedisConnection, type OnboardingJobData } from '@shoppingmate/jobs';
+import { type OnboardingJobData, createRedisConnection } from '@shoppingmate/jobs';
 import { logger } from '@shoppingmate/shared';
 import { Worker } from 'bullmq';
 
@@ -12,9 +12,7 @@ const worker = new Worker<OnboardingJobData>(
 );
 
 worker.on('ready', () => logger.info('worker ready'));
-worker.on('failed', (job, err) =>
-  logger.error({ jobId: job?.id, err: err.message }, 'job failed'),
-);
+worker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: err.message }, 'job failed'));
 
 const shutdown = async (signal: string) => {
   logger.info({ signal }, 'worker shutting down');

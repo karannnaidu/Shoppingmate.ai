@@ -11,6 +11,15 @@ importers:
       '@biomejs/biome':
         specifier: ^1.9.4
         version: 1.9.4
+      '@shoppingmate/db':
+        specifier: workspace:^
+        version: link:packages/db
+      '@shoppingmate/jobs':
+        specifier: workspace:^
+        version: link:packages/jobs
+      '@shoppingmate/shared':
+        specifier: workspace:^
+        version: link:packages/shared
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17

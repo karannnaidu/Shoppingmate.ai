@@ -21,6 +21,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@shoppingmate/db": "workspace:^",
+    "@shoppingmate/jobs": "workspace:^",
+    "@shoppingmate/shared": "workspace:^",
     "@types/node": "^22.9.0",
     "dotenv": "^17.4.2",
     "tsx": "^4.19.2",
