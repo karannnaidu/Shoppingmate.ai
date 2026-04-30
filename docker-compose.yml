@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sm_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shoppingmate
+      POSTGRES_PASSWORD: shoppingmate_dev
+      POSTGRES_DB: shoppingmate
+    ports: ["5432:5432"]
+    volumes:
+      - sm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shoppingmate -d shoppingmate"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sm_redis
+    restart: unless-stopped
+    ports: ["6379:6379"]
+    volumes:
+      - sm_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: sm_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: shoppingmate
+      MINIO_ROOT_PASSWORD: shoppingmate_dev
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - sm_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sm_postgres_data:
+  sm_redis_data:
+  sm_minio_data:
