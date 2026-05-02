@@ -10,39 +10,39 @@ const wooHtml = readFileSync(resolve(fixturesDir, 'wooHomepage.html'), 'utf8');
 
 describe('detectPlatform', () => {
   it('detects Shopify by Shopify.shop variable', () => {
-    expect(detectPlatform(shopifyHtml, {})).toBe('shopify');
+    expect(detectPlatform(shopifyHtml, {}).platform).toBe('shopify');
   });
 
   it('detects Shopify by cdn.shopify.com asset', () => {
     const html =
       '<html><head><link rel="stylesheet" href="https://cdn.shopify.com/x.css"/></head></html>';
-    expect(detectPlatform(html, {})).toBe('shopify');
+    expect(detectPlatform(html, {}).platform).toBe('shopify');
   });
 
   it('falls back to custom when nothing matches', () => {
-    expect(detectPlatform(customHtml, {})).toBe('custom');
+    expect(detectPlatform(customHtml, {}).platform).toBe('custom');
   });
 });
 
 describe('detectPlatform — WooCommerce', () => {
   it('detects Woo by generator meta', () => {
-    expect(detectPlatform(wooHtml, {})).toBe('woocommerce');
+    expect(detectPlatform(wooHtml, {}).platform).toBe('woocommerce');
   });
 
   it('detects Woo by woocommerce body class', () => {
     const html = '<html><body class="woocommerce">x</body></html>';
-    expect(detectPlatform(html, {})).toBe('woocommerce');
+    expect(detectPlatform(html, {}).platform).toBe('woocommerce');
   });
 
   it('detects Woo by wp-content/plugins/woocommerce path', () => {
     const html =
       '<html><body><script src="/wp-content/plugins/woocommerce/x.js"></script></body></html>';
-    expect(detectPlatform(html, {})).toBe('woocommerce');
+    expect(detectPlatform(html, {}).platform).toBe('woocommerce');
   });
 
   it('Shopify wins when both signals are present (Shopify rule registered first)', () => {
     const html =
       '<html><body class="woocommerce"><script>window.Shopify={};</script></body></html>';
-    expect(detectPlatform(html, {})).toBe('shopify');
+    expect(detectPlatform(html, {}).platform).toBe('shopify');
   });
 });

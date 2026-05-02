@@ -63,7 +63,9 @@ async function smokeDom(input: SmokeInput): Promise<SmokeResult> {
         await page.locator(selectors.add_to_cart_button).click({ timeout: 5_000 });
         await page.waitForFunction(
           ([sel, prev]: [string, string]) => {
-            const el = document.querySelector(sel) as HTMLElement | null;
+            // biome-ignore lint/suspicious/noExplicitAny: Playwright evaluates this in browser context
+            const doc = (globalThis as any).document;
+            const el = doc?.querySelector(sel) as { innerText?: string } | null;
             return !!el && (el.innerText ?? '') !== prev;
           },
           [selectors.cart_page_total, before] as [string, string],

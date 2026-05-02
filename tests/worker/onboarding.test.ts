@@ -11,6 +11,7 @@ import { onboardingHandler } from '../../apps/worker/src/handlers/onboarding.js'
 const fixturesDir = resolve(import.meta.dirname, '..', 'fixtures');
 const shopifyHtml = readFileSync(resolve(fixturesDir, 'shopifyHomepage.html'), 'utf8');
 const customHtml = readFileSync(resolve(fixturesDir, 'customHomepage.html'), 'utf8');
+const wooHtml = readFileSync(resolve(fixturesDir, 'wooHomepage.html'), 'utf8');
 
 const server = setupServer();
 const ORIGINAL_API_KEY = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
@@ -60,12 +61,35 @@ describe('onboardingHandler', () => {
     process.env.GOOGLE_SAFE_BROWSING_API_KEY = 'test-key';
   });
 
-  it('happy path: safe + Shopify → status=live, platform=shopify', async () => {
+  it('happy path: safe + Shopify → status=live, products synced, smoke passed', async () => {
     const domain = 'shopify-happy.test';
     const id = await provision(domain);
     server.use(
       http.post(SAFE_BROWSING_URL, () => HttpResponse.json({})),
       http.get(`https://${domain}/`, () => HttpResponse.html(shopifyHtml)),
+      http.get(`https://${domain}/products.json`, ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page') ?? '1';
+        if (page === '1') {
+          return HttpResponse.json({
+            products: [
+              {
+                id: 100,
+                title: 'Test',
+                body_html: '<p>desc</p>',
+                handle: 'test-product',
+                image: { src: 'https://x' },
+                variants: [
+                  { id: 1001, sku: 'T', price: '10.00', available: true, option1: 'M' },
+                ],
+              },
+            ],
+          });
+        }
+        return HttpResponse.json({ products: [] });
+      }),
+      http.post(`https://${domain}/cart/add.js`, () =>
+        HttpResponse.json({ id: 1001, key: 'tok' }),
+      ),
     );
 
     await onboardingHandler(fakeJob(id, domain));
@@ -74,18 +98,100 @@ describe('onboardingHandler', () => {
     expect(m?.status).toBe('live');
     expect(m?.platform).toBe('shopify');
     expect(m?.adapterType).toBe('shopify');
-    expect(m?.safetyCheckedAt).toBeInstanceOf(Date);
-    expect(m?.lastFingerprintedAt).toBeInstanceOf(Date);
+    expect(m?.smokePassedAt).toBeInstanceOf(Date);
+    expect(m?.catalogSyncedAt).toBeInstanceOf(Date);
+
+    const products = await db
+      .select()
+      .from(schema.products)
+      .where(eq(schema.products.merchantId, id));
+    expect(products).toHaveLength(1);
 
     const metrics = await db
       .select()
       .from(schema.metricEvents)
       .where(eq(schema.metricEvents.merchantId, id));
     const names = metrics.map((mm) => mm.metricName);
-    expect(names).toContain('onboarding.safety.cleared');
-    expect(names).toContain('onboarding.fingerprint.shopify');
+    expect(names).toContain('onboarding.catalog_sync.completed');
+    expect(names).toContain('onboarding.smoke.passed');
     expect(names).toContain('onboarding.completed');
 
+    await db.delete(schema.products).where(eq(schema.products.merchantId, id));
+    await cleanup(id);
+  });
+
+  it('happy path: safe + Woo → status=live, products synced, smoke passed', async () => {
+    const domain = 'woo-happy.test';
+    const id = await provision(domain);
+    server.use(
+      http.post(SAFE_BROWSING_URL, () => HttpResponse.json({})),
+      http.get(`https://${domain}/`, () => HttpResponse.html(wooHtml)),
+      http.get(`https://${domain}/wp-json/wc/store/v1/products`, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get('page') ?? '1');
+        if (page === 1) {
+          return HttpResponse.json([
+            {
+              id: 200,
+              name: 'Mug',
+              slug: 'mug',
+              permalink: `https://${domain}/product/mug/`,
+              description: 'mug',
+              images: [],
+              prices: { price: '1500', currency_code: 'USD', currency_minor_unit: 2 },
+              is_in_stock: true,
+              variations: [],
+            },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+      http.post(`https://${domain}/wp-json/wc/store/v1/cart/add-item`, () =>
+        HttpResponse.json({ items: [{ id: 200 }] }),
+      ),
+    );
+
+    await onboardingHandler(fakeJob(id, domain));
+
+    const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
+    expect(m?.status).toBe('live');
+    expect(m?.platform).toBe('woocommerce');
+    expect(m?.adapterType).toBe('woo');
+
+    await db.delete(schema.products).where(eq(schema.products.merchantId, id));
+    await cleanup(id);
+  });
+
+  it('magento detected → status=degraded (no smoke yet), detected_platform tagged', async () => {
+    const domain = 'magento-detect.test';
+    const magentoHtml = readFileSync(resolve(fixturesDir, 'magentoHomepage.html'), 'utf8');
+    const id = await provision(domain);
+    server.use(
+      http.post(SAFE_BROWSING_URL, () => HttpResponse.json({})),
+      http.get(`https://${domain}/`, () => HttpResponse.html(magentoHtml)),
+      // Empty sitemap → catalog yields 0 products → no_products → degraded.
+      http.get(`https://${domain}/sitemap.xml`, () =>
+        HttpResponse.text(
+          '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>',
+        ),
+      ),
+    );
+
+    await onboardingHandler(fakeJob(id, domain));
+
+    const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
+    expect(m?.platform).toBe('custom');
+    expect(m?.adapterType).toBe('dom');
+    expect((m?.adapterConfig as Record<string, unknown>)?.detectedPlatform).toBe('magento');
+
+    const metrics = await db
+      .select()
+      .from(schema.metricEvents)
+      .where(eq(schema.metricEvents.merchantId, id));
+    const names = metrics.map((mm) => mm.metricName);
+    expect(names).toContain('onboarding.fingerprint.magento_detected');
+    expect(names).toContain('onboarding.detected_platform.degraded');
+
+    await db.delete(schema.products).where(eq(schema.products.merchantId, id));
     await cleanup(id);
   });
 
@@ -116,20 +222,25 @@ describe('onboardingHandler', () => {
     await cleanup(id);
   });
 
-  it('custom site → platform=custom, adapter=dom', async () => {
+  it('custom site (no detection) → adapter=dom, no products → degraded', async () => {
     const domain = 'custom-happy.test';
     const id = await provision(domain);
     server.use(
       http.post(SAFE_BROWSING_URL, () => HttpResponse.json({})),
       http.get(`https://${domain}/`, () => HttpResponse.html(customHtml)),
+      http.get(`https://${domain}/sitemap.xml`, () =>
+        HttpResponse.text(
+          '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>',
+        ),
+      ),
     );
 
     await onboardingHandler(fakeJob(id, domain));
 
     const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
-    expect(m?.status).toBe('live');
     expect(m?.platform).toBe('custom');
     expect(m?.adapterType).toBe('dom');
+    expect(['degraded', 'failed']).toContain(m?.status);
 
     await cleanup(id);
   });
