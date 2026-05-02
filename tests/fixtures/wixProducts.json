@@ -1,0 +1,17 @@
+{
+  "products": [
+    {
+      "id": "wx-1",
+      "sku": "WX-TEE-001",
+      "name": "Blue Tee",
+      "description": "Soft cotton tee",
+      "priceData": { "price": 19.99, "currency": "USD" },
+      "media": {
+        "mainMedia": { "image": { "url": "https://static.wixstatic.com/media/blue-tee.png" } }
+      },
+      "productPageUrl": { "base": "https://shop.example.com", "path": "/product/blue-tee" },
+      "stock": { "inStock": true }
+    }
+  ],
+  "totalResults": 1
+}
