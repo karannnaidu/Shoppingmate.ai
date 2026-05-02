@@ -1,0 +1,31 @@
+{
+  "data": [
+    {
+      "id": 9001,
+      "sku": "BC-TEE-001",
+      "name": "Blue Tee",
+      "description": "Soft cotton tee",
+      "price": 19.99,
+      "url": "/blue-tee/",
+      "default_image": { "url_standard": "https://cdn.example.com/bc-blue-tee.png" },
+      "inventory_level": 10,
+      "variants": [
+        {
+          "id": 9101,
+          "sku": "BC-TEE-001-M",
+          "price": 19.99,
+          "option_values": [{ "label": "M", "option_display_name": "Size" }]
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 1,
+      "count": 1,
+      "per_page": 100,
+      "current_page": 1,
+      "total_pages": 1
+    }
+  }
+}
