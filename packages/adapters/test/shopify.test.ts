@@ -2,6 +2,7 @@ import type { Merchant } from '@shoppingmate/db';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import cartFixture from './fixtures/shopifyCart.json' with { type: 'json' };
 
 vi.mock('@shoppingmate/db', () => ({
   searchProducts: vi.fn(async () => [
@@ -46,5 +47,35 @@ describe('ShopifyAdapter — reads', () => {
     const r = await a.getProduct({ merchant, cartToken: null, sessionId: 's' }, 'A');
     expect(r.kind).toBe('ok');
     if (r.kind === 'ok') expect(r.value?.sku).toBe('A');
+  });
+});
+
+describe('ShopifyAdapter — cartAdd', () => {
+  it('POSTs /cart/add.js then GETs /cart.js, returns CartState', async () => {
+    server.use(
+      http.post(
+        'https://shop.example.com/cart/add.js',
+        () =>
+          new HttpResponse(JSON.stringify(cartFixture.items[0]), {
+            status: 200,
+            headers: { 'set-cookie': 'cart=Z2NwLXVzLWNlbnRyYWwx; path=/' },
+          }),
+      ),
+      http.get('https://shop.example.com/cart.js', () => HttpResponse.json(cartFixture)),
+    );
+    const { ShopifyAdapter } = await import('../src/shopify.js');
+    const a = new ShopifyAdapter();
+    const r = await a.cartAdd(
+      { merchant, cartToken: null, sessionId: 's' },
+      'TEE-BLUE-M',
+      '12345',
+      1,
+    );
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.value.cartToken).toBe('Z2NwLXVzLWNlbnRyYWwx');
+      expect(r.value.lines[0]?.sku).toBe('TEE-BLUE-M');
+      expect(r.value.totalCents).toBe(1999);
+    }
   });
 });

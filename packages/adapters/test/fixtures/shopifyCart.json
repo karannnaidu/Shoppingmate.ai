@@ -1,0 +1,21 @@
+{
+  "token": "Z2NwLXVzLWNlbnRyYWwx",
+  "items": [
+    {
+      "id": 12345,
+      "key": "12345:1",
+      "quantity": 1,
+      "title": "Blue Tee — Medium",
+      "price": 1999,
+      "line_price": 1999,
+      "url": "/products/blue-tee?variant=12345",
+      "image": "https://cdn.example.com/blue-tee.png",
+      "sku": "TEE-BLUE-M",
+      "variant_id": 12345
+    }
+  ],
+  "total_price": 1999,
+  "items_subtotal_price": 1999,
+  "currency": "USD",
+  "applied_discount_codes": []
+}
