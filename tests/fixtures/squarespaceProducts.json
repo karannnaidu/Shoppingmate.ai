@@ -1,0 +1,25 @@
+{
+  "products": [
+    {
+      "id": "sq-1",
+      "sku": "SQ-TEE-001",
+      "title": "Blue Tee",
+      "body": "<p>Soft cotton tee</p>",
+      "url": "/shop/blue-tee",
+      "price": 1999,
+      "currency": "USD",
+      "inStock": true,
+      "variants": [
+        {
+          "id": "sq-1-m",
+          "sku": "SQ-TEE-001-M",
+          "price": 1999,
+          "stock": 5,
+          "attributes": { "Size": "M" }
+        }
+      ],
+      "image": "https://static.sqsp.com/blue-tee.png"
+    }
+  ],
+  "total": 1
+}
