@@ -107,8 +107,20 @@ export class ShopifyAdapter implements Adapter {
     return { kind: 'ok', value };
   }
 
-  async cartUpdate(): Promise<AdapterResult<CartState>> {
-    return { kind: 'unsupported', reason: 'todo' };
+  async cartUpdate(
+    ctx: AdapterContext,
+    lineId: string,
+    qty: number,
+  ): Promise<AdapterResult<CartState>> {
+    const f = ctx.fetch ?? fetch;
+    const jar: Record<string, string> = ctx.cartToken ? { cart: ctx.cartToken } : {};
+    const res = await f(`https://${ctx.merchant.domain}/cart/change.js`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', Cookie: formatCookieHeader(jar) },
+      body: JSON.stringify({ id: lineId, quantity: qty }),
+    });
+    if (!res.ok) return { kind: 'platform_error', status: res.status, body: await res.text() };
+    return { kind: 'ok', value: await this.fetchCart(ctx, jar) };
   }
 
   async cartGet(ctx: AdapterContext): Promise<AdapterResult<CartState>> {
@@ -117,11 +129,25 @@ export class ShopifyAdapter implements Adapter {
     return { kind: 'ok', value };
   }
 
-  async couponApply(): Promise<AdapterResult<CartState>> {
-    return { kind: 'unsupported', reason: 'todo' };
+  async couponApply(ctx: AdapterContext, code: string): Promise<AdapterResult<CartState>> {
+    const f = ctx.fetch ?? fetch;
+    const jar: Record<string, string> = ctx.cartToken ? { cart: ctx.cartToken } : {};
+    const res = await f(`https://${ctx.merchant.domain}/discount/${encodeURIComponent(code)}`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { Cookie: formatCookieHeader(jar) },
+    });
+    if (res.status >= 400) {
+      return { kind: 'platform_error', status: res.status, body: await res.text() };
+    }
+    return { kind: 'ok', value: await this.fetchCart(ctx, jar) };
   }
 
-  async checkoutUrl(): Promise<AdapterResult<string>> {
-    return { kind: 'unsupported', reason: 'todo' };
+  async checkoutUrl(ctx: AdapterContext): Promise<AdapterResult<string>> {
+    if (!ctx.cartToken) return { kind: 'unsupported', reason: 'no_cart_token' };
+    return {
+      kind: 'ok',
+      value: `https://${ctx.merchant.domain}/checkout?cart=${ctx.cartToken}`,
+    };
   }
 }

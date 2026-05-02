@@ -50,6 +50,40 @@ describe('ShopifyAdapter — reads', () => {
   });
 });
 
+describe('ShopifyAdapter — cartUpdate / couponApply / checkoutUrl', () => {
+  it('cartUpdate POSTs /cart/change.js then refetches', async () => {
+    server.use(
+      http.post('https://shop.example.com/cart/change.js', () => HttpResponse.json(cartFixture)),
+      http.get('https://shop.example.com/cart.js', () => HttpResponse.json(cartFixture)),
+    );
+    const { ShopifyAdapter } = await import('../src/shopify.js');
+    const a = new ShopifyAdapter();
+    const r = await a.cartUpdate({ merchant, cartToken: 'tok', sessionId: 's' }, '12345:1', 2);
+    expect(r.kind).toBe('ok');
+  });
+
+  it('couponApply hits /discount/{code} then refetches', async () => {
+    server.use(
+      http.post(
+        'https://shop.example.com/discount/SAVE10',
+        () => new HttpResponse(null, { status: 302 }),
+      ),
+      http.get('https://shop.example.com/cart.js', () => HttpResponse.json(cartFixture)),
+    );
+    const { ShopifyAdapter } = await import('../src/shopify.js');
+    const a = new ShopifyAdapter();
+    const r = await a.couponApply({ merchant, cartToken: 'tok', sessionId: 's' }, 'SAVE10');
+    expect(r.kind).toBe('ok');
+  });
+
+  it('checkoutUrl returns deterministic url', async () => {
+    const { ShopifyAdapter } = await import('../src/shopify.js');
+    const a = new ShopifyAdapter();
+    const r = await a.checkoutUrl({ merchant, cartToken: 'tok', sessionId: 's' });
+    expect(r).toEqual({ kind: 'ok', value: 'https://shop.example.com/checkout?cart=tok' });
+  });
+});
+
 describe('ShopifyAdapter — cartAdd', () => {
   it('POSTs /cart/add.js then GETs /cart.js, returns CartState', async () => {
     server.use(
