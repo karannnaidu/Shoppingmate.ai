@@ -68,6 +68,7 @@ async function writeProducts(merchantId: string, products: NormalizedProduct[]):
       currency: p.currency,
       inStock: p.inStock,
       source: p.source,
+      sourceMeta: p.sourceMeta ?? null,
     })),
   );
 }

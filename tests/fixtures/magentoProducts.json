@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "sku": "MG-TEE-001",
+      "name": "Blue Tee",
+      "price": 19.99,
+      "type_id": "simple",
+      "custom_attributes": [
+        { "attribute_code": "description", "value": "<p>Soft cotton tee</p>" },
+        { "attribute_code": "image", "value": "/pub/media/catalog/product/blue-tee.png" },
+        { "attribute_code": "url_key", "value": "blue-tee" }
+      ],
+      "extension_attributes": { "stock_item": { "is_in_stock": true, "qty": 50 } }
+    }
+  ],
+  "search_criteria": { "page_size": 100, "current_page": 1 },
+  "total_count": 1
+}

@@ -20,7 +20,15 @@ export type NormalizedProduct = {
   priceCents: number | null;
   currency: string | null;
   inStock: boolean | null;
-  source: 'shopify_storefront' | 'woo_store_api' | 'dom_crawl';
+  source:
+    | 'shopify_storefront'
+    | 'woo_store_api'
+    | 'dom_crawl'
+    | 'magento_rest'
+    | 'bigcommerce_storefront'
+    | 'wix_stores'
+    | 'squarespace_commerce';
+  sourceMeta?: Record<string, unknown>;
 };
 
 type ShopifyResp = {
