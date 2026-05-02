@@ -78,18 +78,14 @@ describe('onboardingHandler', () => {
                 body_html: '<p>desc</p>',
                 handle: 'test-product',
                 image: { src: 'https://x' },
-                variants: [
-                  { id: 1001, sku: 'T', price: '10.00', available: true, option1: 'M' },
-                ],
+                variants: [{ id: 1001, sku: 'T', price: '10.00', available: true, option1: 'M' }],
               },
             ],
           });
         }
         return HttpResponse.json({ products: [] });
       }),
-      http.post(`https://${domain}/cart/add.js`, () =>
-        HttpResponse.json({ id: 1001, key: 'tok' }),
-      ),
+      http.post(`https://${domain}/cart/add.js`, () => HttpResponse.json({ id: 1001, key: 'tok' })),
     );
 
     await onboardingHandler(fakeJob(id, domain));

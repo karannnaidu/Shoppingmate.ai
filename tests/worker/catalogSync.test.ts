@@ -2,8 +2,8 @@ import { db, schema } from '@shoppingmate/db';
 import { generateMerchantId } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { catalogSync } from '../../apps/worker/src/steps/catalogSync.js';
 import type { NormalizedProduct } from '../../apps/worker/src/steps/catalogClients/shopify.js';
+import { catalogSync } from '../../apps/worker/src/steps/catalogSync.js';
 
 let merchantId: string;
 

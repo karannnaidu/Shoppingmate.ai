@@ -13,10 +13,7 @@ export type DomCrawlOpts = {
   timeoutMs: number;
   // Injected so tests can mock browser + LLM. Defaults call real Playwright + Haiku.
   renderHtml?: (url: string) => Promise<string>;
-  extractProduct?: (
-    url: string,
-    html: string,
-  ) => Promise<NormalizedProduct | null>;
+  extractProduct?: (url: string, html: string) => Promise<NormalizedProduct | null>;
 };
 
 async function defaultRenderHtml(url: string): Promise<string> {
@@ -69,10 +66,11 @@ async function defaultExtractProduct(url: string, html: string): Promise<Normali
 function parseSitemapUrls(xml: string): string[] {
   const urls: string[] = [];
   const re = /<loc>([^<]+)<\/loc>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(xml)) !== null) {
+  let m: RegExpExecArray | null = re.exec(xml);
+  while (m !== null) {
     const loc = m[1];
     if (loc) urls.push(loc.trim());
+    m = re.exec(xml);
   }
   return urls;
 }
@@ -84,7 +82,8 @@ async function pMap<T, R>(items: T[], n: number, fn: (item: T) => Promise<R>): P
     while (true) {
       const idx = i++;
       if (idx >= items.length) return;
-      const item = items[idx]!;
+      const item = items[idx];
+      if (item === undefined) return;
       out[idx] = await fn(item);
     }
   }

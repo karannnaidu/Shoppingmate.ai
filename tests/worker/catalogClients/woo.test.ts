@@ -41,7 +41,10 @@ describe('fetchWooCatalog', () => {
 
   it('returns failed on 404', async () => {
     server.use(
-      http.get('https://woo.test/wp-json/wc/store/v1/products', () => new HttpResponse(null, { status: 404 })),
+      http.get(
+        'https://woo.test/wp-json/wc/store/v1/products',
+        () => new HttpResponse(null, { status: 404 }),
+      ),
     );
     const result = await fetchWooCatalog('woo.test', { cap: 5000, timeoutMs: 90_000 });
     expect(result.kind).toBe('failed');

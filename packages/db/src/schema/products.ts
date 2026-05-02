@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   customType,
@@ -9,7 +10,6 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 import { merchants } from './merchants.js';
 
 const tsvector = customType<{ data: string; driverData: string }>({

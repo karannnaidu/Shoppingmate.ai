@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { childLogger } from '@shoppingmate/shared';
-import { chat, type ChatMessage } from '../lib/openrouter.js';
+import { type ChatMessage, chat } from '../lib/openrouter.js';
 import { withContext } from '../lib/playwright.js';
 
 const log = childLogger({ step: 'selectorExtract' });
@@ -77,9 +77,7 @@ function templateHash(html: string): string {
   return `sha256:${createHash('sha256').update(normalizeDom(html)).digest('hex')}`;
 }
 
-export async function selectorExtract(
-  input: SelectorExtractInput,
-): Promise<SelectorExtractResult> {
+export async function selectorExtract(input: SelectorExtractInput): Promise<SelectorExtractResult> {
   const render = input.renderHtml ?? defaultRender;
   const llm = input.callLlm ?? defaultCallLlm;
 

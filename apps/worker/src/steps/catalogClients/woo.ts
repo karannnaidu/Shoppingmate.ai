@@ -19,7 +19,12 @@ type WooProduct = {
 
 function stripHtml(html: string | null): string | null {
   if (!html) return null;
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || null;
+  return (
+    html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || null
+  );
 }
 
 function priceToCents(price: string, minorUnit: number): number | null {
@@ -42,7 +47,10 @@ export async function fetchWooCatalog(
     try {
       const res = await fetch(
         `https://${domain}/wp-json/wc/store/v1/products?per_page=${PAGE_SIZE}&page=${page}`,
-        { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: controller.signal },
+        {
+          headers: { 'user-agent': USER_AGENT, accept: 'application/json' },
+          signal: controller.signal,
+        },
       );
       if (!res.ok) {
         log.warn({ domain, page, status: res.status }, 'woo store api non-ok');

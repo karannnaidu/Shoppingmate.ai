@@ -27,22 +27,34 @@ describe('fingerprint', () => {
 
   it('woo → platform=woocommerce, detected=null', async () => {
     server.use(http.get('https://woo.test/', () => HttpResponse.html(wooHtml)));
-    expect(await fingerprint('woo.test')).toEqual({ platform: 'woocommerce', detectedPlatform: null });
+    expect(await fingerprint('woo.test')).toEqual({
+      platform: 'woocommerce',
+      detectedPlatform: null,
+    });
   });
 
   it('custom (no rule) → platform=custom, detected=null', async () => {
     server.use(http.get('https://custom.test/', () => HttpResponse.html(customHtml)));
-    expect(await fingerprint('custom.test')).toEqual({ platform: 'custom', detectedPlatform: null });
+    expect(await fingerprint('custom.test')).toEqual({
+      platform: 'custom',
+      detectedPlatform: null,
+    });
   });
 
   it('magento → platform=custom, detected=magento', async () => {
     server.use(http.get('https://m.test/', () => HttpResponse.html(magentoHtml)));
-    expect(await fingerprint('m.test')).toEqual({ platform: 'custom', detectedPlatform: 'magento' });
+    expect(await fingerprint('m.test')).toEqual({
+      platform: 'custom',
+      detectedPlatform: 'magento',
+    });
   });
 
   it('bigcommerce → platform=custom, detected=bigcommerce', async () => {
     server.use(http.get('https://bc.test/', () => HttpResponse.html(bcHtml)));
-    expect(await fingerprint('bc.test')).toEqual({ platform: 'custom', detectedPlatform: 'bigcommerce' });
+    expect(await fingerprint('bc.test')).toEqual({
+      platform: 'custom',
+      detectedPlatform: 'bigcommerce',
+    });
   });
 
   it('wix → platform=custom, detected=wix', async () => {
@@ -52,7 +64,10 @@ describe('fingerprint', () => {
 
   it('squarespace → platform=custom, detected=squarespace', async () => {
     server.use(http.get('https://sq.test/', () => HttpResponse.html(sqHtml)));
-    expect(await fingerprint('sq.test')).toEqual({ platform: 'custom', detectedPlatform: 'squarespace' });
+    expect(await fingerprint('sq.test')).toEqual({
+      platform: 'custom',
+      detectedPlatform: 'squarespace',
+    });
   });
 
   it('throws on network failure', async () => {

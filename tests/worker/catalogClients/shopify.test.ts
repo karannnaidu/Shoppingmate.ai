@@ -6,7 +6,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { fetchShopifyCatalog } from '../../../apps/worker/src/steps/catalogClients/shopify.js';
 
 const fixtures = JSON.parse(
-  readFileSync(resolve(import.meta.dirname, '..', '..', 'fixtures', 'shopifyProducts.json'), 'utf8'),
+  readFileSync(
+    resolve(import.meta.dirname, '..', '..', 'fixtures', 'shopifyProducts.json'),
+    'utf8',
+  ),
 );
 
 const server = setupServer();

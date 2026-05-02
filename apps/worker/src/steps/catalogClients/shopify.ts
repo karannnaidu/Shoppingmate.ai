@@ -53,7 +53,12 @@ function priceToCents(price: string): number | null {
 
 function stripHtml(html: string | null): string | null {
   if (!html) return null;
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || null;
+  return (
+    html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || null
+  );
 }
 
 function variantOptions(v: ShopifyResp['products'][0]['variants'][0]): Record<string, string> {
@@ -76,10 +81,10 @@ export async function fetchShopifyCatalog(
     const remaining = Math.max(1_000, deadline - Date.now());
     const timer = setTimeout(() => controller.abort(), remaining);
     try {
-      const res = await fetch(
-        `https://${domain}/products.json?limit=${PAGE_SIZE}&page=${page}`,
-        { headers: { 'user-agent': USER_AGENT, accept: 'application/json' }, signal: controller.signal },
-      );
+      const res = await fetch(`https://${domain}/products.json?limit=${PAGE_SIZE}&page=${page}`, {
+        headers: { 'user-agent': USER_AGENT, accept: 'application/json' },
+        signal: controller.signal,
+      });
       if (!res.ok) {
         log.warn({ domain, page, status: res.status }, 'shopify products.json non-ok');
         return { kind: 'failed', reason: `http_${res.status}` };

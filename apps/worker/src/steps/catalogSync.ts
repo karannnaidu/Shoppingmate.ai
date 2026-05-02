@@ -3,8 +3,8 @@ import { childLogger } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
 import { fetchDomCatalog } from './catalogClients/domCrawl.js';
 import { fetchShopifyCatalog } from './catalogClients/shopify.js';
-import { fetchWooCatalog } from './catalogClients/woo.js';
 import type { CatalogClientResult, NormalizedProduct } from './catalogClients/shopify.js';
+import { fetchWooCatalog } from './catalogClients/woo.js';
 
 const log = childLogger({ step: 'catalogSync' });
 const PARTIAL_THRESHOLD = 0.8;

@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '../client.js';
-import { products, type Product } from '../schema/products.js';
+import { type Product, products } from '../schema/products.js';
 
 export async function searchProducts(
   merchantId: string,

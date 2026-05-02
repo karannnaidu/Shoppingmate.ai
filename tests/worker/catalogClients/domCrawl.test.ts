@@ -17,9 +17,7 @@ afterAll(() => server.close());
 
 describe('fetchDomCatalog', () => {
   it('parses sitemap, filters product URLs, calls extractor for each, returns ok', async () => {
-    server.use(
-      http.get('https://custom.test/sitemap.xml', () => HttpResponse.text(sitemapXml)),
-    );
+    server.use(http.get('https://custom.test/sitemap.xml', () => HttpResponse.text(sitemapXml)));
 
     const renderedUrls: string[] = [];
     const result = await fetchDomCatalog('custom.test', {
