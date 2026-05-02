@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://custom.test/</loc></url>
+  <url><loc>https://custom.test/products/widget-a</loc></url>
+  <url><loc>https://custom.test/products/widget-b</loc></url>
+  <url><loc>https://custom.test/about</loc></url>
+</urlset>

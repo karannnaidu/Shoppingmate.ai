@@ -1,0 +1,42 @@
+{
+  "page1": {
+    "products": [
+      {
+        "id": 100,
+        "title": "Linen Beach Pants",
+        "body_html": "<p>Light cotton-linen blend.</p>",
+        "handle": "linen-beach-pants",
+        "image": { "src": "https://shop.test/cdn/shop/products/linen.jpg" },
+        "variants": [
+          { "id": 1001, "sku": "PANTS-S", "price": "49.00", "available": true, "option1": "S" },
+          { "id": 1002, "sku": "PANTS-M", "price": "49.00", "available": false, "option1": "M" }
+        ]
+      },
+      {
+        "id": 101,
+        "title": "Cotton Tee",
+        "body_html": "<p>Plain cotton.</p>",
+        "handle": "cotton-tee",
+        "image": { "src": "https://shop.test/cdn/shop/products/tee.jpg" },
+        "variants": [
+          { "id": 2001, "sku": "TEE-M", "price": "19.00", "available": true, "option1": "M" }
+        ]
+      }
+    ]
+  },
+  "page2": {
+    "products": [
+      {
+        "id": 102,
+        "title": "Sun Hat",
+        "body_html": "<p>Wide brim.</p>",
+        "handle": "sun-hat",
+        "image": null,
+        "variants": [
+          { "id": 3001, "sku": "HAT-OS", "price": "29.99", "available": true, "option1": "OS" }
+        ]
+      }
+    ]
+  },
+  "page3": { "products": [] }
+}

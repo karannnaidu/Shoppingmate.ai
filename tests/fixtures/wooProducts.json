@@ -1,0 +1,27 @@
+{
+  "page1": [
+    {
+      "id": 200,
+      "name": "Ceramic Mug",
+      "slug": "ceramic-mug",
+      "permalink": "https://woo.test/product/ceramic-mug/",
+      "description": "<p>Microwave safe.</p>",
+      "images": [{ "src": "https://woo.test/wp-content/uploads/mug.jpg" }],
+      "prices": { "price": "1500", "currency_code": "USD", "currency_minor_unit": 2 },
+      "is_in_stock": true,
+      "variations": []
+    },
+    {
+      "id": 201,
+      "name": "Coffee Beans 250g",
+      "slug": "coffee-beans-250g",
+      "permalink": "https://woo.test/product/coffee-beans-250g/",
+      "description": "Single origin.",
+      "images": [],
+      "prices": { "price": "1899", "currency_code": "USD", "currency_minor_unit": 2 },
+      "is_in_stock": false,
+      "variations": []
+    }
+  ],
+  "page2": []
+}

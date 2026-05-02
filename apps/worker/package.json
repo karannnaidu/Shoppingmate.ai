@@ -14,6 +14,7 @@
     "@shoppingmate/db": "workspace:*",
     "@shoppingmate/jobs": "workspace:*",
     "@shoppingmate/shared": "workspace:*",
+    "playwright": "^1.49.0",
     "bullmq": "^5.27.0",
     "drizzle-orm": "^0.36.4"
   },
