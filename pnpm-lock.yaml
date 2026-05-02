@@ -84,6 +84,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@shoppingmate/adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
       '@shoppingmate/db':
         specifier: workspace:*
         version: link:../../packages/db

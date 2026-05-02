@@ -157,18 +157,56 @@ describe('onboardingHandler', () => {
     await cleanup(id);
   });
 
-  it('magento detected → status=degraded (no smoke yet), detected_platform tagged', async () => {
+  it('magento detected → adapter promoted to magento, catalog synced, smoke passed', async () => {
     const domain = 'magento-detect.test';
     const magentoHtml = readFileSync(resolve(fixturesDir, 'magentoHomepage.html'), 'utf8');
     const id = await provision(domain);
     server.use(
       http.post(SAFE_BROWSING_URL, () => HttpResponse.json({})),
       http.get(`https://${domain}/`, () => HttpResponse.html(magentoHtml)),
-      // Empty sitemap → catalog yields 0 products → no_products → degraded.
-      http.get(`https://${domain}/sitemap.xml`, () =>
-        HttpResponse.text(
-          '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>',
-        ),
+      http.get(`https://${domain}/rest/V1/products`, () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 1,
+              sku: 'MG-TEE-001',
+              name: 'Blue Tee',
+              price: 19.99,
+              custom_attributes: [{ attribute_code: 'url_key', value: 'blue-tee' }],
+              extension_attributes: { stock_item: { is_in_stock: true } },
+            },
+          ],
+          total_count: 1,
+        }),
+      ),
+      // Smoke test: cartAdd via magento adapter (Task 14 wires getAdapter into smoke).
+      http.post(`https://${domain}/rest/V1/guest-carts`, () => HttpResponse.json('cart-magento-1')),
+      http.post(`https://${domain}/rest/V1/guest-carts/cart-magento-1/items`, () =>
+        HttpResponse.json({
+          item_id: 1,
+          sku: 'MG-TEE-001',
+          name: 'Blue Tee',
+          qty: 1,
+          price: 19.99,
+        }),
+      ),
+      http.get(`https://${domain}/rest/V1/guest-carts/cart-magento-1/totals`, () =>
+        HttpResponse.json({
+          grand_total: 19.99,
+          subtotal: 19.99,
+          base_currency_code: 'USD',
+          items: [
+            {
+              item_id: 1,
+              sku: 'MG-TEE-001',
+              name: 'Blue Tee',
+              qty: 1,
+              price: 19.99,
+              row_total: 19.99,
+            },
+          ],
+          coupon_code: null,
+        }),
       ),
     );
 
@@ -176,7 +214,7 @@ describe('onboardingHandler', () => {
 
     const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
     expect(m?.platform).toBe('custom');
-    expect(m?.adapterType).toBe('dom');
+    expect(m?.adapterType).toBe('magento');
     expect((m?.adapterConfig as Record<string, unknown>)?.detectedPlatform).toBe('magento');
 
     const metrics = await db
@@ -185,7 +223,8 @@ describe('onboardingHandler', () => {
       .where(eq(schema.metricEvents.merchantId, id));
     const names = metrics.map((mm) => mm.metricName);
     expect(names).toContain('onboarding.fingerprint.magento_detected');
-    expect(names).toContain('onboarding.detected_platform.degraded');
+    // Implemented now → no degraded metric.
+    expect(names).not.toContain('onboarding.detected_platform.degraded');
 
     await db.delete(schema.products).where(eq(schema.products.merchantId, id));
     await cleanup(id);

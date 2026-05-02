@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@shoppingmate/adapters": "workspace:*",
     "@shoppingmate/db": "workspace:*",
     "@shoppingmate/jobs": "workspace:*",
     "@shoppingmate/shared": "workspace:*",

@@ -1,3 +1,4 @@
+import { implementedAdapters } from '@shoppingmate/adapters';
 import { db, schema } from '@shoppingmate/db';
 import { childLogger } from '@shoppingmate/shared';
 import type { Job } from 'bullmq';
@@ -74,7 +75,12 @@ export async function onboardingHandler(
     throw err;
   }
   const platform = fp.platform;
-  const adapterType = PLATFORM_TO_ADAPTER[platform];
+  const baseAdapter = PLATFORM_TO_ADAPTER[platform];
+  const detected = fp.detectedPlatform;
+  const adapterType: schema.AdapterType =
+    detected && implementedAdapters.has(detected as schema.AdapterType)
+      ? (detected as schema.AdapterType)
+      : baseAdapter;
   const platformMetric =
     platform === 'shopify'
       ? schema.metricNames.onboardingFingerprintShopify
@@ -90,9 +96,12 @@ export async function onboardingHandler(
       fp.detectedPlatform.charAt(0).toUpperCase() + fp.detectedPlatform.slice(1)
     }Detected` as keyof typeof schema.metricNames;
     await emitMetric(merchantId, schema.metricNames[detectedKey]);
-    await emitMetric(merchantId, schema.metricNames.onboardingDetectedPlatformDegraded, {
-      detected_platform: fp.detectedPlatform,
-    });
+    // Only emit degraded metric when we cannot promote to a real adapter.
+    if (!implementedAdapters.has(fp.detectedPlatform as schema.AdapterType)) {
+      await emitMetric(merchantId, schema.metricNames.onboardingDetectedPlatformDegraded, {
+        detected_platform: fp.detectedPlatform,
+      });
+    }
   }
   await db
     .update(schema.merchants)
