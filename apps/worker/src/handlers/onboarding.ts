@@ -63,9 +63,9 @@ export async function onboardingHandler(
   await emitMetric(merchantId, schema.metricNames.onboardingSafetyCleared);
 
   // Step 2 — Fingerprint
-  let platform: schema.PlatformValue;
+  let fp: Awaited<ReturnType<typeof fingerprint>>;
   try {
-    platform = await fingerprint(domain);
+    fp = await fingerprint(domain);
   } catch (err) {
     await emitMetric(merchantId, schema.metricNames.onboardingFingerprintFetchFailed);
     log.error({ merchantId, err: (err as Error).message }, 'fingerprint fetch failed');
@@ -75,6 +75,7 @@ export async function onboardingHandler(
     throw err; // BullMQ retries until exhausted
   }
 
+  const platform = fp.platform;
   const platformMetric =
     platform === 'shopify'
       ? schema.metricNames.onboardingFingerprintShopify
@@ -83,7 +84,15 @@ export async function onboardingHandler(
         : schema.metricNames.onboardingFingerprintCustom;
   await emitMetric(merchantId, platformMetric);
 
-  // Step 3 — Finalize
+  if (fp.detectedPlatform) {
+    const detectedMetricKey = `onboardingFingerprint${
+      fp.detectedPlatform.charAt(0).toUpperCase() + fp.detectedPlatform.slice(1)
+    }Detected` as keyof typeof schema.metricNames;
+    await emitMetric(merchantId, schema.metricNames[detectedMetricKey]);
+    await emitMetric(merchantId, schema.metricNames.onboardingDetectedPlatformDegraded);
+  }
+
+  // Tentative finalize — overwritten by catalog/selector/smoke steps in later tasks.
   const adapterType = PLATFORM_TO_ADAPTER[platform];
   await db
     .update(schema.merchants)
@@ -93,6 +102,7 @@ export async function onboardingHandler(
       adapterType,
       lastFingerprintedAt: new Date(),
       lastError: null,
+      adapterConfig: fp.detectedPlatform ? { detectedPlatform: fp.detectedPlatform } : {},
     })
     .where(eq(schema.merchants.id, merchantId));
 

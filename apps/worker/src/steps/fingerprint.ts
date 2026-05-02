@@ -1,11 +1,11 @@
-import type { PlatformValue } from '@shoppingmate/db/schema';
 import { detectPlatform } from './fingerprintRules/index.js';
+import type { FingerprintResult } from './fingerprintRules/index.js';
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB
 const FETCH_TIMEOUT_MS = 5_000;
 const USER_AGENT = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.ai/bot)';
 
-export async function fingerprint(domain: string): Promise<PlatformValue> {
+export async function fingerprint(domain: string): Promise<FingerprintResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
