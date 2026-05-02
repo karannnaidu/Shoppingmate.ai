@@ -32,6 +32,46 @@ const merchant = {
   allowedDomains: [],
 } as unknown as Merchant;
 
+describe('WooAdapter — nonce retry', () => {
+  it('retries once on 403 rest_cookie_invalid_nonce', async () => {
+    let calls = 0;
+    server.use(
+      http.get(
+        'https://woo.example.com/wp-json/wc/store/v1/cart',
+        () =>
+          new HttpResponse(
+            JSON.stringify({
+              items: [],
+              totals: { total_price: '0', total_items: '0', currency_code: 'USD' },
+              coupons: [],
+            }),
+            {
+              status: 200,
+              headers: { 'x-wc-store-api-nonce': 'nonceX', 'cart-token': 'tokX' },
+            },
+          ),
+      ),
+      http.post('https://woo.example.com/wp-json/wc/store/v1/cart/add-item', () => {
+        calls++;
+        if (calls === 1) {
+          return new HttpResponse('{"code":"rest_cookie_invalid_nonce"}', { status: 403 });
+        }
+        return HttpResponse.json(wooCart);
+      }),
+    );
+    const { WooAdapter } = await import('../src/woo.js');
+    const a = new WooAdapter();
+    const r = await a.cartAdd(
+      { merchant, cartToken: null, sessionId: 's' },
+      'TEE-BLUE-M',
+      '42',
+      1,
+    );
+    expect(r.kind).toBe('ok');
+    expect(calls).toBe(2);
+  });
+});
+
 describe('WooAdapter — cartAdd', () => {
   it('captures nonce on first GET, then POSTs add-item with nonce + token', async () => {
     let nonceUsed = '';
