@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import { adapterSmoke } from './commands/adapterSmoke.js';
 import { provision } from './commands/provision.js';
 import { retryOnboarding } from './commands/retryOnboarding.js';
 import { show } from './commands/show.js';
@@ -8,6 +9,7 @@ const USAGE = `Usage:
   shoppingmate provision --domain=<host> [--name=<text>] [--allow=<host>,...]
   shoppingmate retry-onboarding <merchantId>
   shoppingmate show <merchantId>
+  shoppingmate adapter-smoke <merchantId>
 `;
 
 async function main(): Promise<void> {
@@ -60,6 +62,17 @@ async function main(): Promise<void> {
         return;
       }
       await show(id);
+      return;
+    }
+    case 'adapter-smoke': {
+      const id = argv[1];
+      if (!id) {
+        console.error('usage: adapter-smoke <merchantId>');
+        process.exitCode = 2;
+        return;
+      }
+      const code = await adapterSmoke(id);
+      process.exitCode = code;
       return;
     }
     default:

@@ -131,6 +131,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@shoppingmate/adapters':
+        specifier: workspace:*
+        version: link:../adapters
       '@shoppingmate/db':
         specifier: workspace:*
         version: link:../db
