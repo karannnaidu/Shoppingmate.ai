@@ -1,9 +1,13 @@
 import { db, schema } from '@shoppingmate/db';
 import { childLogger } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
+import { fetchBigCommerceCatalog } from './catalogClients/bigcommerce.js';
 import { fetchDomCatalog } from './catalogClients/domCrawl.js';
+import { fetchMagentoCatalog } from './catalogClients/magento.js';
 import { fetchShopifyCatalog } from './catalogClients/shopify.js';
 import type { CatalogClientResult, NormalizedProduct } from './catalogClients/shopify.js';
+import { fetchSquarespaceCatalog } from './catalogClients/squarespace.js';
+import { fetchWixCatalog } from './catalogClients/wix.js';
 import { fetchWooCatalog } from './catalogClients/woo.js';
 
 const log = childLogger({ step: 'catalogSync' });
@@ -31,24 +35,54 @@ export type CatalogSyncInput = {
 
 function pickClient(
   platform: schema.PlatformValue,
-  _adapterType: schema.AdapterType,
+  adapterType: schema.AdapterType,
 ): { source: string; fetch: (domain: string) => Promise<CatalogClientResult> } {
-  if (platform === 'shopify') {
-    return {
-      source: 'shopify_storefront',
-      fetch: (d) => fetchShopifyCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
-    };
+  switch (adapterType) {
+    case 'shopify':
+      return {
+        source: 'shopify_storefront',
+        fetch: (d) => fetchShopifyCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
+      };
+    case 'woo':
+      return {
+        source: 'woo_store_api',
+        fetch: (d) => fetchWooCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
+      };
+    case 'magento':
+      return {
+        source: 'magento_rest',
+        fetch: (d) => fetchMagentoCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
+      };
+    case 'bigcommerce':
+      return {
+        source: 'bigcommerce_storefront',
+        fetch: (d) => fetchBigCommerceCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
+      };
+    case 'wix':
+      return {
+        source: 'wix_stores',
+        fetch: (d) => fetchWixCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
+      };
+    case 'squarespace':
+      return {
+        source: 'squarespace_commerce',
+        fetch: (d) => fetchSquarespaceCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
+      };
+    default:
+      // 'dom' / 'suggest' / null fall back to DOM crawl (existing behaviour for custom).
+      // Platform check kept in place to preserve the prior fallback for custom sites
+      // even when adapterType is null.
+      if (platform !== 'shopify' && platform !== 'woocommerce') {
+        return {
+          source: 'dom_crawl',
+          fetch: (d) => fetchDomCatalog(d, { cap: 500, timeoutMs: 90_000 }),
+        };
+      }
+      return {
+        source: 'dom_crawl',
+        fetch: (d) => fetchDomCatalog(d, { cap: 500, timeoutMs: 90_000 }),
+      };
   }
-  if (platform === 'woocommerce') {
-    return {
-      source: 'woo_store_api',
-      fetch: (d) => fetchWooCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
-    };
-  }
-  return {
-    source: 'dom_crawl',
-    fetch: (d) => fetchDomCatalog(d, { cap: 500, timeoutMs: 90_000 }),
-  };
 }
 
 async function writeProducts(merchantId: string, products: NormalizedProduct[]): Promise<void> {

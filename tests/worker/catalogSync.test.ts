@@ -94,4 +94,36 @@ describe('catalogSync', () => {
     });
     expect(result.kind).toBe('failed');
   });
+
+  it.each([
+    ['magento' as const, 'magento_rest'],
+    ['bigcommerce' as const, 'bigcommerce_storefront'],
+    ['wix' as const, 'wix_stores'],
+    ['squarespace' as const, 'squarespace_commerce'],
+  ])('routes %s adapter to %s source', async (adapterType, source) => {
+    await db.delete(schema.products).where(eq(schema.products.merchantId, merchantId));
+    const product: NormalizedProduct = {
+      sku: `${adapterType}-1`,
+      title: 'X',
+      description: null,
+      imageUrl: null,
+      productUrl: `https://cs.test/p/${adapterType}-1`,
+      variants: [],
+      priceCents: 100,
+      currency: 'USD',
+      inStock: true,
+      source: source as NormalizedProduct['source'],
+    };
+    const result = await catalogSync({
+      merchantId,
+      domain: 'cs.test',
+      platform: 'custom',
+      adapterType,
+      fetchCatalog: async () => ({ kind: 'ok', products: [product], expected: 1 }),
+    });
+    expect(result.kind).toBe('ok');
+    if (result.kind === 'ok') {
+      expect(result.source).toBe(source);
+    }
+  });
 });
