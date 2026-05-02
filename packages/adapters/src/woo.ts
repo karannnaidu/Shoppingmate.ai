@@ -55,9 +55,7 @@ export class WooAdapter implements Adapter {
     return { kind: 'ok', value: await repoGet(ctx.merchant.id, sku) };
   }
 
-  private async getNonceAndToken(
-    ctx: AdapterContext,
-  ): Promise<{ nonce: string; token: string }> {
+  private async getNonceAndToken(ctx: AdapterContext): Promise<{ nonce: string; token: string }> {
     const f = ctx.fetch ?? fetch;
     const res = await f(`https://${ctx.merchant.domain}/wp-json/wc/store/v1/cart`, {
       headers: ctx.cartToken ? { 'cart-token': ctx.cartToken } : {},

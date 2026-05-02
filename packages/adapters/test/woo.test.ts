@@ -61,12 +61,7 @@ describe('WooAdapter — nonce retry', () => {
     );
     const { WooAdapter } = await import('../src/woo.js');
     const a = new WooAdapter();
-    const r = await a.cartAdd(
-      { merchant, cartToken: null, sessionId: 's' },
-      'TEE-BLUE-M',
-      '42',
-      1,
-    );
+    const r = await a.cartAdd({ merchant, cartToken: null, sessionId: 's' }, 'TEE-BLUE-M', '42', 1);
     expect(r.kind).toBe('ok');
     expect(calls).toBe(2);
   });
@@ -104,12 +99,7 @@ describe('WooAdapter — cartAdd', () => {
     );
     const { WooAdapter } = await import('../src/woo.js');
     const a = new WooAdapter();
-    const r = await a.cartAdd(
-      { merchant, cartToken: null, sessionId: 's' },
-      'TEE-BLUE-M',
-      '42',
-      1,
-    );
+    const r = await a.cartAdd({ merchant, cartToken: null, sessionId: 's' }, 'TEE-BLUE-M', '42', 1);
     expect(r.kind).toBe('ok');
     if (r.kind === 'ok') {
       expect(r.value.cartToken).toBe('cartABC');
