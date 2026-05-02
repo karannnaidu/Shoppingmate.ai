@@ -1,6 +1,7 @@
 import type { Merchant } from '@shoppingmate/db';
 import { describe, expect, it } from 'vitest';
 import { getAdapter } from '../src/dispatch.js';
+import { implementedAdapters } from '../src/implementedAdapters.js';
 
 const stubMerchant = (adapterType: string): Merchant =>
   ({
@@ -29,4 +30,13 @@ describe('getAdapter', () => {
       expect(() => getAdapter(stubMerchant(type))).toThrow(/adapter_not_implemented_in_plan3b/);
     },
   );
+});
+
+describe('implementedAdapters', () => {
+  it('contains all platforms 3c will wire', () => {
+    expect(implementedAdapters.has('magento')).toBe(true);
+    expect(implementedAdapters.has('bigcommerce')).toBe(true);
+    expect(implementedAdapters.has('wix')).toBe(true);
+    expect(implementedAdapters.has('squarespace')).toBe(true);
+  });
 });

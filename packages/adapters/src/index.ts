@@ -1,4 +1,5 @@
 export { getAdapter } from './dispatch.js';
+export { implementedAdapters } from './implementedAdapters.js';
 export { ShopifyAdapter } from './shopify.js';
 export type {
   Adapter,
