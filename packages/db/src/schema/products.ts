@@ -1,5 +1,22 @@
-import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  customType,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { merchants } from './merchants.js';
+
+const tsvector = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
 
 export const products = pgTable(
   'products',
@@ -16,10 +33,18 @@ export const products = pgTable(
     priceCents: integer('price_cents'),
     currency: text('currency'),
     inStock: boolean('in_stock'),
-    indexedAt: timestamp('indexed_at', { withTimezone: true }),
-    source: text('source'),
+    indexedAt: timestamp('indexed_at', { withTimezone: true }).notNull().defaultNow(),
+    source: text('source').notNull(),
+    sourceMeta: jsonb('source_meta'),
+    searchVector: tsvector('search_vector').generatedAlwaysAs(
+      sql`setweight(to_tsvector('simple', coalesce(title,'')), 'A') || setweight(to_tsvector('simple', coalesce(description,'')), 'B')`,
+    ),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.merchantId, t.sku] }) }),
+  (t) => ({
+    pk: primaryKey({ columns: [t.merchantId, t.sku] }),
+    searchIdx: index('products_search_idx').using('gin', t.searchVector),
+    merchantIndexedIdx: index('products_merchant_indexed_idx').on(t.merchantId, t.indexedAt.desc()),
+  }),
 );
 
 export type Product = typeof products.$inferSelect;

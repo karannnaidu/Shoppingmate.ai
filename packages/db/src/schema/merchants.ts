@@ -47,6 +47,8 @@ export const merchants = pgTable('merchants', {
   safetyCheckedAt: timestamp('safety_checked_at', { withTimezone: true }),
   lastError: text('last_error'),
   lastIndexedAt: timestamp('last_indexed_at', { withTimezone: true }),
+  catalogSyncedAt: timestamp('catalog_synced_at', { withTimezone: true }),
+  smokePassedAt: timestamp('smoke_passed_at', { withTimezone: true }),
 });
 
 export type Merchant = typeof merchants.$inferSelect;

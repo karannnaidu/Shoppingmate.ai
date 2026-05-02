@@ -15,6 +15,13 @@
       "when": 1777564553991,
       "tag": "0001_cooing_speed",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777745044651,
+      "tag": "0002_icy_northstar",
+      "breakpoints": true
     }
   ]
 }
