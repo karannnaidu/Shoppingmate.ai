@@ -6,9 +6,9 @@ import { WooAdapter } from './woo.js';
 export function getAdapter(merchant: Merchant): Adapter {
   switch (merchant.adapterType) {
     case 'shopify':
-      return new ShopifyAdapter() as unknown as Adapter;
+      return new ShopifyAdapter();
     case 'woo':
-      return new WooAdapter() as unknown as Adapter;
+      return new WooAdapter();
     case 'magento':
     case 'bigcommerce':
     case 'wix':

@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "key": "abc123",
+      "id": 42,
+      "quantity": 1,
+      "name": "Blue Tee",
+      "sku": "TEE-BLUE-M",
+      "prices": { "price": "1999", "currency_code": "USD" },
+      "totals": { "line_total": "1999", "currency_code": "USD" },
+      "images": [{ "src": "https://cdn.example.com/blue-tee.png" }],
+      "variation": [{ "attribute": "pa_size", "value": "M" }]
+    }
+  ],
+  "totals": { "total_price": "1999", "total_items": "1999", "currency_code": "USD" },
+  "coupons": []
+}
