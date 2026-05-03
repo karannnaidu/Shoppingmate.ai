@@ -247,6 +247,56 @@ describe('runTurn() — happy path', () => {
   });
 });
 
+describe('runTurn() — Sonnet errors', () => {
+  it('emits "hold on" + retries once on first timeout, succeeds on second call', async () => {
+    vi.mocked(chatTools)
+      .mockRejectedValueOnce(new Error('AbortError: timeout'))
+      .mockResolvedValueOnce({
+        text: 'sorry, what were you saying?',
+        toolCalls: [],
+        stopReason: 'stop',
+        inputTokens: 10,
+        outputTokens: 5,
+      });
+    const events = [];
+    for await (const ev of runTurn(deps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'hi',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+    const says = events.filter((e) => e.type === 'say').map((e) => (e as { text: string }).text);
+    expect(says.join(' ')).toMatch(/hold on|sorry, what/i);
+    expect(vi.mocked(chatTools)).toHaveBeenCalledTimes(2);
+  });
+
+  it('emits apology + end_of_turn when both attempts fail', async () => {
+    vi.mocked(chatTools)
+      .mockRejectedValueOnce(new Error('500'))
+      .mockRejectedValueOnce(new Error('500'));
+    const events = [];
+    for await (const ev of runTurn(deps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'hi',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+    expect(events.find((e) => e.type === 'say')).toMatchObject({
+      type: 'say',
+      text: expect.stringMatching(/sorry|trouble/i),
+    });
+    expect(events.find((e) => e.type === 'end_of_turn')).toBeDefined();
+    expect(vi.mocked(deps.recordMetric)).toHaveBeenCalledWith(
+      'agent.sonnet.error',
+      expect.any(Object),
+    );
+  });
+});
+
 describe('runTurn() — card_tap', () => {
   it('treats a card_tap like a synthetic cart.add and emits acknowledgement', async () => {
     vi.mocked(chatTools).mockResolvedValueOnce({

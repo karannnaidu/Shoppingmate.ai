@@ -100,18 +100,52 @@ export async function* runTurn(
         { role: 'tool', tool_call_id: synthCallId, content: JSON.stringify(envelope) },
       ],
     };
-    const ack = await chatTools({
+    const ackArgs = {
       model: SONNET_MODEL,
       messages: [
-        { role: 'system', content: buildSystemPrompt(merchant) },
+        { role: 'system' as const, content: buildSystemPrompt(merchant) },
         ...cardTapSession.history,
         {
-          role: 'user',
+          role: 'user' as const,
           content: '[the visitor just tapped to add this to the cart — acknowledge briefly]',
         },
       ],
       tools: buildToolSurface(merchant),
-    });
+    };
+    let ack: ChatToolsResult | undefined;
+    let ackFirstFailed = false;
+    try {
+      ack = await chatTools(ackArgs);
+    } catch (err1) {
+      const e1 = err1 as Error;
+      ackFirstFailed = true;
+      await deps.recordMetric('agent.sonnet.error', {
+        merchantId: merchant.id,
+        sessionId: session.sessionId,
+        errorType: classifyError(e1),
+        retryCount: 0,
+      });
+      try {
+        ack = await chatTools(ackArgs);
+      } catch (err2) {
+        const e2 = err2 as Error;
+        await deps.recordMetric('agent.sonnet.error', {
+          merchantId: merchant.id,
+          sessionId: session.sessionId,
+          errorType: classifyError(e2),
+          retryCount: 1,
+        });
+        yield {
+          type: 'say',
+          text: "Sorry — I'm having trouble reaching my brain. Try again in a moment?",
+        };
+        yield { type: 'end_of_turn' };
+        return;
+      }
+    }
+    if (ackFirstFailed) {
+      yield { type: 'say', text: 'Hold on a sec…' };
+    }
     const { text: stripped } = stripPrices(ack.text);
     for (const segment of segmentSay(stripped)) yield { type: 'say', text: segment };
     await deps.saveSession({
@@ -140,7 +174,41 @@ export async function* runTurn(
 
   let response: ChatToolsResult | undefined;
   for (let iter = 0; iter < MAX_TOOL_LOOP_ITERATIONS; iter += 1) {
-    response = await chatTools({ model: SONNET_MODEL, messages: history, tools });
+    let attemptResult: ChatToolsResult | undefined;
+    let firstFailed = false;
+    try {
+      attemptResult = await chatTools({ model: SONNET_MODEL, messages: history, tools });
+    } catch (err1) {
+      const e1 = err1 as Error;
+      firstFailed = true;
+      await deps.recordMetric('agent.sonnet.error', {
+        merchantId: merchant.id,
+        sessionId: session.sessionId,
+        errorType: classifyError(e1),
+        retryCount: 0,
+      });
+      try {
+        attemptResult = await chatTools({ model: SONNET_MODEL, messages: history, tools });
+      } catch (err2) {
+        const e2 = err2 as Error;
+        await deps.recordMetric('agent.sonnet.error', {
+          merchantId: merchant.id,
+          sessionId: session.sessionId,
+          errorType: classifyError(e2),
+          retryCount: 1,
+        });
+        yield {
+          type: 'say',
+          text: "Sorry — I'm having trouble reaching my brain. Try again in a moment?",
+        };
+        yield { type: 'end_of_turn' };
+        return;
+      }
+    }
+    if (firstFailed) {
+      yield { type: 'say', text: 'Hold on a sec…' };
+    }
+    response = attemptResult;
     if (response.toolCalls.length === 0) break;
     history.push({
       role: 'assistant',
@@ -245,6 +313,15 @@ export async function* runTurn(
 
 function makeCtx(merchant: Merchant, session: SessionState): AdapterContext {
   return { merchant, cartToken: session.cartToken, sessionId: session.sessionId };
+}
+
+function classifyError(err: Error): string {
+  const m = err.message.toLowerCase();
+  if (m.includes('abort') || m.includes('timeout')) return 'timeout';
+  if (m.includes('429')) return 'rate_limit';
+  if (m.match(/\b5\d{2}\b/)) return 'upstream_5xx';
+  if (m.match(/\b4\d{2}\b/)) return 'client_4xx';
+  return 'other';
 }
 
 function gracefulCloseText(reason: 'turns' | 'voice_ms' | 'duration_ms'): string {
