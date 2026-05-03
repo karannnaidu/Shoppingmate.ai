@@ -15,6 +15,7 @@
   "dependencies": {
     "@shoppingmate/adapters": "workspace:*",
     "@shoppingmate/db": "workspace:*",
+    "@shoppingmate/dom-harness": "workspace:*",
     "@shoppingmate/jobs": "workspace:*",
     "@shoppingmate/shared": "workspace:*",
     "drizzle-orm": "^0.36.4"

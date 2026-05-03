@@ -1,10 +1,10 @@
 import { serve } from '@hono/node-server';
+import { mountWs } from '@shoppingmate/dom-harness';
 import { env, logger } from '@shoppingmate/shared';
 import { Hono } from 'hono';
 import { healthRoute } from './routes/health.js';
 import { installRoute } from './routes/install.js';
 import { slackRoute } from './routes/slack/index.js';
-import { mountWs } from './routes/widget/ws.js';
 
 const app = new Hono();
 app.route('/health', healthRoute);

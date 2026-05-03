@@ -27,6 +27,7 @@
     "@biomejs/biome": "^1.9.4",
     "@shoppingmate/adapters": "workspace:^",
     "@shoppingmate/db": "workspace:^",
+    "@shoppingmate/dom-harness": "workspace:^",
     "@shoppingmate/jobs": "workspace:^",
     "@shoppingmate/shared": "workspace:^",
     "@types/node": "^22.9.0",

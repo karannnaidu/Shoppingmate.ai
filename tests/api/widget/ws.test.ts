@@ -1,9 +1,8 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { mountWs, type MountedWs, signWsToken, verifyWsToken } from '@shoppingmate/dom-harness';
 import WebSocket from 'ws';
-import { mountWs, type MountedWs } from '../../../apps/api/src/routes/widget/ws.js';
-import { signWsToken, verifyWsToken } from '../../../apps/api/src/routes/widget/wsAuth.js';
 
 let server: Server;
 let mounted: MountedWs;

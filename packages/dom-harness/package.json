@@ -1,0 +1,24 @@
+{
+  "name": "@shoppingmate/dom-harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@shoppingmate/adapters": "workspace:*",
+    "playwright": "^1.49.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.6.3"
+  }
+}

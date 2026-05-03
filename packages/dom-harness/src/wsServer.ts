@@ -1,8 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import type { Server } from 'node:http';
+import type { IncomingMessage } from 'node:http';
+import type { Duplex } from 'node:stream';
 import type { DomAck, DomAction, WSTransport } from '@shoppingmate/adapters';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { verifyWsToken } from './wsAuth.js';
+
+/**
+ * Minimal interface we need from the http server: register an `upgrade`
+ * listener. Accepts both `node:http` Server and `@hono/node-server`'s union
+ * `ServerType` (http/https/http2) without depending on either.
+ */
+export interface UpgradableServer {
+  on(
+    event: 'upgrade',
+    listener: (req: IncomingMessage, socket: Duplex, head: Buffer) => void,
+  ): unknown;
+}
 
 type Pending = {
   resolve: (a: DomAck) => void;
@@ -82,7 +95,7 @@ export type MountedWs = {
  * Returns the transport so a co-located adapter (e.g. DOMAdapter) can call
  * `transport.send(sessionId, action)` and await the visitor's ack.
  */
-export function mountWs(server: Server): MountedWs {
+export function mountWs(server: UpgradableServer): MountedWs {
   const wss = new WebSocketServer({ noServer: true });
   const transport = new ServerTransport();
 
