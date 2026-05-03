@@ -1,6 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runTurn, type RunTurnDeps } from './runtime.js';
+import { type RunTurnDeps, runTurn } from './runtime.js';
 import type { SessionState } from './types.js';
 
 vi.mock('@shoppingmate/shared', async (orig) => ({
@@ -39,10 +39,50 @@ const deps: RunTurnDeps = {
     kind: 'shopify',
     searchProducts: async () => ({ kind: 'ok', value: [] }),
     getProduct: async () => ({ kind: 'ok', value: null }),
-    cartAdd: async () => ({ kind: 'ok', value: { cartToken: 'x', lines: [], subtotalCents: 0, totalCents: 0, currency: 'INR', appliedCoupons: [] } }),
-    cartUpdate: async () => ({ kind: 'ok', value: { cartToken: 'x', lines: [], subtotalCents: 0, totalCents: 0, currency: 'INR', appliedCoupons: [] } }),
-    cartGet: async () => ({ kind: 'ok', value: { cartToken: 'x', lines: [], subtotalCents: 0, totalCents: 0, currency: 'INR', appliedCoupons: [] } }),
-    couponApply: async () => ({ kind: 'ok', value: { cartToken: 'x', lines: [], subtotalCents: 0, totalCents: 0, currency: 'INR', appliedCoupons: [] } }),
+    cartAdd: async () => ({
+      kind: 'ok',
+      value: {
+        cartToken: 'x',
+        lines: [],
+        subtotalCents: 0,
+        totalCents: 0,
+        currency: 'INR',
+        appliedCoupons: [],
+      },
+    }),
+    cartUpdate: async () => ({
+      kind: 'ok',
+      value: {
+        cartToken: 'x',
+        lines: [],
+        subtotalCents: 0,
+        totalCents: 0,
+        currency: 'INR',
+        appliedCoupons: [],
+      },
+    }),
+    cartGet: async () => ({
+      kind: 'ok',
+      value: {
+        cartToken: 'x',
+        lines: [],
+        subtotalCents: 0,
+        totalCents: 0,
+        currency: 'INR',
+        appliedCoupons: [],
+      },
+    }),
+    couponApply: async () => ({
+      kind: 'ok',
+      value: {
+        cartToken: 'x',
+        lines: [],
+        subtotalCents: 0,
+        totalCents: 0,
+        currency: 'INR',
+        appliedCoupons: [],
+      },
+    }),
     checkoutUrl: async () => ({ kind: 'ok', value: 'https://acme.test/checkout' }),
   }),
   saveSession: vi.fn(async () => undefined),
@@ -102,9 +142,7 @@ describe('runTurn() — happy path', () => {
     vi.mocked(chatTools)
       .mockResolvedValueOnce({
         text: '',
-        toolCalls: [
-          { id: 'c1', name: 'products.search', argumentsJson: '{"query":"dress"}' },
-        ],
+        toolCalls: [{ id: 'c1', name: 'products.search', argumentsJson: '{"query":"dress"}' }],
         stopReason: 'tool_calls',
         inputTokens: 50,
         outputTokens: 10,
@@ -154,7 +192,14 @@ describe('runTurn() — happy path', () => {
     const cards = events.find((e) => e.type === 'cards');
     expect(cards).toMatchObject({
       type: 'cards',
-      items: [{ sku: 'A', title: 'Silk dress', image: 'https://cdn.test/a.jpg', priceFormatted: '\u20B91999.00' }],
+      items: [
+        {
+          sku: 'A',
+          title: 'Silk dress',
+          image: 'https://cdn.test/a.jpg',
+          priceFormatted: '\u20B91999.00',
+        },
+      ],
     });
   });
 
@@ -238,7 +283,9 @@ describe('runTurn() — happy path', () => {
     }
 
     expect(saveSession).toHaveBeenCalledTimes(1);
-    const saved = saveSession.mock.calls[0]![0];
+    const firstCall = saveSession.mock.calls[0];
+    if (!firstCall) throw new Error('saveSession not called');
+    const saved = firstCall[0];
     expect(saved.history).toEqual([
       { role: 'user', content: 'hi there' },
       { role: 'assistant', content: 'Hello there.' },
@@ -308,7 +355,14 @@ describe('runTurn() — card_tap', () => {
     });
     const cartAddSpy = vi.fn(async () => ({
       kind: 'ok' as const,
-      value: { cartToken: 'ct1', lines: [], subtotalCents: 0, totalCents: 0, currency: 'INR', appliedCoupons: [] },
+      value: {
+        cartToken: 'ct1',
+        lines: [],
+        subtotalCents: 0,
+        totalCents: 0,
+        currency: 'INR',
+        appliedCoupons: [],
+      },
     }));
     const localDeps: RunTurnDeps = {
       ...deps,

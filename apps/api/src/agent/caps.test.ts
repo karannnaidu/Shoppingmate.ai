@@ -24,7 +24,9 @@ describe('checkCaps()', () => {
   });
 
   it('does NOT hit cap on the 15th turn', () => {
-    expect(checkCaps({ ...baseSession, turnCount: CAP_TURNS - 1 }, 'text', 1_000).status).not.toBe('cap');
+    expect(checkCaps({ ...baseSession, turnCount: CAP_TURNS - 1 }, 'text', 1_000).status).not.toBe(
+      'cap',
+    );
   });
 
   it('hits voice_ms cap when voiceMs exceeds 3 minutes in voice mode', () => {
@@ -34,17 +36,13 @@ describe('checkCaps()', () => {
   });
 
   it('does not enforce voice_ms cap in text mode', () => {
-    expect(
-      checkCaps({ ...baseSession, voiceMs: CAP_VOICE_MS + 1 }, 'text', 1_000).status,
-    ).toBe('ok');
+    expect(checkCaps({ ...baseSession, voiceMs: CAP_VOICE_MS + 1 }, 'text', 1_000).status).toBe(
+      'ok',
+    );
   });
 
   it('hits duration_ms cap when wall-clock exceeds 25 minutes', () => {
-    const r = checkCaps(
-      { ...baseSession, startedAt: 0 },
-      'text',
-      CAP_DURATION_MS + 1,
-    );
+    const r = checkCaps({ ...baseSession, startedAt: 0 }, 'text', CAP_DURATION_MS + 1);
     expect(r.status).toBe('cap');
     if (r.status === 'cap') expect(r.reason).toBe('duration_ms');
   });

@@ -13,12 +13,19 @@ const session: SessionState = {
     {
       role: 'assistant',
       content: null,
-      tool_calls: [{ id: 'c1', type: 'function', function: { name: 'products.search', arguments: '{}' } }],
+      tool_calls: [
+        { id: 'c1', type: 'function', function: { name: 'products.search', arguments: '{}' } },
+      ],
     },
     {
       role: 'tool',
       tool_call_id: 'c1',
-      content: JSON.stringify({ ok: true, value: [{ sku: 'A', title: 'Silk', priceCents: 100_000, currency: 'INR', productUrl: '/a' }] }),
+      content: JSON.stringify({
+        ok: true,
+        value: [
+          { sku: 'A', title: 'Silk', priceCents: 100_000, currency: 'INR', productUrl: '/a' },
+        ],
+      }),
     },
     { role: 'assistant', content: 'see the cards' },
   ],

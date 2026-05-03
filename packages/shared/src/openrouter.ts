@@ -79,10 +79,7 @@ export type AssistantToolCalls = {
   }>;
 };
 
-export type ToolsMessage =
-  | ChatMessage
-  | AssistantToolCalls
-  | ToolCallMessage;
+export type ToolsMessage = ChatMessage | AssistantToolCalls | ToolCallMessage;
 
 export type ToolCall = { id: string; name: string; argumentsJson: string };
 

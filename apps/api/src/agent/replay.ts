@@ -7,7 +7,7 @@ export function* replaySession(session: SessionState): Generator<AgentEvent, voi
       yield { type: 'say', text: stripPrices(m.content).text };
     } else if (isTool(m)) {
       const content = safeParse(m.content);
-      if (content && content.ok && Array.isArray(content.value)) {
+      if (content?.ok && Array.isArray(content.value)) {
         const cards: CardItem[] = content.value
           .map((p: unknown) => productLikeToCard(p))
           .filter((c: CardItem | null): c is CardItem => c !== null);

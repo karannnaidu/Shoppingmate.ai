@@ -32,10 +32,7 @@ export async function agentReplay(fixturePath: string): Promise<number> {
   // Compute the import target relative to this source file. `import.meta.url`
   // resolves at runtime (tsx for dev, compiled JS for build), and the string
   // is opaque to `tsc`'s static resolution.
-  const runnerUrl = new URL(
-    '../../../../tests/agent/_fixture-runner-pure.js',
-    import.meta.url,
-  );
+  const runnerUrl = new URL('../../../../tests/agent/_fixture-runner-pure.js', import.meta.url);
   // Round-trip through pathToFileURL to keep things explicit on Windows where
   // `\` paths and `file://` semantics need to play well together.
   void pathToFileURL;
@@ -47,7 +44,8 @@ export async function agentReplay(fixturePath: string): Promise<number> {
 
   for (let i = 0; i < events.length; i += 1) {
     console.log(`# turn ${i + 1}: ${JSON.stringify(fixture.turns[i]?.user)}`);
-    for (const ev of events[i]!) console.log(JSON.stringify(ev));
+    const turn = events[i] ?? [];
+    for (const ev of turn) console.log(JSON.stringify(ev));
   }
 
   for (const turn of events) {

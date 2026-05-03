@@ -88,9 +88,7 @@ describe('chatTools()', () => {
     server.use(
       http.post('https://openrouter.ai/api/v1/chat/completions', () =>
         HttpResponse.json({
-          choices: [
-            { message: { role: 'assistant', content: 'hi there' }, finish_reason: 'stop' },
-          ],
+          choices: [{ message: { role: 'assistant', content: 'hi there' }, finish_reason: 'stop' }],
           usage: { prompt_tokens: 10, completion_tokens: 3 },
         }),
       ),

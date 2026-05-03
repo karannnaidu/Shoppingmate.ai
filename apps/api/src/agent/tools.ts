@@ -8,11 +8,16 @@ export function buildToolSurface(_merchant: Merchant): ToolDef[] {
       type: 'function',
       function: {
         name: 'products.search',
-        description: "Search the merchant's catalog. Use whenever the visitor asks for a product or category.",
+        description:
+          "Search the merchant's catalog. Use whenever the visitor asks for a product or category.",
         parameters: {
           type: 'object',
           properties: {
-            query: { type: 'string', description: 'Free-text search (e.g. "winter face cream", "wedding dress under 2000")' },
+            query: {
+              type: 'string',
+              description:
+                'Free-text search (e.g. "winter face cream", "wedding dress under 2000")',
+            },
             limit: { type: 'integer', minimum: 1, maximum: 20, default: 5 },
           },
           required: ['query'],
@@ -23,7 +28,8 @@ export function buildToolSurface(_merchant: Merchant): ToolDef[] {
       type: 'function',
       function: {
         name: 'products.get',
-        description: 'Fetch full product detail by SKU. Use for variant disambiguation or detail Q&A.',
+        description:
+          'Fetch full product detail by SKU. Use for variant disambiguation or detail Q&A.',
         parameters: {
           type: 'object',
           properties: { sku: { type: 'string' } },
@@ -86,7 +92,8 @@ export function buildToolSurface(_merchant: Merchant): ToolDef[] {
       type: 'function',
       function: {
         name: 'checkout.url',
-        description: "When the visitor is ready to pay, fetch the merchant's native checkout URL. The runtime will redirect them.",
+        description:
+          "When the visitor is ready to pay, fetch the merchant's native checkout URL. The runtime will redirect them.",
         parameters: { type: 'object', properties: {} },
       },
     },
@@ -114,7 +121,11 @@ export async function dispatchTool(
 ): Promise<ToolResultEnvelope> {
   switch (name) {
     case 'products.search': {
-      const r = await adapter.searchProducts(ctx, String(args.query ?? ''), Number(args.limit) || undefined);
+      const r = await adapter.searchProducts(
+        ctx,
+        String(args.query ?? ''),
+        Number(args.limit) || undefined,
+      );
       if (r.kind === 'ok' && r.value.length === 0) {
         return { ok: false, kind: 'not_found', query: String(args.query ?? '') };
       }

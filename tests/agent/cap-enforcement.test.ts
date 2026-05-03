@@ -9,7 +9,8 @@ describe('fixture: 15-turn cap graceful close', () => {
     );
 
     expect(events).toHaveLength(1);
-    const turnEvents = events[0]!;
+    const turnEvents = events[0];
+    if (!turnEvents) throw new Error('expected at least one turn');
     const types = turnEvents.map((e) => e.type);
 
     expect(types).toContain('say');

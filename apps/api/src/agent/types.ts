@@ -5,7 +5,7 @@ export type Mode = 'voice' | 'text';
 export type CardItem = {
   image: string | null;
   title: string;
-  priceFormatted: string;     // DB-trusted, never LLM-emitted
+  priceFormatted: string; // DB-trusted, never LLM-emitted
   variantId: string | null;
   sku: string;
   productUrl: string;

@@ -51,7 +51,11 @@
           "text": "",
           "stopReason": "tool_calls",
           "toolCalls": [
-            { "id": "c2", "name": "cart.add", "argumentsJson": "{\"sku\":\"BAG-1\",\"variantId\":null,\"qty\":1}" }
+            {
+              "id": "c2",
+              "name": "cart.add",
+              "argumentsJson": "{\"sku\":\"BAG-1\",\"variantId\":null,\"qty\":1}"
+            }
           ]
         },
         {

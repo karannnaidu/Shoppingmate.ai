@@ -1,6 +1,6 @@
+import { FakeWSTransport, InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import type { AdapterType, Merchant } from '@shoppingmate/db';
 import { describe, expect, it, vi } from 'vitest';
-import { FakeWSTransport, getAdapter, InMemorySessionState } from '@shoppingmate/adapters';
 import { dispatchTool } from '../../apps/api/src/agent/tools.js';
 
 vi.mock('@shoppingmate/db', async (orig) => {
@@ -30,12 +30,7 @@ const types: AdapterType[] = [
   'suggest',
 ];
 
-const validErrorKinds = new Set([
-  'unsupported',
-  'platform_error',
-  'not_found',
-  'retry_exhausted',
-]);
+const validErrorKinds = new Set(['unsupported', 'platform_error', 'not_found', 'retry_exhausted']);
 
 describe('contract: tool envelope round-trip across all 8 adapter types', () => {
   for (const t of types) {

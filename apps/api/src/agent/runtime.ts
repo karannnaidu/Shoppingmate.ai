@@ -1,10 +1,10 @@
 import type { Adapter, AdapterContext } from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
-import { chatTools, type ChatToolsResult } from '@shoppingmate/shared';
+import { type ChatToolsResult, chatTools } from '@shoppingmate/shared';
 import { checkCaps } from './caps.js';
 import { redactPii, segmentSay, stripPrices } from './postprocess.js';
 import { buildSystemPrompt } from './prompts/system.js';
-import { buildToolSurface, dispatchTool, type ToolResultEnvelope } from './tools.js';
+import { type ToolResultEnvelope, buildToolSurface, dispatchTool } from './tools.js';
 import type {
   AgentEvent,
   AnthropicMessage,
@@ -255,21 +255,14 @@ export async function* runTurn(
         });
       }
       yield { type: 'tool_result', toolName: call.name, ok: envelope.ok };
-      if (
-        envelope.ok &&
-        (call.name === 'products.search' || call.name === 'products.get')
-      ) {
+      if (envelope.ok && (call.name === 'products.search' || call.name === 'products.get')) {
         const cards = toCards(envelope.value);
         if (cards.length > 0) {
           collectedCards.push(...cards);
           yield { type: 'cards', items: cards };
         }
       }
-      if (
-        envelope.ok &&
-        call.name === 'checkout.url' &&
-        typeof envelope.value === 'string'
-      ) {
+      if (envelope.ok && call.name === 'checkout.url' && typeof envelope.value === 'string') {
         yield { type: 'checkout_redirect', url: envelope.value };
       }
       history.push({
@@ -282,13 +275,14 @@ export async function* runTurn(
 
   const responseText = response?.text ?? '';
   const { text: stripped, hits } = stripPrices(responseText);
-  if (hits.length > 0) {
+  const firstHit = hits[0];
+  if (firstHit) {
     await deps.recordMetric(
       'agent.say.price_stripped',
       {
         merchantId: merchant.id,
         sessionId: session.sessionId,
-        pattern: hits[0]!.pattern,
+        pattern: firstHit.pattern,
       },
       hits.length,
     );
@@ -300,16 +294,9 @@ export async function* runTurn(
   const finalAssistant: AnthropicMessage = { role: 'assistant', content: responseText };
   const updated: SessionState = {
     ...session,
-    history: [
-      ...session.history,
-      { role: 'user', content: userText },
-      finalAssistant,
-    ],
+    history: [...session.history, { role: 'user', content: userText }, finalAssistant],
     turnCount: session.turnCount + 1,
-    voiceMs:
-      session.mode === 'voice'
-        ? session.voiceMs + (Date.now() - now)
-        : session.voiceMs,
+    voiceMs: session.mode === 'voice' ? session.voiceMs + (Date.now() - now) : session.voiceMs,
     totalMs: Date.now() - session.startedAt,
     lastTurnAt: Date.now(),
   };

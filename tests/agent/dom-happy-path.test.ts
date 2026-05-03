@@ -9,12 +9,15 @@ describe('fixture: DOM happy path', () => {
     );
     expect(events).toHaveLength(2);
     for (let i = 0; i < events.length; i += 1) {
-      const types = events[i]!.map((e) => e.type);
-      for (const expected of fixture.turns[i]!.expectEvents) {
+      const turnEvents = events[i] ?? [];
+      const turnFixture = fixture.turns[i];
+      if (!turnFixture) throw new Error(`fixture missing turn ${i}`);
+      const types = turnEvents.map((e) => e.type);
+      for (const expected of turnFixture.expectEvents) {
         expect(types).toContain(expected);
       }
-      if (fixture.turns[i]!.expectNoNumericPriceInSay) {
-        const says = events[i]!
+      if (turnFixture.expectNoNumericPriceInSay) {
+        const says = turnEvents
           .filter((e) => e.type === 'say')
           .map((e) => (e as { text: string }).text)
           .join(' ');

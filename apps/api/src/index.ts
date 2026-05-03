@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server';
-import { InMemorySessionState, getAdapter, type WSTransport } from '@shoppingmate/adapters';
+import { InMemorySessionState, type WSTransport, getAdapter } from '@shoppingmate/adapters';
 import { db, schema } from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
 import { env, logger } from '@shoppingmate/shared';
@@ -91,10 +91,7 @@ mountAgentWs(server, {
           state: new InMemorySessionState(),
         }),
       saveSession: (s: SessionState) => saveSession(redis, s),
-      recordMetric: async (
-        name: string,
-        tags: Record<string, string | number | boolean>,
-      ) => {
+      recordMetric: async (name: string, tags: Record<string, string | number | boolean>) => {
         await db
           .insert(schema.metricEvents)
           .values({ merchantId: merchant.id, metricName: name, tags })
@@ -108,7 +105,4 @@ mountAgentWs(server, {
   },
 });
 
-logger.info(
-  { port: env.API_PORT },
-  'agent ws mounted at /v1/widget/:sessionId/agent',
-);
+logger.info({ port: env.API_PORT }, 'agent ws mounted at /v1/widget/:sessionId/agent');

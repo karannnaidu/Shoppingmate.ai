@@ -1,7 +1,5 @@
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AnthropicMessage } from './types.js';
-import type { SessionState } from './types.js';
 import {
   SESSION_TTL_SECONDS,
   TOKEN_BUDGET,
@@ -10,6 +8,8 @@ import {
   saveSession,
   truncateHistory,
 } from './state.js';
+import type { AnthropicMessage } from './types.js';
+import type { SessionState } from './types.js';
 
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
@@ -95,11 +95,7 @@ describe('truncateHistory()', () => {
   });
 
   it('preserves order from oldest to newest after truncation', () => {
-    const h: AnthropicMessage[] = [
-      msg('user', 'a'),
-      msg('assistant', 'b'),
-      msg('user', 'c'),
-    ];
+    const h: AnthropicMessage[] = [msg('user', 'a'), msg('assistant', 'b'), msg('user', 'c')];
     const out = truncateHistory(h);
     expect(out.map((m) => (m as { content: string }).content)).toEqual(['a', 'b', 'c']);
   });

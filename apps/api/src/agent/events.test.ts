@@ -3,9 +3,7 @@ import { decodeWidgetMessage, encodeAgentEvent } from './events.js';
 
 describe('encodeAgentEvent()', () => {
   it('encodes say', () => {
-    expect(encodeAgentEvent({ type: 'say', text: 'hello' })).toBe(
-      '{"type":"say","text":"hello"}',
-    );
+    expect(encodeAgentEvent({ type: 'say', text: 'hello' })).toBe('{"type":"say","text":"hello"}');
   });
   it('encodes cards', () => {
     const out = encodeAgentEvent({

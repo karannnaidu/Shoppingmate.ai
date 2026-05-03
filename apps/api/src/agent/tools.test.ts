@@ -1,4 +1,10 @@
-import type { Adapter, AdapterContext, AdapterResult, CartState, Product } from '@shoppingmate/adapters';
+import type {
+  Adapter,
+  AdapterContext,
+  AdapterResult,
+  CartState,
+  Product,
+} from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
 import { describe, expect, it } from 'vitest';
 import { buildToolSurface, dispatchTool } from './tools.js';
@@ -23,7 +29,10 @@ describe('buildToolSurface()', () => {
   it('each tool has a JSON-Schema parameters object', () => {
     for (const t of buildToolSurface(merchant)) {
       expect(t.type).toBe('function');
-      expect(t.function.parameters).toMatchObject({ type: 'object', properties: expect.any(Object) });
+      expect(t.function.parameters).toMatchObject({
+        type: 'object',
+        properties: expect.any(Object),
+      });
     }
   });
 

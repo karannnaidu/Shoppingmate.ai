@@ -1,8 +1,11 @@
 const PRICE_PATTERNS: Array<{ pattern: string; re: RegExp }> = [
-  { pattern: 'rupee',       re: /₹\s*\d[\d,]*(?:\.\d+)?/g },
-  { pattern: 'dollar',      re: /\$\s*\d[\d,]*(?:\.\d+)?/g },
-  { pattern: 'rs_prefix',   re: /\bRs\.?\s*\d[\d,]*(?:\.\d+)?/g },
-  { pattern: 'word_suffix', re: /\b\d[\d,]*(?:\.\d+)?\s*(?:rupees|rupee|dollars|dollar|INR|USD)\b/gi },
+  { pattern: 'rupee', re: /₹\s*\d[\d,]*(?:\.\d+)?/g },
+  { pattern: 'dollar', re: /\$\s*\d[\d,]*(?:\.\d+)?/g },
+  { pattern: 'rs_prefix', re: /\bRs\.?\s*\d[\d,]*(?:\.\d+)?/g },
+  {
+    pattern: 'word_suffix',
+    re: /\b\d[\d,]*(?:\.\d+)?\s*(?:rupees|rupee|dollars|dollar|INR|USD)\b/gi,
+  },
 ];
 
 export type PriceHit = { pattern: string; matched: string };
@@ -17,7 +20,7 @@ export function stripPrices(input: string): { text: string; hits: PriceHit[] } {
     });
   }
   // collapse double spaces created by replacements
-  text = text.replace(/  +/g, ' ').trim();
+  text = text.replace(/ {2,}/g, ' ').trim();
   return { text, hits };
 }
 
@@ -26,7 +29,10 @@ const PHONE_RE = /(?:\+\d{1,3}[\s-]?)?(?:\d[\s-]?){10,15}/g; // catches ten-digi
 const CARD_RE = /\b(?:\d[\s-]?){13,19}\b/g;
 
 export function redactPii(input: string): string {
-  return input.replace(CARD_RE, '[redacted]').replace(EMAIL_RE, '[redacted]').replace(PHONE_RE, '[redacted]');
+  return input
+    .replace(CARD_RE, '[redacted]')
+    .replace(EMAIL_RE, '[redacted]')
+    .replace(PHONE_RE, '[redacted]');
 }
 
 export function segmentSay(input: string): string[] {

@@ -7,12 +7,8 @@
 // `_fixture-runner-pure.ts` and is reused by `packages/cli/src/commands/agentReplay.ts`,
 // which runs outside vitest and therefore can't import `vi`.
 import { vi } from 'vitest';
-import {
-  fixtureSonnetQueue,
-  loadFixture,
-  runFixturePure,
-} from './_fixture-runner-pure.js';
 import type { AgentEvent, SessionState } from '../../apps/api/src/agent/types.js';
+import { fixtureSonnetQueue, loadFixture, runFixturePure } from './_fixture-runner-pure.js';
 
 // Re-export the shared types so callers can keep importing from here.
 export type {

@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { stripPrices, redactPii, segmentSay } from './postprocess.js';
+import { redactPii, segmentSay, stripPrices } from './postprocess.js';
 
 describe('stripPrices()', () => {
   it.each([
-    ['₹1,499',                              'the price on the card'],
-    ['costs ₹1,499 only',                   'costs the price on the card only'],
-    ['$2,200.00',                           'the price on the card'],
-    ['Rs. 350',                             'the price on the card'],
-    ['Rs350',                               'the price on the card'],
-    ['saves you 1,499 rupees',              'saves you the price on the card'],
-    ['that is 99 USD',                      'that is the price on the card'],
-    ['size 10',                             'size 10'],         // non-price untouched
-    ['12 reviews',                          '12 reviews'],
-    ['M, L, XL',                            'M, L, XL'],
-    ['I have 3 in cart',                    'I have 3 in cart'],
+    ['₹1,499', 'the price on the card'],
+    ['costs ₹1,499 only', 'costs the price on the card only'],
+    ['$2,200.00', 'the price on the card'],
+    ['Rs. 350', 'the price on the card'],
+    ['Rs350', 'the price on the card'],
+    ['saves you 1,499 rupees', 'saves you the price on the card'],
+    ['that is 99 USD', 'that is the price on the card'],
+    ['size 10', 'size 10'], // non-price untouched
+    ['12 reviews', '12 reviews'],
+    ['M, L, XL', 'M, L, XL'],
+    ['I have 3 in cart', 'I have 3 in cart'],
   ])('strips %s', (input, expected) => {
     const { text, hits } = stripPrices(input);
     expect(text).toBe(expected);
@@ -22,21 +22,23 @@ describe('stripPrices()', () => {
 
   it('reports the matched pattern in hits[]', () => {
     const r = stripPrices('₹1,499 and $20 too');
-    expect(r.hits).toEqual(expect.arrayContaining([
-      expect.objectContaining({ pattern: 'rupee' }),
-      expect.objectContaining({ pattern: 'dollar' }),
-    ]));
+    expect(r.hits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ pattern: 'rupee' }),
+        expect.objectContaining({ pattern: 'dollar' }),
+      ]),
+    );
   });
 });
 
 describe('redactPii()', () => {
   it.each([
-    ['my email is jane@example.com',           'my email is [redacted]'],
-    ['call me at +91 98765 43210',             'call me at [redacted]'],
-    ['call me at 9876543210',                  'call me at [redacted]'],
-    ['card 4111 1111 1111 1111',               'card [redacted]'],
-    ['card 4111111111111111',                  'card [redacted]'],
-    ['size 10 fits, 12 reviews',               'size 10 fits, 12 reviews'], // not PII
+    ['my email is jane@example.com', 'my email is [redacted]'],
+    ['call me at +91 98765 43210', 'call me at [redacted]'],
+    ['call me at 9876543210', 'call me at [redacted]'],
+    ['card 4111 1111 1111 1111', 'card [redacted]'],
+    ['card 4111111111111111', 'card [redacted]'],
+    ['size 10 fits, 12 reviews', 'size 10 fits, 12 reviews'], // not PII
   ])('redacts %s', (input, expected) => {
     expect(redactPii(input)).toBe(expected);
   });
@@ -49,10 +51,7 @@ describe('segmentSay()', () => {
     ]);
   });
   it('splits on double-newline boundaries', () => {
-    expect(segmentSay('First chunk.\n\nSecond chunk.')).toEqual([
-      'First chunk.',
-      'Second chunk.',
-    ]);
+    expect(segmentSay('First chunk.\n\nSecond chunk.')).toEqual(['First chunk.', 'Second chunk.']);
   });
   it('drops empty segments', () => {
     expect(segmentSay('hello\n\n\n\nworld')).toEqual(['hello', 'world']);
