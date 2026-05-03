@@ -1,0 +1,49 @@
+{
+  "merchant": {
+    "id": "m_suggest",
+    "personaId": "concierge",
+    "adapterType": "suggest",
+    "name": "SuggestTest"
+  },
+  "adapterOverrides": { "cartAdd": "unsupported" },
+  "fixtureProducts": [
+    {
+      "merchantId": "m_suggest",
+      "sku": "TOTE-1",
+      "title": "Canvas tote",
+      "imageUrl": "https://cdn.test/tote.jpg",
+      "productUrl": "https://suggesttest.test/p/tote",
+      "priceCents": 99900,
+      "currency": "INR",
+      "inStock": true,
+      "source": "manual",
+      "indexedAt": "2026-05-04T00:00:00Z",
+      "description": null,
+      "variants": null,
+      "sourceMeta": null,
+      "searchVector": null
+    }
+  ],
+  "initialSession": { "turnCount": 0 },
+  "turns": [
+    {
+      "user": { "type": "user_text", "text": "show me a tote", "mode": "text" },
+      "sonnetResponses": [
+        {
+          "text": "",
+          "stopReason": "tool_calls",
+          "toolCalls": [
+            { "id": "c1", "name": "products.search", "argumentsJson": "{\"query\":\"tote\"}" }
+          ]
+        },
+        {
+          "text": "Here's one — tap the card to add it on the page.",
+          "stopReason": "stop",
+          "toolCalls": []
+        }
+      ],
+      "expectEvents": ["thinking", "tool_result", "cards", "say", "end_of_turn"],
+      "expectNoNumericPriceInSay": true
+    }
+  ]
+}
