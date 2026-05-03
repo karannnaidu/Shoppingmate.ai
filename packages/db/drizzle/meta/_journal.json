@@ -22,6 +22,13 @@
       "when": 1777745044651,
       "tag": "0002_icy_northstar",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777786011756,
+      "tag": "0003_fat_felicia_hardy",
+      "breakpoints": true
     }
   ]
 }

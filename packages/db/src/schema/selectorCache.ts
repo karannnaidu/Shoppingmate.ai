@@ -17,6 +17,9 @@ export const selectorCache = pgTable(
     locked: boolean('locked').notNull().default(false),
     lastTestedAt: timestamp('last_tested_at', { withTimezone: true }),
     lastTestPassed: boolean('last_test_passed'),
+    overrideLockedAt: timestamp('override_locked_at', { withTimezone: true }),
+    suggestedReplacement: text('suggested_replacement'),
+    alertSentAt: timestamp('alert_sent_at', { withTimezone: true }),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.merchantId, t.pageTemplateHash, t.selectorKey] }),
