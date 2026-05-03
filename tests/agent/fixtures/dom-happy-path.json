@@ -1,0 +1,67 @@
+{
+  "merchant": {
+    "id": "m_dom",
+    "personaId": "concierge",
+    "adapterType": "dom",
+    "name": "DomTest"
+  },
+  "fixtureProducts": [
+    {
+      "merchantId": "m_dom",
+      "sku": "BAG-1",
+      "title": "Leather backpack",
+      "imageUrl": "https://cdn.test/bag.jpg",
+      "productUrl": "https://domtest.test/p/bag",
+      "priceCents": 349900,
+      "currency": "INR",
+      "inStock": true,
+      "source": "scraped",
+      "indexedAt": "2026-05-04T00:00:00Z",
+      "description": null,
+      "variants": null,
+      "sourceMeta": null,
+      "searchVector": null
+    }
+  ],
+  "initialSession": { "turnCount": 0 },
+  "turns": [
+    {
+      "user": { "type": "user_text", "text": "I need a backpack", "mode": "text" },
+      "sonnetResponses": [
+        {
+          "text": "",
+          "stopReason": "tool_calls",
+          "toolCalls": [
+            { "id": "c1", "name": "products.search", "argumentsJson": "{\"query\":\"backpack\"}" }
+          ]
+        },
+        {
+          "text": "Here's a leather backpack — want me to add it to your cart?",
+          "stopReason": "stop",
+          "toolCalls": []
+        }
+      ],
+      "expectEvents": ["thinking", "tool_result", "cards", "say", "end_of_turn"],
+      "expectNoNumericPriceInSay": true
+    },
+    {
+      "user": { "type": "user_text", "text": "yes please", "mode": "text" },
+      "sonnetResponses": [
+        {
+          "text": "",
+          "stopReason": "tool_calls",
+          "toolCalls": [
+            { "id": "c2", "name": "cart.add", "argumentsJson": "{\"sku\":\"BAG-1\",\"variantId\":null,\"qty\":1}" }
+          ]
+        },
+        {
+          "text": "Done — added. Want to keep browsing or head to checkout?",
+          "stopReason": "stop",
+          "toolCalls": []
+        }
+      ],
+      "expectEvents": ["thinking", "tool_result", "say", "end_of_turn"],
+      "expectNoNumericPriceInSay": true
+    }
+  ]
+}
