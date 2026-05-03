@@ -2,6 +2,9 @@ import type { Merchant } from '@shoppingmate/db';
 import { describe, expect, it, vi } from 'vitest';
 import { BigCommerceAdapter } from '../src/bigcommerce.js';
 import { getAdapter } from '../src/dispatch.js';
+import { DOMAdapter } from '../src/dom/index.js';
+import { InMemorySessionState } from '../src/dom/sessionState.js';
+import { FakeWSTransport } from '../src/dom/transport.js';
 import { implementedAdapters } from '../src/implementedAdapters.js';
 import { MagentoAdapter } from '../src/magento.js';
 import { ShopifyAdapter } from '../src/shopify.js';
@@ -13,6 +16,13 @@ import { WooAdapter } from '../src/woo.js';
 vi.mock('@shoppingmate/db', () => ({
   searchProducts: vi.fn(async () => []),
   getProduct: vi.fn(async () => null),
+  selectorCacheRepo: {
+    get: vi.fn(async () => null),
+    put: vi.fn(),
+    upsertHealed: vi.fn(),
+    markOverrideFailing: vi.fn(),
+    markPassed: vi.fn(),
+  },
 }));
 
 const adapters: Adapter[] = [
@@ -22,6 +32,7 @@ const adapters: Adapter[] = [
   new BigCommerceAdapter(),
   new WixAdapter(),
   new SquarespaceAdapter(),
+  new DOMAdapter(new FakeWSTransport(), new InMemorySessionState()),
 ];
 
 describe.each(adapters)('Adapter contract — $kind', (a) => {
@@ -56,7 +67,11 @@ describe('contract — implementedAdapters in sync with concrete adapters', () =
         personaId: 'concierge',
         allowedDomains: [],
       } as unknown as Merchant;
-      expect(getAdapter(merchant).kind).toBe(t);
+      const deps =
+        t === 'dom'
+          ? { transport: new FakeWSTransport(), state: new InMemorySessionState() }
+          : undefined;
+      expect(getAdapter(merchant, deps).kind).toBe(t);
     }
   });
 

@@ -7,5 +7,6 @@ export const implementedAdapters: ReadonlySet<AdapterType> = new Set<AdapterType
   'bigcommerce',
   'wix',
   'squarespace',
-  // 'dom','suggest' added in 3d/3e
+  'dom',
+  // 'suggest' added in 3e
 ]);

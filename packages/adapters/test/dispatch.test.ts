@@ -1,11 +1,20 @@
 import type { Merchant } from '@shoppingmate/db';
 import { describe, expect, it, vi } from 'vitest';
 import { getAdapter } from '../src/dispatch.js';
+import { FakeWSTransport } from '../src/dom/transport.js';
+import { InMemorySessionState } from '../src/dom/sessionState.js';
 import { implementedAdapters } from '../src/implementedAdapters.js';
 
 vi.mock('@shoppingmate/db', () => ({
   searchProducts: vi.fn(async () => []),
   getProduct: vi.fn(async () => null),
+  selectorCacheRepo: {
+    get: vi.fn(async () => null),
+    put: vi.fn(),
+    upsertHealed: vi.fn(),
+    markOverrideFailing: vi.fn(),
+    markPassed: vi.fn(),
+  },
 }));
 
 const stubMerchant = (adapterType: string): Merchant =>
@@ -32,16 +41,31 @@ describe('getAdapter', () => {
     expect(getAdapter(stubMerchant(type)).kind).toBe(kind);
   });
 
-  it.each(['dom', 'suggest'])('throws adapter_not_implemented_in_plan3c for %s', (type) => {
-    expect(() => getAdapter(stubMerchant(type))).toThrow(/adapter_not_implemented_in_plan3c/);
+  it('returns DOMAdapter when adapterType=dom and deps provided', () => {
+    const a = getAdapter(stubMerchant('dom'), {
+      transport: new FakeWSTransport(),
+      state: new InMemorySessionState(),
+    });
+    expect(a.kind).toBe('dom');
+  });
+
+  it('throws when adapterType=dom but no deps provided', () => {
+    expect(() => getAdapter(stubMerchant('dom'))).toThrow(/dom_adapter_requires_transport/);
+  });
+
+  it('throws adapter_not_implemented_in_plan3d for suggest', () => {
+    expect(() => getAdapter(stubMerchant('suggest'))).toThrow(
+      /adapter_not_implemented_in_plan3d/,
+    );
   });
 });
 
 describe('implementedAdapters', () => {
-  it('contains all platforms 3c wired', () => {
+  it('contains all platforms 3d wired', () => {
     expect(implementedAdapters.has('magento')).toBe(true);
     expect(implementedAdapters.has('bigcommerce')).toBe(true);
     expect(implementedAdapters.has('wix')).toBe(true);
     expect(implementedAdapters.has('squarespace')).toBe(true);
+    expect(implementedAdapters.has('dom')).toBe(true);
   });
 });
