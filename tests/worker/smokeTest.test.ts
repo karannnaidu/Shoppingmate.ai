@@ -436,9 +436,7 @@ describe('smokeTest — DOM→Suggest auto-promotion (DB-backed)', () => {
       couponApply: vi.fn(),
       checkoutUrl: vi.fn(),
     } as unknown as Adapter;
-    vi.spyOn(adapters, 'getAdapter')
-      .mockReturnValueOnce(domStub)
-      .mockReturnValue(suggestStub);
+    vi.spyOn(adapters, 'getAdapter').mockReturnValueOnce(domStub).mockReturnValue(suggestStub);
 
     const r = await smokeTest({
       adapterType: 'dom',

@@ -34,10 +34,7 @@ describe('set-adapter CLI', () => {
     const id = await seedMerchant({ adapterType: 'dom' });
     await setAdapter({ merchantId: id, type: 'suggest', reason: 'cloudflare' });
 
-    const [m] = await db
-      .select()
-      .from(schema.merchants)
-      .where(eq(schema.merchants.id, id));
+    const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
     expect(m?.adapterType).toBe('suggest');
 
     const events = await db
@@ -57,10 +54,7 @@ describe('set-adapter CLI', () => {
     const id = await seedMerchant({ adapterType: 'dom' });
     await setAdapter({ merchantId: id, type: 'shopify', reason: 'manual' });
 
-    const [m] = await db
-      .select()
-      .from(schema.merchants)
-      .where(eq(schema.merchants.id, id));
+    const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
     expect(m?.adapterType).toBe('shopify');
 
     const events = await db

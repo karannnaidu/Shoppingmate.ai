@@ -130,11 +130,7 @@ export async function adapterSmoke(
 
     // 5. cartUpdate — skip for Suggest (it narrates and returns placeholder
     // without exposing a lineId).
-    if (
-      merchant.adapterType !== 'suggest' &&
-      cg.kind === 'ok' &&
-      cg.value.lines[0]
-    ) {
+    if (merchant.adapterType !== 'suggest' && cg.kind === 'ok' && cg.value.lines[0]) {
       const cu = await a.cartUpdate(ctx, cg.value.lines[0].lineId, 2);
       log('cartUpdate', cu.kind === 'ok' || cu.kind === 'unsupported');
     }

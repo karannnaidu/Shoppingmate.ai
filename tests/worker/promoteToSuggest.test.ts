@@ -37,10 +37,7 @@ describe('promoteToSuggest', () => {
 
     await promoteToSuggest(id, 'cloudflare_block_detected');
 
-    const [m] = await db
-      .select()
-      .from(schema.merchants)
-      .where(eq(schema.merchants.id, id));
+    const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
     expect(m).toBeDefined();
     expect(m?.adapterType).toBe('suggest');
     expect(m?.lastIndexedAt).not.toBeNull();

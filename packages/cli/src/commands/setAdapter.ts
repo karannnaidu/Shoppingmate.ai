@@ -1,4 +1,4 @@
-import { adapterTypes, db, schema, type AdapterType } from '@shoppingmate/db';
+import { type AdapterType, adapterTypes, db, schema } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
 
 export type SetAdapterArgs = {

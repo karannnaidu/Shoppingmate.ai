@@ -12,10 +12,7 @@ const log = childLogger({ step: 'promoteToSuggest' });
  * smokeTest retries without duplicating events.
  */
 export async function promoteToSuggest(merchantId: string, reason: string): Promise<void> {
-  const [m] = await db
-    .select()
-    .from(schema.merchants)
-    .where(eq(schema.merchants.id, merchantId));
+  const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, merchantId));
 
   if (!m) throw new Error(`promoteToSuggest: merchant ${merchantId} not found`);
   if (m.adapterType === 'suggest') {
