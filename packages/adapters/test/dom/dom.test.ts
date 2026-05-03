@@ -155,12 +155,7 @@ describe('DOMAdapter — cartAdd', () => {
       { ok: true, value: '$19.99' }, // 5. read total
     ]);
     const a = new DOMAdapter(t, new InMemorySessionState());
-    const r = await a.cartAdd(
-      { merchant, cartToken: null, sessionId: 's1' },
-      'TEE',
-      null,
-      1,
-    );
+    const r = await a.cartAdd({ merchant, cartToken: null, sessionId: 's1' }, 'TEE', null, 1);
     expect(r.kind).toBe('ok');
     if (r.kind === 'ok') {
       expect(r.value.totalCents).toBe(1999);
@@ -199,12 +194,7 @@ describe('DOMAdapter — cartAdd', () => {
     ]);
     const llm = vi.fn(async () => '#real-buy');
     const a = new DOMAdapter(t, new InMemorySessionState(), llm);
-    const r = await a.cartAdd(
-      { merchant, cartToken: null, sessionId: 's2' },
-      'TEE',
-      null,
-      1,
-    );
+    const r = await a.cartAdd({ merchant, cartToken: null, sessionId: 's2' }, 'TEE', null, 1);
     expect(r.kind).toBe('ok');
     expect(llm).toHaveBeenCalledTimes(1);
     const cached = await selectorCacheRepo.get('SM-DOM', 'p1', 'add_to_cart_button');
@@ -219,12 +209,7 @@ describe('DOMAdapter — cartAdd', () => {
     const state = new InMemorySessionState();
     for (let i = 0; i < 50; i++) await state.incrAction('s3', 'session');
     const a = new DOMAdapter(new FakeWSTransport(), state);
-    const r = await a.cartAdd(
-      { merchant, cartToken: null, sessionId: 's3' },
-      'TEE',
-      null,
-      1,
-    );
+    const r = await a.cartAdd({ merchant, cartToken: null, sessionId: 's3' }, 'TEE', null, 1);
     expect(r).toEqual({ kind: 'unsupported', reason: 'action_cap' });
   });
 
@@ -235,12 +220,7 @@ describe('DOMAdapter — cartAdd', () => {
     const t = new FakeWSTransport();
     t.scriptOnce({ ok: false, reason: 'navigate_blocked' });
     const a = new DOMAdapter(t, new InMemorySessionState());
-    const r = await a.cartAdd(
-      { merchant, cartToken: null, sessionId: 's-nav', },
-      'TEE',
-      null,
-      1,
-    );
+    const r = await a.cartAdd({ merchant, cartToken: null, sessionId: 's-nav' }, 'TEE', null, 1);
     expect(r.kind).toBe('platform_error');
   });
 });
@@ -251,10 +231,7 @@ describe('DOMAdapter — reads', () => {
     const { FakeWSTransport } = await import('../../src/dom/transport.js');
     const { InMemorySessionState } = await import('../../src/dom/sessionState.js');
     const a = new DOMAdapter(new FakeWSTransport(), new InMemorySessionState());
-    const r = await a.searchProducts(
-      { merchant, cartToken: null, sessionId: 's' },
-      'tee',
-    );
+    const r = await a.searchProducts({ merchant, cartToken: null, sessionId: 's' }, 'tee');
     expect(r.kind).toBe('ok');
   });
 

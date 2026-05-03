@@ -1,8 +1,8 @@
 import type { Merchant } from '@shoppingmate/db';
 import { describe, expect, it, vi } from 'vitest';
 import { getAdapter } from '../src/dispatch.js';
-import { FakeWSTransport } from '../src/dom/transport.js';
 import { InMemorySessionState } from '../src/dom/sessionState.js';
+import { FakeWSTransport } from '../src/dom/transport.js';
 import { implementedAdapters } from '../src/implementedAdapters.js';
 
 vi.mock('@shoppingmate/db', () => ({
@@ -54,9 +54,7 @@ describe('getAdapter', () => {
   });
 
   it('throws adapter_not_implemented_in_plan3d for suggest', () => {
-    expect(() => getAdapter(stubMerchant('suggest'))).toThrow(
-      /adapter_not_implemented_in_plan3d/,
-    );
+    expect(() => getAdapter(stubMerchant('suggest'))).toThrow(/adapter_not_implemented_in_plan3d/);
   });
 });
 

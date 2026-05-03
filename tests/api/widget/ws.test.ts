@@ -1,7 +1,7 @@
-import { createServer, type Server } from 'node:http';
+import { type Server, createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { type MountedWs, mountWs, signWsToken, verifyWsToken } from '@shoppingmate/dom-harness';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mountWs, type MountedWs, signWsToken, verifyWsToken } from '@shoppingmate/dom-harness';
 import WebSocket from 'ws';
 
 let server: Server;
@@ -63,9 +63,7 @@ describe('widget WebSocket round-trip', () => {
       merchantId: 'SM-T01',
       exp: Date.now() / 1000 + 60,
     });
-    const client = new WebSocket(
-      `ws://localhost:${port}/v1/widget/s1/ws?token=${token}`,
-    );
+    const client = new WebSocket(`ws://localhost:${port}/v1/widget/s1/ws?token=${token}`);
     await new Promise<void>((res, rej) => {
       client.on('open', () => res());
       client.on('error', rej);
@@ -100,9 +98,7 @@ describe('widget WebSocket round-trip', () => {
   });
 
   it('rejects upgrade when token is invalid', async () => {
-    const client = new WebSocket(
-      `ws://localhost:${port}/v1/widget/s2/ws?token=garbage`,
-    );
+    const client = new WebSocket(`ws://localhost:${port}/v1/widget/s2/ws?token=garbage`);
     const result = await new Promise<'open' | 'error'>((res) => {
       client.on('open', () => res('open'));
       client.on('error', () => res('error'));

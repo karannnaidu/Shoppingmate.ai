@@ -105,6 +105,9 @@ importers:
       '@shoppingmate/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@shoppingmate/dom-harness':
+        specifier: workspace:*
+        version: link:../../packages/dom-harness
       '@shoppingmate/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs

@@ -159,12 +159,7 @@ describe('resolveSelector', () => {
       '.override',
       'merchant_override',
     );
-    await selectorCacheRepo.markOverrideFailing(
-      'SM-T01',
-      'h1',
-      'add_to_cart_button',
-      null,
-    );
+    await selectorCacheRepo.markOverrideFailing('SM-T01', 'h1', 'add_to_cart_button', null);
     const { resolveSelector } = await import('../../src/dom/resolver.js');
     const r = await resolveSelector({
       merchant,

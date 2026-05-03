@@ -12,10 +12,7 @@ describe('FakeWSTransport', () => {
 
   it('drains multi-step scripts in order', async () => {
     const t = new FakeWSTransport();
-    t.scriptMany([
-      { ok: true },
-      { ok: false, reason: 'selector_not_found' },
-    ]);
+    t.scriptMany([{ ok: true }, { ok: false, reason: 'selector_not_found' }]);
     const a = await t.send('s', { type: 'dom.click', selector: '#a' });
     const b = await t.send('s', { type: 'dom.click', selector: '#b' });
     expect(a.ok).toBe(true);
@@ -24,8 +21,6 @@ describe('FakeWSTransport', () => {
 
   it('throws when no script left', async () => {
     const t = new FakeWSTransport();
-    await expect(t.send('s', { type: 'dom.read', selector: '.x' })).rejects.toThrow(
-      /script_empty/,
-    );
+    await expect(t.send('s', { type: 'dom.read', selector: '.x' })).rejects.toThrow(/script_empty/);
   });
 });

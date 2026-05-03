@@ -1,17 +1,13 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '../client.js';
 import {
-  selectorCache,
   type SelectorCacheRow,
   type SelectorSource,
+  selectorCache,
 } from '../schema/selectorCache.js';
 
 export const selectorCacheRepo = {
-  async get(
-    merchantId: string,
-    hash: string,
-    key: string,
-  ): Promise<SelectorCacheRow | null> {
+  async get(merchantId: string, hash: string, key: string): Promise<SelectorCacheRow | null> {
     const rows = await db
       .select()
       .from(selectorCache)

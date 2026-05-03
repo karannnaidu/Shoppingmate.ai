@@ -1,13 +1,11 @@
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import {
   type AdapterContext,
   type DispatchDeps,
-  getAdapter,
   InMemorySessionState,
+  getAdapter,
 } from '@shoppingmate/adapters';
 import { db, schema } from '@shoppingmate/db';
-import { mountWs, signWsToken, startHarness } from '@shoppingmate/dom-harness';
+import { runWithHarness } from '@shoppingmate/dom-harness';
 import { eq } from 'drizzle-orm';
 
 type CallHaiku = (prompt: string) => Promise<string>;
@@ -56,32 +54,16 @@ export async function adapterSmoke(
   // For DOM merchants, spin a local WS server + Playwright harness so the
   // DOMAdapter has something to talk to (mirrors production widget round-trip).
   let domDeps: DispatchDeps | undefined;
-  let server: Server | undefined;
   let harnessStop: (() => Promise<void>) | undefined;
   if (merchant.adapterType === 'dom') {
-    server = createServer();
-    const mounted = mountWs(server);
-    await new Promise<void>((res) => {
-      server?.listen(0, () => res());
-    });
-    const port = (server.address() as AddressInfo).port;
-    const token = signWsToken({
+    const setup = await runWithHarness({
       sessionId: ctx.sessionId,
       merchantId: merchant.id,
-      exp: Date.now() / 1000 + 600,
-    });
-    const wsUrl = `ws://127.0.0.1:${port}/v1/widget/${ctx.sessionId}/ws?token=${token}`;
-    const harness = await startHarness({
-      wsUrl,
       initialUrl: `https://${merchant.domain}`,
     });
-    harnessStop = async () => {
-      await harness.stop();
-      await mounted.close();
-      await new Promise<void>((res) => server?.close(() => res()));
-    };
+    harnessStop = setup.stop;
     domDeps = {
-      transport: mounted.transport,
+      transport: setup.transport,
       state: new InMemorySessionState(),
       llmCall: opts.llmCall ?? defaultHaikuCall,
     };
@@ -114,7 +96,10 @@ export async function adapterSmoke(
 
     // 4. cartGet
     const cg = await a.cartGet(ctx);
-    log('cartGet', cg.kind === 'ok' && (cg.value.lines.length > 0 || merchant.adapterType === 'dom'));
+    log(
+      'cartGet',
+      cg.kind === 'ok' && (cg.value.lines.length > 0 || merchant.adapterType === 'dom'),
+    );
 
     // 5. cartUpdate
     if (cg.kind === 'ok' && cg.value.lines[0]) {

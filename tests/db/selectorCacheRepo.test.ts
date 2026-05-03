@@ -35,7 +35,13 @@ describe('selectorCacheRepo', () => {
   });
 
   it('upsertHealed never overwrites merchant_override', async () => {
-    await selectorCacheRepo.put(merchantId, 'hash1', 'add_to_cart_button', '.buy', 'merchant_override');
+    await selectorCacheRepo.put(
+      merchantId,
+      'hash1',
+      'add_to_cart_button',
+      '.buy',
+      'merchant_override',
+    );
     await selectorCacheRepo.upsertHealed(merchantId, 'hash1', 'add_to_cart_button', '#evil');
     const r = await selectorCacheRepo.get(merchantId, 'hash1', 'add_to_cart_button');
     expect(r?.source).toBe('merchant_override');

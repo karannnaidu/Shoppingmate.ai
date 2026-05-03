@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { DomAck, DomAction, WSTransport } from '@shoppingmate/adapters';
-import { WebSocketServer, type WebSocket } from 'ws';
+import { type WebSocket, WebSocketServer } from 'ws';
 import { verifyWsToken } from './wsAuth.js';
 
 /**
@@ -40,11 +40,7 @@ class ServerTransport implements WSTransport {
       } catch {
         return;
       }
-      if (
-        typeof msg !== 'object' ||
-        msg === null ||
-        (msg as { type?: unknown }).type !== 'ack'
-      ) {
+      if (typeof msg !== 'object' || msg === null || (msg as { type?: unknown }).type !== 'ack') {
         return;
       }
       const m = msg as {

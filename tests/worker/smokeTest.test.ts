@@ -133,6 +133,21 @@ describe('smokeTest — dom adapter', () => {
     expect(r.kind).toBe('failed');
     if (r.kind === 'failed') expect(r.reason).toBe('selectors_missing');
   });
+
+  it('with selectors but no merchant -> failed merchant_missing', async () => {
+    const r = await smokeTest({
+      adapterType: 'dom',
+      domain: 'd.test',
+      firstVariantId: 'x',
+      productUrl: 'https://d.test/products/x',
+      selectors: {
+        add_to_cart_button: '.add',
+        cart_page_total: '.total',
+      } as unknown as Parameters<typeof smokeTest>[0]['selectors'],
+    });
+    expect(r.kind).toBe('failed');
+    if (r.kind === 'failed') expect(r.reason).toBe('merchant_missing');
+  });
 });
 
 // Legacy harness: confirm shopify/woo flows still work end-to-end via the

@@ -214,8 +214,7 @@ export class DOMAdapter implements Adapter {
   async checkoutUrl(ctx: AdapterContext): Promise<AdapterResult<string>> {
     const cfg = ctx.merchant.adapterConfig as { selectors?: Record<string, string> } | null;
     const sel = cfg?.selectors?.checkout_button;
-    const explicitUrl =
-      (ctx.merchant as { checkoutUrl?: string | null }).checkoutUrl ?? null;
+    const explicitUrl = (ctx.merchant as { checkoutUrl?: string | null }).checkoutUrl ?? null;
     if (!sel && !explicitUrl) {
       return { kind: 'unsupported', reason: 'no_checkout_url' };
     }
