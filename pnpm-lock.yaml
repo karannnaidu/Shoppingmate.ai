@@ -65,6 +65,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.5
         version: 1.19.14(hono@4.12.16)
+      '@shoppingmate/adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
       '@shoppingmate/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -247,9 +250,15 @@ importers:
         specifier: ^9.5.0
         version: 9.14.0
     devDependencies:
+      msw:
+        specifier: ^2.6.0
+        version: 2.14.2(@types/node@22.19.17)(typescript@5.9.3)
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@22.19.17)(msw@2.14.2(@types/node@22.19.17)(typescript@5.9.3))
 
 packages:
 

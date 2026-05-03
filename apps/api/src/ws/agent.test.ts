@@ -9,7 +9,7 @@ let port = 0;
 
 beforeAll(async () => {
   mountAgentWs(server, {
-    onMessage: async (_sessionId, raw, send) => {
+    onMessage: async (_sessionId, _merchantId, raw, send) => {
       send(JSON.stringify({ type: 'say', text: `echo:${raw}` }));
       send(JSON.stringify({ type: 'end_of_turn' }));
     },

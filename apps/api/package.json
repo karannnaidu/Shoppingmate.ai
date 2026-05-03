@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.5",
+    "@shoppingmate/adapters": "workspace:*",
     "@shoppingmate/db": "workspace:*",
     "@shoppingmate/dom-harness": "workspace:*",
     "@shoppingmate/jobs": "workspace:*",

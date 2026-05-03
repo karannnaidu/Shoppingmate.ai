@@ -8,9 +8,14 @@ export type AgentWsDeps = {
    * Called for every inbound text frame on the agent socket. Implementations
    * should parse the frame as a WidgetMessage and stream AgentEvents back
    * via the supplied `send` callback (one JSON-encoded event per call).
+   *
+   * `merchantId` is taken from the verified WS token payload — used by the
+   * runtime wiring to create a fresh session on the first `user_text` frame
+   * when no Redis session exists yet.
    */
   onMessage: (
     sessionId: string,
+    merchantId: string,
     raw: string,
     send: (encoded: string) => void,
   ) => Promise<void>;
@@ -63,7 +68,7 @@ export function mountAgentWs(server: UpgradableServer, deps: AgentWsDeps): Mount
           if (ws.readyState === ws.OPEN) ws.send(encoded);
         };
         try {
-          await deps.onMessage(sessionId, raw.toString(), send);
+          await deps.onMessage(sessionId, payload.merchantId, raw.toString(), send);
         } catch {
           send(JSON.stringify({ type: 'session_closed', reason: 'error' }));
           ws.close();
