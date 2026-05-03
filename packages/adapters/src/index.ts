@@ -12,6 +12,12 @@ export { implementedAdapters } from './implementedAdapters.js';
 export { MagentoAdapter } from './magento.js';
 export { ShopifyAdapter } from './shopify.js';
 export { SquarespaceAdapter } from './squarespace.js';
+export {
+  SUGGEST_CART_STATE_EMPTY,
+  SUGGEST_CART_STATE_PLACEHOLDER,
+  SUGGEST_PROMPT_HINT,
+  SuggestAdapter,
+} from './suggest.js';
 export type {
   Adapter,
   AdapterContext,
