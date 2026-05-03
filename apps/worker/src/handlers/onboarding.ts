@@ -221,12 +221,19 @@ export async function onboardingHandler(
     firstProductForSmoke?.sku ??
     'unknown';
   const productUrl = firstProductForSmoke?.productUrl ?? `https://${domain}/`;
+  const [merchantRow] = await db
+    .select()
+    .from(schema.merchants)
+    .where(eq(schema.merchants.id, merchantId))
+    .limit(1);
   const smoke = await smokeTest({
-    adapterType: adapterType === 'dom' ? 'dom' : adapterType === 'shopify' ? 'shopify' : 'woo',
+    adapterType: adapterType === 'suggest' ? 'dom' : adapterType,
     domain,
     firstVariantId,
     productUrl,
     selectors: selectors?.kind === 'ok' ? selectors.selectors : null,
+    merchant: merchantRow,
+    sku: firstProductForSmoke?.sku,
   });
 
   if (smoke.kind === 'failed') {

@@ -20,10 +20,12 @@
     "db:studio": "pnpm --filter @shoppingmate/db db:studio",
     "shoppingmate": "node packages/cli/dist/index.js",
     "shoppingmate:dev": "pnpm --filter @shoppingmate/cli dev",
-    "smoke:safety": "tsx --env-file-if-exists=.env scripts/smoke-safety.ts"
+    "smoke:safety": "tsx --env-file-if-exists=.env scripts/smoke-safety.ts",
+    "slack:create-channels": "tsx --env-file-if-exists=.env apps/api/scripts/create-channels.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@shoppingmate/adapters": "workspace:^",
     "@shoppingmate/db": "workspace:^",
     "@shoppingmate/jobs": "workspace:^",
     "@shoppingmate/shared": "workspace:^",

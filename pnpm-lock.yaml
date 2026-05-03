@@ -11,6 +11,9 @@ importers:
       '@biomejs/biome':
         specifier: ^1.9.4
         version: 1.9.4
+      '@shoppingmate/adapters':
+        specifier: workspace:^
+        version: link:packages/adapters
       '@shoppingmate/db':
         specifier: workspace:^
         version: link:packages/db
