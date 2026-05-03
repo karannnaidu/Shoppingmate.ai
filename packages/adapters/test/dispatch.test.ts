@@ -53,17 +53,26 @@ describe('getAdapter', () => {
     expect(() => getAdapter(stubMerchant('dom'))).toThrow(/dom_adapter_requires_transport/);
   });
 
-  it('throws adapter_not_implemented_in_plan3d for suggest', () => {
-    expect(() => getAdapter(stubMerchant('suggest'))).toThrow(/adapter_not_implemented_in_plan3d/);
+  it('returns SuggestAdapter when adapterType=suggest and deps provided', () => {
+    const a = getAdapter(stubMerchant('suggest'), {
+      transport: new FakeWSTransport(),
+      state: new InMemorySessionState(),
+    });
+    expect(a.kind).toBe('suggest');
+  });
+
+  it('throws when adapterType=suggest but no deps provided', () => {
+    expect(() => getAdapter(stubMerchant('suggest'))).toThrow(/suggest_adapter_requires_transport/);
   });
 });
 
 describe('implementedAdapters', () => {
-  it('contains all platforms 3d wired', () => {
+  it('contains all platforms 3e wired', () => {
     expect(implementedAdapters.has('magento')).toBe(true);
     expect(implementedAdapters.has('bigcommerce')).toBe(true);
     expect(implementedAdapters.has('wix')).toBe(true);
     expect(implementedAdapters.has('squarespace')).toBe(true);
     expect(implementedAdapters.has('dom')).toBe(true);
+    expect(implementedAdapters.has('suggest')).toBe(true);
   });
 });

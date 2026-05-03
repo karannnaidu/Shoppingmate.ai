@@ -8,5 +8,5 @@ export const implementedAdapters: ReadonlySet<AdapterType> = new Set<AdapterType
   'wix',
   'squarespace',
   'dom',
-  // 'suggest' added in 3e
+  'suggest',
 ]);

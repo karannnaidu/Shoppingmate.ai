@@ -6,14 +6,16 @@ import type { WSTransport } from './dom/transport.js';
 import { MagentoAdapter } from './magento.js';
 import { ShopifyAdapter } from './shopify.js';
 import { SquarespaceAdapter } from './squarespace.js';
+import { SuggestAdapter } from './suggest.js';
 import type { Adapter } from './types.js';
 import { WixAdapter } from './wix.js';
 import { WooAdapter } from './woo.js';
 
 /**
- * Optional injection for DOM merchants. The transport + session state are
- * provided by the caller (apps/api widget WS for production; FakeWSTransport
- * + InMemorySessionState in tests; Playwright harness in the smoke CLI).
+ * Optional injection for DOM and Suggest merchants. The transport + session
+ * state are provided by the caller (apps/api widget WS for production;
+ * FakeWSTransport + InMemorySessionState in tests; Playwright harness in the
+ * smoke CLI).
  */
 export type DispatchDeps = {
   transport: WSTransport;
@@ -21,8 +23,13 @@ export type DispatchDeps = {
   llmCall?: (prompt: string) => Promise<string>;
 };
 
+function assertNever(x: never): never {
+  throw new Error(`Unhandled adapter type: ${String(x)}`);
+}
+
 export function getAdapter(merchant: Merchant, deps?: DispatchDeps): Adapter {
-  switch (merchant.adapterType) {
+  const t = merchant.adapterType;
+  switch (t) {
     case 'shopify':
       return new ShopifyAdapter();
     case 'woo':
@@ -39,8 +46,12 @@ export function getAdapter(merchant: Merchant, deps?: DispatchDeps): Adapter {
       if (!deps) throw new Error('dom_adapter_requires_transport');
       return new DOMAdapter(deps.transport, deps.state, deps.llmCall);
     case 'suggest':
-      throw new Error('adapter_not_implemented_in_plan3d: suggest');
+      if (!deps) throw new Error('suggest_adapter_requires_transport');
+      return new SuggestAdapter(deps.transport);
+    case null:
+    case undefined:
+      throw new Error('adapter_type_missing');
     default:
-      throw new Error(`adapter_unknown: ${String(merchant.adapterType)}`);
+      return assertNever(t);
   }
 }
