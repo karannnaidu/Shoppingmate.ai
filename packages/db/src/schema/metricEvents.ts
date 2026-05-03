@@ -74,4 +74,12 @@ export const metricNames = {
   suggestProductCardSent: 'suggest.product_card.sent',
   suggestCartGetEmpty: 'suggest.cart_get.empty',
   adapterPromotedToSuggest: 'adapter.promoted_to_suggest',
+  agentTurnStarted: 'agent.turn.started',
+  agentTurnCompleted: 'agent.turn.completed',
+  agentToolInvoked: 'agent.tool.invoked',
+  agentToolRetryExhausted: 'agent.tool.retry_exhausted',
+  agentSayPriceStripped: 'agent.say.price_stripped',
+  agentCapHit: 'agent.cap.hit',
+  agentSessionClosed: 'agent.session.closed',
+  agentSonnetError: 'agent.sonnet.error',
 } as const;
