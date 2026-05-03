@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
+import type { AdapterType } from '@shoppingmate/db';
 import { adapterSmoke } from './commands/adapterSmoke.js';
 import { provision } from './commands/provision.js';
 import { retryOnboarding } from './commands/retryOnboarding.js';
+import { setAdapter } from './commands/setAdapter.js';
 import { show } from './commands/show.js';
 
 const USAGE = `Usage:
@@ -10,6 +12,7 @@ const USAGE = `Usage:
   shoppingmate retry-onboarding <merchantId>
   shoppingmate show <merchantId>
   shoppingmate adapter-smoke <merchantId>
+  shoppingmate set-adapter --merchant=<id> --type=<adapter_type> [--reason=<text>]
 `;
 
 async function main(): Promise<void> {
@@ -73,6 +76,34 @@ async function main(): Promise<void> {
       }
       const code = await adapterSmoke(id);
       process.exitCode = code;
+      return;
+    }
+    case 'set-adapter': {
+      const { values } = parseArgs({
+        args: argv.slice(1),
+        options: {
+          merchant: { type: 'string' },
+          type: { type: 'string' },
+          reason: { type: 'string' },
+        },
+        strict: true,
+      });
+      if (!values.merchant || !values.type) {
+        console.error('--merchant and --type are required');
+        process.exitCode = 2;
+        return;
+      }
+      try {
+        await setAdapter({
+          merchantId: values.merchant,
+          type: values.type as AdapterType,
+          reason: values.reason ?? 'manual_cli',
+        });
+        console.log(`OK: set ${values.merchant} -> ${values.type}`);
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err));
+        process.exitCode = 1;
+      }
       return;
     }
     default:
