@@ -1,0 +1,67 @@
+{
+  "merchant": {
+    "id": "m_shopify",
+    "personaId": "concierge",
+    "adapterType": "shopify",
+    "name": "ShopifyTest"
+  },
+  "fixtureProducts": [
+    {
+      "merchantId": "m_shopify",
+      "sku": "DRESS-A",
+      "title": "Silk wrap dress",
+      "imageUrl": "https://cdn.test/dress-a.jpg",
+      "productUrl": "https://shopifytest.test/p/dress-a",
+      "priceCents": 199900,
+      "currency": "INR",
+      "inStock": true,
+      "source": "shopify_storefront",
+      "indexedAt": "2026-05-04T00:00:00Z",
+      "description": null,
+      "variants": null,
+      "sourceMeta": null,
+      "searchVector": null
+    }
+  ],
+  "initialSession": { "turnCount": 0 },
+  "turns": [
+    {
+      "user": { "type": "user_text", "text": "show me a dress under 2000", "mode": "text" },
+      "sonnetResponses": [
+        {
+          "text": "",
+          "stopReason": "tool_calls",
+          "toolCalls": [
+            { "id": "c1", "name": "products.search", "argumentsJson": "{\"query\":\"dress\"}" }
+          ]
+        },
+        {
+          "text": "Found one — see the card. Want me to add it to your cart?",
+          "stopReason": "stop",
+          "toolCalls": []
+        }
+      ],
+      "expectEvents": ["thinking", "tool_result", "cards", "say", "end_of_turn"],
+      "expectNoNumericPriceInSay": true
+    },
+    {
+      "user": { "type": "user_text", "text": "yes add it", "mode": "text" },
+      "sonnetResponses": [
+        {
+          "text": "",
+          "stopReason": "tool_calls",
+          "toolCalls": [
+            { "id": "c2", "name": "cart.add", "argumentsJson": "{\"sku\":\"DRESS-A\",\"variantId\":null,\"qty\":1}" }
+          ]
+        },
+        {
+          "text": "Added — anything else? Or shall I send you to checkout?",
+          "stopReason": "stop",
+          "toolCalls": []
+        }
+      ],
+      "expectEvents": ["thinking", "tool_result", "say", "end_of_turn"],
+      "expectNoNumericPriceInSay": true
+    }
+  ]
+}
