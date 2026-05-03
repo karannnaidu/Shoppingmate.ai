@@ -246,3 +246,44 @@ describe('runTurn() — happy path', () => {
     expect(saved.turnCount).toBe(1);
   });
 });
+
+describe('runTurn() — card_tap', () => {
+  it('treats a card_tap like a synthetic cart.add and emits acknowledgement', async () => {
+    vi.mocked(chatTools).mockResolvedValueOnce({
+      text: 'Added — anything else?',
+      toolCalls: [],
+      stopReason: 'stop',
+      inputTokens: 30,
+      outputTokens: 5,
+    });
+    const cartAddSpy = vi.fn(async () => ({
+      kind: 'ok' as const,
+      value: { cartToken: 'ct1', lines: [], subtotalCents: 0, totalCents: 0, currency: 'INR', appliedCoupons: [] },
+    }));
+    const localDeps: RunTurnDeps = {
+      ...deps,
+      loadAdapter: () => ({ ...deps.loadAdapter(merchant, 's-1'), cartAdd: cartAddSpy }),
+    };
+
+    const events = [];
+    for await (const ev of runTurn(localDeps, merchant, baseSession(), {
+      type: 'card_tap',
+      sessionId: 's-1',
+      action: 'cartAdd',
+      variantId: null,
+      sku: 'A',
+      qty: 1,
+    })) {
+      events.push(ev);
+    }
+    expect(cartAddSpy).toHaveBeenCalledTimes(1);
+    expect(events.find((e) => e.type === 'tool_result')).toMatchObject({
+      type: 'tool_result',
+      toolName: 'cart.add',
+      ok: true,
+    });
+    expect(events.find((e) => e.type === 'say')).toMatchObject({
+      text: 'Added — anything else?',
+    });
+  });
+});

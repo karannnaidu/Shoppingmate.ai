@@ -60,10 +60,70 @@ export async function* runTurn(
     yield { type: 'cap_warning', reason: cap.reason, remaining: cap.remaining };
   }
 
-  const userText =
-    message.type === 'user_text'
-      ? redactPii(message.text)
-      : `[card_tap] add sku=${message.sku} qty=${message.qty}`;
+  if (message.type === 'card_tap') {
+    const ctx2 = makeCtx(merchant, session);
+    const adapter2 = deps.loadAdapter(merchant, session.sessionId);
+    const envelope = await dispatchTool(adapter2, ctx2, 'cart.add', {
+      sku: message.sku,
+      variantId: message.variantId,
+      qty: message.qty,
+    });
+    yield { type: 'tool_result', toolName: 'cart.add', ok: envelope.ok };
+    let cardTapSession: SessionState = session;
+    if (envelope.ok && envelope.value && typeof envelope.value === 'object') {
+      const v = envelope.value as { cartToken?: string };
+      if (v.cartToken) cardTapSession = { ...cardTapSession, cartToken: v.cartToken };
+    }
+    const synthCallId = `tap_${Date.now()}`;
+    cardTapSession = {
+      ...cardTapSession,
+      history: [
+        ...cardTapSession.history,
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            {
+              id: synthCallId,
+              type: 'function',
+              function: {
+                name: 'cart.add',
+                arguments: JSON.stringify({
+                  sku: message.sku,
+                  variantId: message.variantId,
+                  qty: message.qty,
+                }),
+              },
+            },
+          ],
+        },
+        { role: 'tool', tool_call_id: synthCallId, content: JSON.stringify(envelope) },
+      ],
+    };
+    const ack = await chatTools({
+      model: SONNET_MODEL,
+      messages: [
+        { role: 'system', content: buildSystemPrompt(merchant) },
+        ...cardTapSession.history,
+        {
+          role: 'user',
+          content: '[the visitor just tapped to add this to the cart — acknowledge briefly]',
+        },
+      ],
+      tools: buildToolSurface(merchant),
+    });
+    const { text: stripped } = stripPrices(ack.text);
+    for (const segment of segmentSay(stripped)) yield { type: 'say', text: segment };
+    await deps.saveSession({
+      ...cardTapSession,
+      turnCount: cardTapSession.turnCount + 1,
+      lastTurnAt: Date.now(),
+    });
+    yield { type: 'end_of_turn' };
+    return;
+  }
+
+  const userText = redactPii(message.text);
   const history: AnthropicMessage[] = [
     { role: 'system', content: buildSystemPrompt(merchant) },
     ...session.history,
