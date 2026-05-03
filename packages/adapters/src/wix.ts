@@ -122,6 +122,9 @@ export class WixAdapter implements Adapter {
     const res = await this.post(ctx, `${BASE}/createCheckout`, {});
     if (!res.ok) return { kind: 'platform_error', status: res.status, body: await res.text() };
     const body = (await res.json()) as { checkoutId: string };
-    return { kind: 'ok', value: `https://${ctx.merchant.domain}/checkout?checkoutId=${body.checkoutId}` };
+    return {
+      kind: 'ok',
+      value: `https://${ctx.merchant.domain}/checkout?checkoutId=${body.checkoutId}`,
+    };
   }
 }

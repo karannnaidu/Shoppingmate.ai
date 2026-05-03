@@ -86,6 +86,17 @@ describe('onboardingHandler', () => {
         return HttpResponse.json({ products: [] });
       }),
       http.post(`https://${domain}/cart/add.js`, () => HttpResponse.json({ id: 1001, key: 'tok' })),
+      // ShopifyAdapter.cartAdd refetches /cart.js after add.
+      http.get(`https://${domain}/cart.js`, () =>
+        HttpResponse.json({
+          token: 'tok',
+          items: [],
+          total_price: 0,
+          items_subtotal_price: 0,
+          currency: 'USD',
+          applied_discount_codes: [],
+        }),
+      ),
     );
 
     await onboardingHandler(fakeJob(id, domain));
@@ -141,8 +152,52 @@ describe('onboardingHandler', () => {
         }
         return HttpResponse.json([]);
       }),
-      http.post(`https://${domain}/wp-json/wc/store/v1/cart/add-item`, () =>
-        HttpResponse.json({ items: [{ id: 200 }] }),
+      // WooAdapter.cartAdd first GETs /cart for nonce, then POSTs add-item.
+      http.get(
+        `https://${domain}/wp-json/wc/store/v1/cart`,
+        () =>
+          new HttpResponse(
+            JSON.stringify({
+              items: [],
+              totals: { total_price: '0', total_items: '0', currency_code: 'USD' },
+              coupons: [],
+            }),
+            {
+              status: 200,
+              headers: {
+                'content-type': 'application/json',
+                'x-wc-store-api-nonce': 'test-nonce',
+                'cart-token': 'woo-tok',
+              },
+            },
+          ),
+      ),
+      http.post(
+        `https://${domain}/wp-json/wc/store/v1/cart/add-item`,
+        () =>
+          new HttpResponse(
+            JSON.stringify({
+              items: [
+                {
+                  key: 'k1',
+                  id: 200,
+                  sku: '',
+                  name: 'Mug',
+                  quantity: 1,
+                  prices: { price: '1500', currency_code: 'USD' },
+                  totals: { line_total: '1500', currency_code: 'USD' },
+                  images: [],
+                  variation: [],
+                },
+              ],
+              totals: { total_price: '1500', total_items: '1500', currency_code: 'USD' },
+              coupons: [],
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json', 'cart-token': 'woo-tok' },
+            },
+          ),
       ),
     );
 

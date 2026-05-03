@@ -107,7 +107,6 @@ describe('WixAdapter — reads + checkout', () => {
     const a = new WixAdapter();
     const r = await a.checkoutUrl({ merchant, cartToken: 'wix-cart-1', sessionId: 's' });
     expect(r.kind).toBe('ok');
-    if (r.kind === 'ok')
-      expect(r.value).toBe('https://shop.example.com/checkout?checkoutId=co-1');
+    if (r.kind === 'ok') expect(r.value).toBe('https://shop.example.com/checkout?checkoutId=co-1');
   });
 });

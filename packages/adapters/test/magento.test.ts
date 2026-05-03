@@ -67,12 +67,7 @@ describe('MagentoAdapter — cartAdd', () => {
     );
     const { MagentoAdapter } = await import('../src/magento.js');
     const a = new MagentoAdapter();
-    const r = await a.cartAdd(
-      { merchant, cartToken: null, sessionId: 's' },
-      'MG-TEE-001',
-      null,
-      1,
-    );
+    const r = await a.cartAdd({ merchant, cartToken: null, sessionId: 's' }, 'MG-TEE-001', null, 1);
     expect(r.kind).toBe('ok');
     if (r.kind === 'ok') {
       expect(r.value.cartToken).toBe('cart-123');

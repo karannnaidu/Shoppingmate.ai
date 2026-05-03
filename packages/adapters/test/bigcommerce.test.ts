@@ -79,12 +79,7 @@ describe('BigCommerceAdapter — cartAdd', () => {
   it('returns unsupported when variantId missing', async () => {
     const { BigCommerceAdapter } = await import('../src/bigcommerce.js');
     const a = new BigCommerceAdapter();
-    const r = await a.cartAdd(
-      { merchant, cartToken: null, sessionId: 's' },
-      'BC-TEE-001',
-      null,
-      1,
-    );
+    const r = await a.cartAdd({ merchant, cartToken: null, sessionId: 's' }, 'BC-TEE-001', null, 1);
     expect(r.kind).toBe('unsupported');
   });
 });
