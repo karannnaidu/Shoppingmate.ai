@@ -163,20 +163,20 @@ export async function* runTurn(
     yield { type: 'say', text: segment };
   }
 
-  const lastAssistant = history[history.length - 1];
+  const finalAssistant: AnthropicMessage = { role: 'assistant', content: responseText };
   const updated: SessionState = {
     ...session,
     history: [
       ...session.history,
       { role: 'user', content: userText },
-      ...(lastAssistant ? [lastAssistant] : []),
+      finalAssistant,
     ],
     turnCount: session.turnCount + 1,
     voiceMs:
       session.mode === 'voice'
         ? session.voiceMs + (Date.now() - now)
         : session.voiceMs,
-    totalMs: now - session.startedAt + (Date.now() - now),
+    totalMs: Date.now() - session.startedAt,
     lastTurnAt: Date.now(),
   };
   await deps.saveSession(updated);

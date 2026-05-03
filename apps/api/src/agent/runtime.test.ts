@@ -216,4 +216,33 @@ describe('runTurn() — happy path', () => {
       expect.objectContaining({ toolName: 'products.search' }),
     );
   });
+
+  it('persists user message + final assistant text to session.history', async () => {
+    vi.mocked(chatTools).mockResolvedValueOnce({
+      text: 'Hello there.',
+      toolCalls: [],
+      stopReason: 'stop',
+      inputTokens: 10,
+      outputTokens: 5,
+    });
+    const saveSession = vi.fn(async () => undefined);
+    const localDeps: RunTurnDeps = { ...deps, saveSession };
+
+    for await (const _ of runTurn(localDeps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'hi there',
+      mode: 'text',
+    })) {
+      // drain
+    }
+
+    expect(saveSession).toHaveBeenCalledTimes(1);
+    const saved = saveSession.mock.calls[0]![0];
+    expect(saved.history).toEqual([
+      { role: 'user', content: 'hi there' },
+      { role: 'assistant', content: 'Hello there.' },
+    ]);
+    expect(saved.turnCount).toBe(1);
+  });
 });
