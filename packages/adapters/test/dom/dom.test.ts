@@ -182,6 +182,36 @@ describe('DOMAdapter — cartAdd', () => {
     expect(r).toEqual({ kind: 'unsupported', reason: 'product_not_in_catalog' });
   });
 
+  it('heals when add_to_cart_button selector returns selector_not_found', async () => {
+    const { DOMAdapter } = await import('../../src/dom/index.js');
+    const { FakeWSTransport } = await import('../../src/dom/transport.js');
+    const { InMemorySessionState } = await import('../../src/dom/sessionState.js');
+    const { selectorCacheRepo } = await import('@shoppingmate/db');
+
+    const t = new FakeWSTransport();
+    t.scriptMany([
+      { ok: true }, // 1. navigate
+      { ok: true }, // 2. fill qty
+      { ok: false, reason: 'selector_not_found', html: '<button id="real-buy">Buy</button>' }, // 3. click fails
+      { ok: true }, // 4. retry click after heal
+      { ok: true }, // 5. wait_for
+      { ok: true, value: '$19.99' }, // 6. read total
+    ]);
+    const llm = vi.fn(async () => '#real-buy');
+    const a = new DOMAdapter(t, new InMemorySessionState(), llm);
+    const r = await a.cartAdd(
+      { merchant, cartToken: null, sessionId: 's2' },
+      'TEE',
+      null,
+      1,
+    );
+    expect(r.kind).toBe('ok');
+    expect(llm).toHaveBeenCalledTimes(1);
+    const cached = await selectorCacheRepo.get('SM-DOM', 'p1', 'add_to_cart_button');
+    expect(cached?.source).toBe('llm_resolved');
+    expect(cached?.resolvedSelector).toBe('#real-buy');
+  });
+
   it('returns platform_error when navigate ack fails', async () => {
     const { DOMAdapter } = await import('../../src/dom/index.js');
     const { FakeWSTransport } = await import('../../src/dom/transport.js');
