@@ -70,4 +70,8 @@ export const metricNames = {
   selectorOverrideFailing: 'selector.override.failing',
   domAdapterDegradedToSuggest: 'dom.adapter.degraded_to_suggest',
   domSessionActionCap: 'dom.session.action_cap',
+  suggestMessageSent: 'suggest.message.sent',
+  suggestProductCardSent: 'suggest.product_card.sent',
+  suggestCartGetEmpty: 'suggest.cart_get.empty',
+  adapterPromotedToSuggest: 'adapter.promoted_to_suggest',
 } as const;
