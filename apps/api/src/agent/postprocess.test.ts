@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stripPrices } from './postprocess.js';
+import { stripPrices, redactPii, segmentSay } from './postprocess.js';
 
 describe('stripPrices()', () => {
   it.each([
@@ -26,5 +26,35 @@ describe('stripPrices()', () => {
       expect.objectContaining({ pattern: 'rupee' }),
       expect.objectContaining({ pattern: 'dollar' }),
     ]));
+  });
+});
+
+describe('redactPii()', () => {
+  it.each([
+    ['my email is jane@example.com',           'my email is [redacted]'],
+    ['call me at +91 98765 43210',             'call me at [redacted]'],
+    ['call me at 9876543210',                  'call me at [redacted]'],
+    ['card 4111 1111 1111 1111',               'card [redacted]'],
+    ['card 4111111111111111',                  'card [redacted]'],
+    ['size 10 fits, 12 reviews',               'size 10 fits, 12 reviews'], // not PII
+  ])('redacts %s', (input, expected) => {
+    expect(redactPii(input)).toBe(expected);
+  });
+});
+
+describe('segmentSay()', () => {
+  it('returns the whole string when no segmentation is needed', () => {
+    expect(segmentSay('Two great picks. See the cards.')).toEqual([
+      'Two great picks. See the cards.',
+    ]);
+  });
+  it('splits on double-newline boundaries', () => {
+    expect(segmentSay('First chunk.\n\nSecond chunk.')).toEqual([
+      'First chunk.',
+      'Second chunk.',
+    ]);
+  });
+  it('drops empty segments', () => {
+    expect(segmentSay('hello\n\n\n\nworld')).toEqual(['hello', 'world']);
   });
 });

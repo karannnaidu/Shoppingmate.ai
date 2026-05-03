@@ -20,3 +20,18 @@ export function stripPrices(input: string): { text: string; hits: PriceHit[] } {
   text = text.replace(/  +/g, ' ').trim();
   return { text, hits };
 }
+
+const EMAIL_RE = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g;
+const PHONE_RE = /(?:\+\d{1,3}[\s-]?)?(?:\d[\s-]?){10,15}/g; // catches ten-digit and intl
+const CARD_RE = /\b(?:\d[\s-]?){13,19}\b/g;
+
+export function redactPii(input: string): string {
+  return input.replace(CARD_RE, '[redacted]').replace(EMAIL_RE, '[redacted]').replace(PHONE_RE, '[redacted]');
+}
+
+export function segmentSay(input: string): string[] {
+  return input
+    .split(/\n{2,}/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
