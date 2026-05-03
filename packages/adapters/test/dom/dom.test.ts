@@ -212,6 +212,22 @@ describe('DOMAdapter — cartAdd', () => {
     expect(cached?.resolvedSelector).toBe('#real-buy');
   });
 
+  it('returns unsupported when thisTurn cap reached', async () => {
+    const { DOMAdapter } = await import('../../src/dom/index.js');
+    const { FakeWSTransport } = await import('../../src/dom/transport.js');
+    const { InMemorySessionState } = await import('../../src/dom/sessionState.js');
+    const state = new InMemorySessionState();
+    for (let i = 0; i < 50; i++) await state.incrAction('s3', 'session');
+    const a = new DOMAdapter(new FakeWSTransport(), state);
+    const r = await a.cartAdd(
+      { merchant, cartToken: null, sessionId: 's3' },
+      'TEE',
+      null,
+      1,
+    );
+    expect(r).toEqual({ kind: 'unsupported', reason: 'action_cap' });
+  });
+
   it('returns platform_error when navigate ack fails', async () => {
     const { DOMAdapter } = await import('../../src/dom/index.js');
     const { FakeWSTransport } = await import('../../src/dom/transport.js');
