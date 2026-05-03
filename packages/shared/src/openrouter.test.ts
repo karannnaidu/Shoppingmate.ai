@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { chat } from './openrouter.js';
+import { chat, chatTools } from './openrouter.js';
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -27,5 +27,81 @@ describe('chat()', () => {
       messages: [{ role: 'user', content: 'ping' }],
     });
     expect(r).toEqual({ text: 'pong', inputTokens: 4, outputTokens: 1 });
+  });
+});
+
+describe('chatTools()', () => {
+  it('passes tools array and returns tool_calls when model wants to invoke a tool', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    server.use(
+      http.post('https://openrouter.ai/api/v1/chat/completions', async ({ request }) => {
+        const body = (await request.json()) as { tools: unknown[]; messages: unknown[] };
+        expect(body.tools).toHaveLength(1);
+        return HttpResponse.json({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'products.search', arguments: '{"query":"dress"}' },
+                  },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+          usage: { prompt_tokens: 100, completion_tokens: 20 },
+        });
+      }),
+    );
+    const r = await chatTools({
+      model: 'anthropic/claude-sonnet-4.6',
+      messages: [{ role: 'user', content: 'find me a dress' }],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'products.search',
+            description: 'search the catalog',
+            parameters: {
+              type: 'object',
+              properties: { query: { type: 'string' } },
+              required: ['query'],
+            },
+          },
+        },
+      ],
+    });
+    expect(r.stopReason).toBe('tool_calls');
+    expect(r.toolCalls).toEqual([
+      { id: 'call_1', name: 'products.search', argumentsJson: '{"query":"dress"}' },
+    ]);
+    expect(r.text).toBe('');
+  });
+
+  it('returns text + stopReason=stop when model finishes without tools', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    server.use(
+      http.post('https://openrouter.ai/api/v1/chat/completions', () =>
+        HttpResponse.json({
+          choices: [
+            { message: { role: 'assistant', content: 'hi there' }, finish_reason: 'stop' },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 3 },
+        }),
+      ),
+    );
+    const r = await chatTools({
+      model: 'anthropic/claude-sonnet-4.6',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [],
+    });
+    expect(r.stopReason).toBe('stop');
+    expect(r.text).toBe('hi there');
+    expect(r.toolCalls).toEqual([]);
   });
 });
