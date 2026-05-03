@@ -199,3 +199,265 @@ describe('smokeTest — real adapter integration via MSW', () => {
     if (r.kind === 'failed') expect(r.reason).toBe('http_422');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Suggest dispatch + DOM→Suggest auto-promotion (Plan 3e Task 10).
+//
+// We mock `runWithHarness` so the DOM path doesn't spin up Playwright. The DB
+// is real because `promoteToSuggest` and the post-DOM refresh both query it,
+// so these tests insert/clean up merchant rows like `promoteToSuggest.test.ts`
+// does.
+// ---------------------------------------------------------------------------
+
+vi.mock('@shoppingmate/dom-harness', async () => {
+  const actual = await vi.importActual<typeof import('@shoppingmate/dom-harness')>(
+    '@shoppingmate/dom-harness',
+  );
+  return {
+    ...actual,
+    runWithHarness: vi.fn(async () => ({
+      transport: { send: vi.fn(), close: vi.fn() },
+      harness: { stop: vi.fn() },
+      stop: vi.fn(async () => {}),
+    })),
+  };
+});
+
+describe('smokeTest — suggest dispatch + auto-promotion', () => {
+  it('suggest adapter passes when catalog has at least one product', async () => {
+    const stub = {
+      kind: 'suggest',
+      searchProducts: vi.fn(async () => ({
+        kind: 'ok' as const,
+        value: [
+          {
+            sku: 'A',
+            title: 'A',
+            priceCents: 100,
+            currency: 'USD',
+            imageUrl: null,
+            productUrl: 'https://a',
+          },
+        ],
+      })),
+      getProduct: vi.fn(),
+      cartAdd: vi.fn(),
+      cartUpdate: vi.fn(),
+      cartGet: vi.fn(),
+      couponApply: vi.fn(),
+      checkoutUrl: vi.fn(),
+    } as unknown as Adapter;
+    vi.spyOn(adapters, 'getAdapter').mockReturnValue(stub);
+
+    const r = await smokeTest({
+      adapterType: 'suggest',
+      domain: 'shop.test',
+      firstVariantId: 'x',
+      productUrl: 'https://shop.test/products/x',
+      selectors: null,
+      merchant: stubMerchant('suggest'),
+      sku: 'SKU-1',
+    });
+    expect(r.kind).toBe('passed');
+  });
+
+  it('suggest adapter fails with catalog_empty when search returns no products', async () => {
+    const stub = {
+      kind: 'suggest',
+      searchProducts: vi.fn(async () => ({ kind: 'ok' as const, value: [] })),
+      getProduct: vi.fn(),
+      cartAdd: vi.fn(),
+      cartUpdate: vi.fn(),
+      cartGet: vi.fn(),
+      couponApply: vi.fn(),
+      checkoutUrl: vi.fn(),
+    } as unknown as Adapter;
+    vi.spyOn(adapters, 'getAdapter').mockReturnValue(stub);
+
+    const r = await smokeTest({
+      adapterType: 'suggest',
+      domain: 'shop.test',
+      firstVariantId: 'x',
+      productUrl: 'https://shop.test/products/x',
+      selectors: null,
+      merchant: stubMerchant('suggest'),
+      sku: 'SKU-1',
+    });
+    expect(r.kind).toBe('failed');
+    if (r.kind === 'failed') expect(r.reason).toBe('catalog_empty');
+  });
+
+  it('suggest adapter fails with merchant_missing when no merchant', async () => {
+    const r = await smokeTest({
+      adapterType: 'suggest',
+      domain: 'shop.test',
+      firstVariantId: 'x',
+      productUrl: 'https://shop.test/products/x',
+      selectors: null,
+    });
+    expect(r.kind).toBe('failed');
+    if (r.kind === 'failed') expect(r.reason).toBe('merchant_missing');
+  });
+});
+
+describe('smokeTest — DOM→Suggest auto-promotion (DB-backed)', () => {
+  // These tests need a real merchant row because smokeDom calls
+  // `promoteToSuggest` (which selects/updates `merchants`) and the dispatcher
+  // re-fetches the row to detect promotion. Insert-and-clean per test.
+
+  const seededIds: string[] = [];
+
+  afterEach(async () => {
+    if (seededIds.length === 0) return;
+    const { db, schema } = await import('@shoppingmate/db');
+    const { eq, inArray } = await import('drizzle-orm');
+    await db.delete(schema.metricEvents).where(inArray(schema.metricEvents.merchantId, seededIds));
+    for (const id of seededIds.splice(0)) {
+      await db.delete(schema.merchants).where(eq(schema.merchants.id, id));
+    }
+  });
+
+  async function insertDomMerchant(): Promise<Merchant> {
+    const { db, schema } = await import('@shoppingmate/db');
+    const { generateMerchantId } = await import('@shoppingmate/shared');
+    const { eq } = await import('drizzle-orm');
+    const id = generateMerchantId();
+    seededIds.push(id);
+    await db.insert(schema.merchants).values({
+      id,
+      domain: `${id.toLowerCase()}.test`,
+      allowedDomains: [`${id.toLowerCase()}.test`],
+      status: 'onboarding',
+      adapterType: 'dom',
+      adapterConfig: {},
+    });
+    const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id));
+    if (!m) throw new Error('seed failed');
+    return m as unknown as Merchant;
+  }
+
+  it('promotes DOM merchant after 3 consecutive cartAdd unsupported results', async () => {
+    const { eq } = await import('drizzle-orm');
+    const merchant = await insertDomMerchant();
+
+    // First call (DOM path) — DOMAdapter returns unsupported 3x.
+    // Second call (Suggest path after promotion) — succeeds.
+    const domStub = {
+      kind: 'dom',
+      searchProducts: vi.fn(async () => ({ kind: 'ok' as const, value: [] })),
+      getProduct: vi.fn(),
+      cartAdd: vi.fn(async () => ({ kind: 'unsupported' as const, reason: 'no_match' })),
+      cartUpdate: vi.fn(),
+      cartGet: vi.fn(),
+      couponApply: vi.fn(),
+      checkoutUrl: vi.fn(),
+    } as unknown as Adapter;
+    const suggestStub = {
+      kind: 'suggest',
+      searchProducts: vi.fn(async () => ({
+        kind: 'ok' as const,
+        value: [
+          {
+            sku: 'A',
+            title: 'A',
+            priceCents: 100,
+            currency: 'USD',
+            imageUrl: null,
+            productUrl: 'https://a',
+          },
+        ],
+      })),
+      getProduct: vi.fn(),
+      cartAdd: vi.fn(),
+      cartUpdate: vi.fn(),
+      cartGet: vi.fn(),
+      couponApply: vi.fn(),
+      checkoutUrl: vi.fn(),
+    } as unknown as Adapter;
+    vi.spyOn(adapters, 'getAdapter')
+      .mockReturnValueOnce(domStub) // smokeDom call
+      .mockReturnValue(suggestStub); // post-promotion smokeSuggest call
+
+    const r = await smokeTest({
+      adapterType: 'dom',
+      domain: merchant.domain,
+      firstVariantId: 'x',
+      productUrl: `https://${merchant.domain}/products/x`,
+      selectors: { add_to_cart_button: '.add', cart_page_total: '.t' } as never,
+      merchant,
+      sku: 'SKU-1',
+    });
+
+    expect(r.kind).toBe('passed');
+    if (r.kind === 'passed') expect(r.promotedToSuggest).toBe(true);
+
+    // Verify DB row flipped to suggest.
+    const { db, schema } = await import('@shoppingmate/db');
+    const [row] = await db
+      .select()
+      .from(schema.merchants)
+      .where(eq(schema.merchants.id, merchant.id));
+    expect(row?.adapterType).toBe('suggest');
+  });
+
+  it('promotes DOM merchant when DOMAdapter returns DOM_PROMOTE_REASONS unsupported reason', async () => {
+    const { eq } = await import('drizzle-orm');
+    const merchant = await insertDomMerchant();
+
+    const domStub = {
+      kind: 'dom',
+      searchProducts: vi.fn(),
+      getProduct: vi.fn(),
+      cartAdd: vi.fn(async () => ({ kind: 'unsupported' as const, reason: 'action_cap' })),
+      cartUpdate: vi.fn(),
+      cartGet: vi.fn(),
+      couponApply: vi.fn(),
+      checkoutUrl: vi.fn(),
+    } as unknown as Adapter;
+    const suggestStub = {
+      kind: 'suggest',
+      searchProducts: vi.fn(async () => ({
+        kind: 'ok' as const,
+        value: [
+          {
+            sku: 'A',
+            title: 'A',
+            priceCents: 100,
+            currency: 'USD',
+            imageUrl: null,
+            productUrl: 'https://a',
+          },
+        ],
+      })),
+      getProduct: vi.fn(),
+      cartAdd: vi.fn(),
+      cartUpdate: vi.fn(),
+      cartGet: vi.fn(),
+      couponApply: vi.fn(),
+      checkoutUrl: vi.fn(),
+    } as unknown as Adapter;
+    vi.spyOn(adapters, 'getAdapter')
+      .mockReturnValueOnce(domStub)
+      .mockReturnValue(suggestStub);
+
+    const r = await smokeTest({
+      adapterType: 'dom',
+      domain: merchant.domain,
+      firstVariantId: 'x',
+      productUrl: `https://${merchant.domain}/products/x`,
+      selectors: { add_to_cart_button: '.add', cart_page_total: '.t' } as never,
+      merchant,
+      sku: 'SKU-1',
+    });
+
+    expect(r.kind).toBe('passed');
+    if (r.kind === 'passed') expect(r.promotedToSuggest).toBe(true);
+
+    const { db, schema } = await import('@shoppingmate/db');
+    const [row] = await db
+      .select()
+      .from(schema.merchants)
+      .where(eq(schema.merchants.id, merchant.id));
+    expect(row?.adapterType).toBe('suggest');
+  });
+});
