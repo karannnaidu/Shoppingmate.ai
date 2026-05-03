@@ -61,4 +61,13 @@ export const metricNames = {
   onboardingFingerprintBigcommerceDetected: 'onboarding.fingerprint.bigcommerce_detected',
   onboardingFingerprintWixDetected: 'onboarding.fingerprint.wix_detected',
   onboardingFingerprintSquarespaceDetected: 'onboarding.fingerprint.squarespace_detected',
+  domAction: 'dom.action',
+  domActionFailed: 'dom.action.failed',
+  selectorResolverHit: 'selector.resolver.hit',
+  selectorResolverMiss: 'selector.resolver.miss',
+  selectorResolverHealed: 'selector.resolver.healed',
+  selectorResolverGaveUp: 'selector.resolver.gave_up',
+  selectorOverrideFailing: 'selector.override.failing',
+  domAdapterDegradedToSuggest: 'dom.adapter.degraded_to_suggest',
+  domSessionActionCap: 'dom.session.action_cap',
 } as const;
