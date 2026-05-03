@@ -30,6 +30,7 @@
     "@shoppingmate/jobs": "workspace:^",
     "@shoppingmate/shared": "workspace:^",
     "@types/node": "^22.9.0",
+    "@types/ws": "^8.18.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "0.36.4",
     "hono": "4.12.16",
@@ -37,9 +38,13 @@
     "msw": "^2.6.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "ws": "^8.18.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild"
+    ]
   }
 }
