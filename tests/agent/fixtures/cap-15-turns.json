@@ -1,0 +1,17 @@
+{
+  "merchant": {
+    "id": "m_cap",
+    "personaId": "concierge",
+    "adapterType": "shopify",
+    "name": "CapTest"
+  },
+  "fixtureProducts": [],
+  "initialSession": { "turnCount": 15 },
+  "turns": [
+    {
+      "user": { "type": "user_text", "text": "one more thing", "mode": "text" },
+      "sonnetResponses": [],
+      "expectEvents": ["say", "session_closed"]
+    }
+  ]
+}
