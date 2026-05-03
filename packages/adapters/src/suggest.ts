@@ -43,6 +43,16 @@ empty placeholder — do not loop trying to read it.
  * Emits ui.show_message / ui.show_product_card actions instead of mutating a
  * real cart. Used when DOMAdapter exhausts caps or is forced via the
  * `set-adapter` CLI.
+ *
+ * Plan 4 alignment (2026-05-04): when the agent runtime constructs
+ * DispatchDeps, it passes a NoOpWSTransport so the legacy
+ * `ui.show_message` / `ui.show_product_card` calls become silent. The
+ * runtime emits canonical `cards` events directly from this adapter's
+ * `searchProducts` / `getProduct` results — Sonnet does not "see" any
+ * UI events, only the JSON product list.
+ *
+ * Plan 3e tests still pass because they construct the adapter with
+ * FakeWSTransport and assert on the calls it captures.
  */
 export class SuggestAdapter implements Adapter {
   readonly kind = 'suggest' as const;
