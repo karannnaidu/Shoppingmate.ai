@@ -25,6 +25,11 @@ export type RunTurnDeps = {
     tags: Record<string, string | number | boolean>,
     value?: number,
   ) => Promise<void>;
+  // Optional override for chatTools — used by fixture-driven CLI replay so the
+  // runner can inject a queued mock impl without depending on vitest's module
+  // mocking. Defaults to the shared `chatTools` import (which existing tests
+  // continue to mock via `vi.mock('@shoppingmate/shared')`).
+  chatToolsImpl?: typeof chatTools;
 };
 
 export async function* runTurn(
@@ -37,6 +42,7 @@ export async function* runTurn(
     return;
   }
 
+  const callChatTools = deps.chatToolsImpl ?? chatTools;
   const now = Date.now();
   const cap = checkCaps(session, session.mode, now);
 
@@ -115,7 +121,7 @@ export async function* runTurn(
     let ack: ChatToolsResult | undefined;
     let ackFirstFailed = false;
     try {
-      ack = await chatTools(ackArgs);
+      ack = await callChatTools(ackArgs);
     } catch (err1) {
       const e1 = err1 as Error;
       ackFirstFailed = true;
@@ -126,7 +132,7 @@ export async function* runTurn(
         retryCount: 0,
       });
       try {
-        ack = await chatTools(ackArgs);
+        ack = await callChatTools(ackArgs);
       } catch (err2) {
         const e2 = err2 as Error;
         await deps.recordMetric('agent.sonnet.error', {
@@ -177,7 +183,7 @@ export async function* runTurn(
     let attemptResult: ChatToolsResult | undefined;
     let firstFailed = false;
     try {
-      attemptResult = await chatTools({ model: SONNET_MODEL, messages: history, tools });
+      attemptResult = await callChatTools({ model: SONNET_MODEL, messages: history, tools });
     } catch (err1) {
       const e1 = err1 as Error;
       firstFailed = true;
@@ -188,7 +194,7 @@ export async function* runTurn(
         retryCount: 0,
       });
       try {
-        attemptResult = await chatTools({ model: SONNET_MODEL, messages: history, tools });
+        attemptResult = await callChatTools({ model: SONNET_MODEL, messages: history, tools });
       } catch (err2) {
         const e2 = err2 as Error;
         await deps.recordMetric('agent.sonnet.error', {

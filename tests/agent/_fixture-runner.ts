@@ -1,10 +1,30 @@
-import { readFileSync } from 'node:fs';
+// Vitest-aware fixture runner. Wraps `runFixturePure` with a `vi.fn()`-based
+// chatTools impl so existing tests can keep using `vi.mocked(chatTools)` for
+// per-call assertions, and to preserve the historical surface
+// (`chatToolsMock`, `saveSessionMock`, `recordMetricMock`) those tests rely on.
+//
+// The deterministic core (merchant/session/adapter setup, turn loop) lives in
+// `_fixture-runner-pure.ts` and is reused by `packages/cli/src/commands/agentReplay.ts`,
+// which runs outside vitest and therefore can't import `vi`.
 import { vi } from 'vitest';
-import type { Adapter, AdapterResult } from '@shoppingmate/adapters';
-import type { Merchant, Product } from '@shoppingmate/db';
-import { runTurn, type RunTurnDeps } from '../../apps/api/src/agent/runtime.js';
-import type { AgentEvent, SessionState, WidgetMessage } from '../../apps/api/src/agent/types.js';
+import {
+  fixtureSonnetQueue,
+  loadFixture,
+  runFixturePure,
+} from './_fixture-runner-pure.js';
+import type { AgentEvent, SessionState } from '../../apps/api/src/agent/types.js';
 
+// Re-export the shared types so callers can keep importing from here.
+export type {
+  FixtureSonnetResponse,
+  FixtureUserTurn,
+  FixtureTurn,
+  FixtureFile,
+} from './_fixture-runner-pure.js';
+
+// Mock @shoppingmate/shared at module load — keeps backward-compat with tests
+// that did `await import('@shoppingmate/shared')` and asserted via
+// `vi.mocked(chatTools).mock.calls`.
 vi.mock('@shoppingmate/shared', async (orig) => ({
   ...(await orig<typeof import('@shoppingmate/shared')>()),
   chatTools: vi.fn(),
@@ -12,181 +32,45 @@ vi.mock('@shoppingmate/shared', async (orig) => ({
 
 const { chatTools } = await import('@shoppingmate/shared');
 
-export type FixtureSonnetResponse = {
-  text: string;
-  stopReason: string;
-  toolCalls: Array<{ id: string; name: string; argumentsJson: string }>;
-};
-
-export type FixtureUserTurn =
-  | { type: 'user_text'; text: string; mode?: 'voice' | 'text' }
-  | { type: 'card_tap'; sku: string; qty: number; variantId?: string | null; action?: 'cartAdd' };
-
-export type FixtureTurn = {
-  user: FixtureUserTurn;
-  sonnetResponses: FixtureSonnetResponse[];
-  expectEvents: string[];
-  expectNoNumericPriceInSay?: boolean;
-};
-
-export type FixtureFile = {
-  merchant: Partial<Merchant>;
-  initialSession: Partial<SessionState>;
-  fixtureProducts?: Product[];
-  adapterOverrides?: {
-    cartAdd?: 'unsupported' | 'ok';
-    searchProducts?: 'ok' | 'not_found';
-  };
-  turns: FixtureTurn[];
-};
-
 export type RunFixtureResult = {
   events: AgentEvent[][];
-  fixture: FixtureFile;
+  fixture: import('./_fixture-runner-pure.js').FixtureFile;
   chatToolsMock: ReturnType<typeof vi.mocked<typeof chatTools>>;
   saveSessionMock: ReturnType<typeof vi.fn>;
   recordMetricMock: ReturnType<typeof vi.fn>;
 };
 
-function emptyCart(): {
-  cartToken: string;
-  lines: never[];
-  subtotalCents: number;
-  totalCents: number;
-  currency: string;
-  appliedCoupons: never[];
-} {
-  return {
-    cartToken: 'ct',
-    lines: [],
-    subtotalCents: 0,
-    totalCents: 0,
-    currency: 'INR',
-    appliedCoupons: [],
-  };
-}
-
 export async function runFixture(path: string): Promise<RunFixtureResult> {
-  const fixture = JSON.parse(readFileSync(path, 'utf8')) as FixtureFile;
+  const fixture = loadFixture(path);
+  const queue = fixtureSonnetQueue(fixture);
 
-  const merchant = {
-    id: 'm_test',
-    domain: 'test.test',
-    name: 'Test',
-    personaId: 'concierge',
-    adapterType: 'shopify',
-    adapterConfig: {},
-    status: 'live',
-    allowedDomains: [],
-    ...fixture.merchant,
-  } as unknown as Merchant;
-
-  const session: SessionState = {
-    sessionId: 's-fix',
-    merchantId: merchant.id,
-    cartToken: null,
-    history: [],
-    turnCount: 0,
-    voiceMs: 0,
-    totalMs: 0,
-    startedAt: Date.now(),
-    lastTurnAt: Date.now(),
-    mode: 'text',
-    ...fixture.initialSession,
-  };
-
-  const products = fixture.fixtureProducts ?? [];
-  const overrides = fixture.adapterOverrides ?? {};
-
-  const cartAddResult: AdapterResult<ReturnType<typeof emptyCart>> =
-    overrides.cartAdd === 'unsupported'
-      ? { kind: 'unsupported', reason: 'cart-less adapter' }
-      : { kind: 'ok', value: emptyCart() };
-
-  const searchResult: AdapterResult<Product[]> =
-    overrides.searchProducts === 'not_found'
-      ? { kind: 'ok', value: [] }
-      : { kind: 'ok', value: products };
-
-  const adapter: Adapter = {
-    kind: (merchant.adapterType ?? 'shopify') as Adapter['kind'],
-    searchProducts: async () => searchResult,
-    getProduct: async (_ctx, sku) => ({
-      kind: 'ok',
-      value: products.find((p) => p.sku === sku) ?? null,
-    }),
-    cartAdd: async () => cartAddResult,
-    cartUpdate: async () => ({ kind: 'ok', value: emptyCart() }),
-    cartGet: async () => ({ kind: 'ok', value: emptyCart() }),
-    couponApply: async () => ({ kind: 'ok', value: emptyCart() }),
-    checkoutUrl: async () => ({ kind: 'ok', value: 'https://test.test/checkout' }),
-  };
+  // Keep the historical `vi.mocked(chatTools)` queue behaviour: each fixture
+  // turn enqueues its responses, runtime calls them in order. Existing tests
+  // can still inspect call args through `chatToolsMock.mock.calls`.
+  const chatToolsMock = vi.mocked(chatTools);
+  chatToolsMock.mockReset();
+  for (const r of queue) chatToolsMock.mockResolvedValueOnce(r);
 
   const saveSessionMock = vi.fn(async () => undefined);
   const recordMetricMock = vi.fn(async () => undefined);
 
-  const deps: RunTurnDeps = {
-    loadAdapter: () => adapter,
-    saveSession: saveSessionMock,
-    recordMetric: recordMetricMock,
-  };
+  const result = await runFixturePure(path, async (...args) => {
+    // Route through the vi mock so tests can assert on call args/order.
+    return chatToolsMock(...(args as Parameters<typeof chatTools>));
+  });
 
-  const chatToolsMock = vi.mocked(chatTools);
-  chatToolsMock.mockReset();
-
-  const allEvents: AgentEvent[][] = [];
-  let runningSession = session;
-
-  for (const turn of fixture.turns) {
-    for (const r of turn.sonnetResponses) {
-      chatToolsMock.mockResolvedValueOnce({
-        text: r.text,
-        toolCalls: r.toolCalls.map((tc) => ({
-          id: tc.id,
-          name: tc.name,
-          argumentsJson: tc.argumentsJson,
-        })),
-        stopReason: r.stopReason as 'stop' | 'tool_calls' | 'length' | 'other',
-        inputTokens: 100,
-        outputTokens: 20,
-      });
-    }
-
-    let widgetMsg: WidgetMessage;
-    if (turn.user.type === 'user_text') {
-      widgetMsg = {
-        type: 'user_text',
-        sessionId: runningSession.sessionId,
-        text: turn.user.text,
-        mode: turn.user.mode ?? 'text',
-      };
-    } else {
-      widgetMsg = {
-        type: 'card_tap',
-        sessionId: runningSession.sessionId,
-        action: turn.user.action ?? 'cartAdd',
-        variantId: turn.user.variantId ?? null,
-        sku: turn.user.sku,
-        qty: turn.user.qty,
-      };
-    }
-
-    const events: AgentEvent[] = [];
-    for await (const ev of runTurn(deps, merchant, runningSession, widgetMsg)) {
-      events.push(ev);
-    }
-    allEvents.push(events);
-
-    // Pull the saved session (if any) to chain turns realistically.
-    const lastSave = saveSessionMock.mock.calls.at(-1);
-    if (lastSave) {
-      runningSession = lastSave[0] as SessionState;
-    }
+  // Replay saved sessions / metrics into the mock so tests that inspect
+  // `saveSessionMock.mock.calls` keep working.
+  for (const s of result.savedSessions) {
+    await saveSessionMock(s as SessionState);
+  }
+  for (const m of result.recordedMetrics) {
+    await recordMetricMock(m.name, m.tags, m.value);
   }
 
   return {
-    events: allEvents,
-    fixture,
+    events: result.events,
+    fixture: result.fixture,
     chatToolsMock,
     saveSessionMock,
     recordMetricMock,

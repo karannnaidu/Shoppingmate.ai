@@ -2,6 +2,7 @@
 import { parseArgs } from 'node:util';
 import type { AdapterType } from '@shoppingmate/db';
 import { adapterSmoke } from './commands/adapterSmoke.js';
+import { agentReplay } from './commands/agentReplay.js';
 import { provision } from './commands/provision.js';
 import { retryOnboarding } from './commands/retryOnboarding.js';
 import { setAdapter } from './commands/setAdapter.js';
@@ -13,6 +14,7 @@ const USAGE = `Usage:
   shoppingmate show <merchantId>
   shoppingmate adapter-smoke <merchantId>
   shoppingmate set-adapter --merchant=<id> --type=<adapter_type> [--reason=<text>]
+  shoppingmate agent-replay <fixturePath>
 `;
 
 async function main(): Promise<void> {
@@ -76,6 +78,16 @@ async function main(): Promise<void> {
       }
       const code = await adapterSmoke(id);
       process.exitCode = code;
+      return;
+    }
+    case 'agent-replay': {
+      const path = argv[1];
+      if (!path) {
+        console.error('usage: agent-replay <fixturePath>');
+        process.exitCode = 2;
+        return;
+      }
+      process.exitCode = await agentReplay(path);
       return;
     }
     case 'set-adapter': {
