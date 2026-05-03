@@ -175,3 +175,95 @@ describe('resolveSelector', () => {
     expect(r.kind).toBe('degrade_to_suggest');
   });
 });
+
+describe('markSelectorFailed (heal path)', () => {
+  it('heals via LLM and caches result', async () => {
+    const { InMemorySessionState } = await import('../../src/dom/sessionState.js');
+    const { markSelectorFailed } = await import('../../src/dom/resolver.js');
+    const { selectorCacheRepo } = await import('@shoppingmate/db');
+    const llmCall = vi.fn(async (_p: string) => '#headless-buy');
+    const state = new InMemorySessionState();
+    const r = await markSelectorFailed(
+      {
+        merchant,
+        sessionId: 's',
+        pageTemplateHash: 'h1',
+        selectorKey: 'add_to_cart_button',
+        html: '<html><button id="headless-buy">Buy</button></html>',
+      },
+      { llmCall, state, maxLlmPerSession: 5 },
+    );
+    expect(r).toEqual({
+      kind: 'use_selector',
+      selector: '#headless-buy',
+      source: 'llm_resolved',
+    });
+    expect(llmCall).toHaveBeenCalledTimes(1);
+    const cached = await selectorCacheRepo.get('SM-T01', 'h1', 'add_to_cart_button');
+    expect(cached?.resolvedSelector).toBe('#headless-buy');
+    expect(cached?.source).toBe('llm_resolved');
+  });
+
+  it('gives up after maxLlmPerSession', async () => {
+    const { InMemorySessionState } = await import('../../src/dom/sessionState.js');
+    const { markSelectorFailed } = await import('../../src/dom/resolver.js');
+    const llmCall = vi.fn(async () => '#x');
+    const state = new InMemorySessionState();
+    for (let i = 0; i < 5; i++) await state.incrResolver('s');
+    const r = await markSelectorFailed(
+      {
+        merchant,
+        sessionId: 's',
+        pageTemplateHash: 'h1',
+        selectorKey: 'add_to_cart_button',
+        html: '<html/>',
+      },
+      { llmCall, state, maxLlmPerSession: 5 },
+    );
+    expect(r.kind).toBe('gave_up');
+  });
+
+  it('writes suggested_replacement (does NOT mutate selector) for failing override', async () => {
+    const { InMemorySessionState } = await import('../../src/dom/sessionState.js');
+    const { markSelectorFailed } = await import('../../src/dom/resolver.js');
+    const { selectorCacheRepo } = await import('@shoppingmate/db');
+    await selectorCacheRepo.put(
+      'SM-T01',
+      'h1',
+      'add_to_cart_button',
+      '.override',
+      'merchant_override',
+    );
+    const llmCall = vi.fn(async () => '#suggested');
+    const r = await markSelectorFailed(
+      {
+        merchant,
+        sessionId: 's',
+        pageTemplateHash: 'h1',
+        selectorKey: 'add_to_cart_button',
+        html: '<html/>',
+      },
+      { llmCall, state: new InMemorySessionState(), maxLlmPerSession: 5 },
+    );
+    expect(r.kind).toBe('degrade_to_suggest');
+    const row = await selectorCacheRepo.get('SM-T01', 'h1', 'add_to_cart_button');
+    expect(row?.resolvedSelector).toBe('.override'); // unchanged
+    expect(row?.suggestedReplacement).toBe('#suggested');
+  });
+
+  it('returns gave_up when no llmCall provided', async () => {
+    const { InMemorySessionState } = await import('../../src/dom/sessionState.js');
+    const { markSelectorFailed } = await import('../../src/dom/resolver.js');
+    const r = await markSelectorFailed(
+      {
+        merchant,
+        sessionId: 's',
+        pageTemplateHash: 'h1',
+        selectorKey: 'add_to_cart_button',
+        html: '<html/>',
+      },
+      { state: new InMemorySessionState() },
+    );
+    expect(r.kind).toBe('gave_up');
+  });
+});
