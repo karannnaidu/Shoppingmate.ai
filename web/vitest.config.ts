@@ -22,6 +22,9 @@ export default defineConfig({
       STRIPE_PRICE_TOPUP_1000: 'price_test_t1000',
       STRIPE_PRICE_TOPUP_5000: 'price_test_t5000',
       STRIPE_WEBHOOK_SECRET: 'whsec_test_dummy',
+      COMPOSIO_API_KEY: 'test-composio-key',
+      COMPOSIO_SHOPIFY_AUTH_CONFIG_ID: 'ac_test_shopify',
+      COMPOSIO_WEBHOOK_SECRET: 'whsec_composio_test',
     },
   },
 });
