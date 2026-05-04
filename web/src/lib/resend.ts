@@ -20,7 +20,7 @@ export const resend = new Proxy({} as Resend, {
 
 export async function sendMagicLink(email: string, url: string) {
   await resend.emails.send({
-    from: 'shoppingmate <login@shoppingmate.ai>',
+    from: process.env.RESEND_FROM ?? 'shoppingmate <onboarding@resend.dev>',
     to: email,
     subject: 'Sign in to shoppingmate',
     html: `<p>Click to sign in:</p><p><a href="${url}">${url}</a></p><p>This link expires in 15 minutes.</p>`,
