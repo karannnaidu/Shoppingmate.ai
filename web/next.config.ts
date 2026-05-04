@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: [
+    "@shoppingmate/db",
+    "@shoppingmate/shared",
+    "@shoppingmate/agent",
+    "@shoppingmate/adapters",
+    "@shoppingmate/jobs",
+    "@shoppingmate/dom-harness",
+  ],
 };
 
 export default nextConfig;
