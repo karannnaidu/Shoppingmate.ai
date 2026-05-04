@@ -5,3 +5,4 @@ export * from './conversionEvents.js';
 export * from './billingLedger.js';
 export * from './metricEvents.js';
 export * from './installAttempts.js';
+export * from './auth.js';
