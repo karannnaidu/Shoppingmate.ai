@@ -135,6 +135,9 @@ importers:
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@opentelemetry/api@1.9.1)(@types/react@19.2.14)(kysely@0.28.17)(postgres@3.4.9)(react@19.2.4)
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.10.1
       livekit-server-sdk:
         specifier: ^2.7.0
         version: 2.15.2
@@ -369,6 +372,9 @@ importers:
       '@composio/core':
         specifier: ^0.1.0
         version: 0.1.55(ws@8.20.0)(zod@3.25.76)
+      '@shoppingmate/db':
+        specifier: workspace:^
+        version: link:../packages/db
       better-auth:
         specifier: ^1.2.7
         version: 1.2.7
