@@ -17,6 +17,7 @@
     "@shoppingmate/agent": "workspace:*",
     "@shoppingmate/db": "workspace:*",
     "@shoppingmate/shared": "workspace:*",
+    "@google/genai": "^1.51.0",
     "livekit-server-sdk": "^2.7.0",
     "zod": "^3.23.8"
   },
