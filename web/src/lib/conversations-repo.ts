@@ -70,3 +70,44 @@ export async function listConversations(filters: ListFilters): Promise<Conversat
 
   return rows;
 }
+
+export type ConversationDetail = {
+  id: string;
+  startedAt: Date;
+  durationSec: number;
+  turns: number;
+  mode: 'voice' | 'text';
+  outcome: 'purchased' | 'abandoned' | 'in_progress';
+  attributedCents: number | null;
+  transcript: Array<{ role: 'user' | 'agent' | 'tool' | 'card'; content: string; timestamp: number }>;
+  llmCostCents: number;
+  voiceCostCents: number;
+};
+
+export async function getConversation(args: { merchantId: string; sessionId: string }): Promise<ConversationDetail | null> {
+  const rows = await db
+    .select()
+    .from(metricEvents)
+    .where(and(
+      eq(metricEvents.merchantId, args.merchantId),
+      eq(metricEvents.metricName, 'conversationCompleted'),
+      sql`${metricEvents.tags}->>'session_id' = ${args.sessionId}`,
+    ))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  const t = (row.tags ?? {}) as Record<string, unknown>;
+  const attributed = t.attributed_cents;
+  return {
+    id: args.sessionId,
+    startedAt: row.ts,
+    durationSec: Number(t.duration_sec ?? 0),
+    turns: Number(t.turns ?? 0),
+    mode: (t.mode as 'voice' | 'text') ?? 'text',
+    outcome: (t.outcome as 'purchased' | 'abandoned' | 'in_progress') ?? 'in_progress',
+    attributedCents: attributed != null && attributed !== '' ? Number(attributed) : null,
+    transcript: Array.isArray(t.transcript) ? (t.transcript as ConversationDetail['transcript']) : [],
+    llmCostCents: Number(t.llm_cost_cents ?? 0),
+    voiceCostCents: Number(t.voice_cost_cents ?? 0),
+  };
+}
