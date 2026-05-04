@@ -10,6 +10,7 @@ import { childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
+import { createMetricsLedger, defaultSink } from './metrics.js';
 import { voiceEnv } from './env.js';
 import { createGeminiSdkTransport } from './geminiSdkTransport.js';
 import { createGeminiSession } from './geminiSession.js';
@@ -69,6 +70,12 @@ const agentDefinition = defineAgent({
       },
     });
 
+    const metrics = createMetricsLedger({
+      sessionId,
+      merchantId: merchant.id,
+      sink: defaultSink,
+    });
+
     const caps = createSessionCaps({
       onWarn: ({ remaining }) => dataChannel.publish({ type: 'cap_warning', remaining }),
       onTrip: ({ cap }) => {
@@ -106,13 +113,16 @@ const agentDefinition = defineAgent({
     gemini.onEvent((e) => {
       if (e.type === 'final_transcript' && e.text.trim().length > 0) {
         const words = e.text.split(/\s+/).filter(Boolean).length;
-        caps.recordVoiceSeconds(words / 3.3);
+        const inputSeconds = words / 3.3;
+        caps.recordVoiceSeconds(inputSeconds);
+        metrics.add('gemini_audio_input_seconds', inputSeconds);
         bridge.handleUserText(e.text).catch((err) => {
           log.error({ err }, 'bridge.handleUserText threw');
         });
       } else if (e.type === 'audio_out') {
         const seconds = e.bytes.length / (24_000 * 2);
         caps.recordVoiceSeconds(seconds);
+        metrics.add('gemini_audio_output_seconds', seconds);
         log.debug({ bytes: e.bytes.length }, 'gemini audio_out');
       } else if (e.type === 'error') {
         log.error({ err: e.error }, 'gemini transport error');
@@ -142,6 +152,7 @@ const agentDefinition = defineAgent({
 
     job.room.on(RoomEvent.Disconnected, () => {
       clearInterval(tickInterval);
+      metrics.flush();
       gemini.close().catch(() => {});
       log.info({ sessionId }, 'voice-agent job ended');
     });
