@@ -14,6 +14,12 @@ export async function middleware(req: NextRequest) {
   // string without explicit headers (e.g. in unit tests).
   const hostname = req.nextUrl.hostname;
 
+  // Build mutated request headers carrying x-pathname so server components
+  // (e.g. the dashboard layout) can read the current route without relying on
+  // the unavailable request object.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-pathname', url.pathname);
+
   const isAppHost =
     hostname === APP_HOST ||
     hostname === APP_HOST.split(':')[0] ||
@@ -28,7 +34,7 @@ export async function middleware(req: NextRequest) {
     !url.pathname.startsWith('/verify')
   ) {
     url.pathname = `/app${url.pathname === '/' ? '' : url.pathname}`;
-    return NextResponse.rewrite(url);
+    return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
   }
 
   if (url.pathname.startsWith('/app')) {
@@ -41,5 +47,5 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
