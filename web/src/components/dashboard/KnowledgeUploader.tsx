@@ -39,16 +39,17 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
       <Card>
         <CardHeader><CardTitle>Brand Knowledge Files</CardTitle></CardHeader>
         <CardContent>
-          <label className={cn('flex flex-col items-center justify-center border-2 border-dashed rounded-md p-8 cursor-pointer', uploading ? 'opacity-50' : 'hover:bg-zinc-50')}>
+          <label className={cn('flex flex-col items-center justify-center border-2 border-dashed border-border rounded-2xl p-10 cursor-pointer transition-colors', uploading ? 'opacity-50' : 'hover:border-border-strong hover:bg-surface-muted')}>
             <input type="file" accept=".pdf,.docx,.md,.txt" onChange={onFile} className="hidden" />
-            <p className="text-sm">{uploading ? 'Uploading…' : 'Drag and drop or click to upload'}</p>
-            <p className="text-xs text-zinc-500 mt-1">PDF, .docx, .md, .txt — up to 10 MB</p>
+            <p className="text-sm font-medium text-text-primary">{uploading ? 'Uploading…' : 'Drag and drop or click to upload'}</p>
+            <p className="text-xs text-text-secondary mt-1">PDF, .docx, .md, .txt — up to 10 MB</p>
           </label>
         </CardContent>
       </Card>
-      <div className={cn('text-sm rounded-md p-3', overBudget ? 'bg-amber-50 text-amber-900' : 'bg-zinc-50 text-zinc-700')}>
+      <div className={cn('text-sm rounded-md border p-3 tabular-nums', overBudget ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-surface-muted border-border text-text-secondary')}>
         <span>
-          {`Total: ${totalTokens.toLocaleString()} / 8,000 tokens — `}
+          <span className={cn('font-semibold', overBudget ? 'text-amber-500' : 'text-text-primary')}>{`Total: ${totalTokens.toLocaleString()} / 8,000 tokens`}</span>
+          {' — '}
           {overBudget ? 'exceeds 8K budget; switching to top-K embedding retrieval.' : 'full KB injected at session start.'}
         </span>
       </div>
@@ -56,23 +57,23 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
         <Card>
           <CardContent className="px-0">
             <table className="w-full text-sm">
-              <thead className="text-xs uppercase text-zinc-500">
-                <tr className="border-b">
-                  <th className="px-6 py-2 text-left">Filename</th>
-                  <th className="text-left">Size</th>
-                  <th className="text-left">Status</th>
-                  <th className="text-left">Tokens</th>
-                  <th className="text-left">Enabled</th>
+              <thead className="text-xs uppercase text-text-muted tracking-wide">
+                <tr className="border-b border-border">
+                  <th className="px-6 py-3 text-left font-medium">Filename</th>
+                  <th className="text-left font-medium">Size</th>
+                  <th className="text-left font-medium">Status</th>
+                  <th className="text-left font-medium">Tokens</th>
+                  <th className="text-left font-medium">Enabled</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="text-text-primary">
                 {docs.map((d) => (
-                  <tr key={d.id} className="border-b last:border-0">
-                    <td className="px-6 py-2">{d.filename}</td>
-                    <td>{(d.sizeBytes / 1024).toFixed(0)} KB</td>
-                    <td>{d.status}</td>
-                    <td>{d.tokenCount}</td>
-                    <td>{d.enabled ? '✓' : '—'}</td>
+                  <tr key={d.id} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
+                    <td className="px-6 py-3">{d.filename}</td>
+                    <td className="tabular-nums text-text-secondary">{(d.sizeBytes / 1024).toFixed(0)} KB</td>
+                    <td className="text-text-secondary">{d.status}</td>
+                    <td className="tabular-nums text-text-secondary">{d.tokenCount}</td>
+                    <td>{d.enabled ? <span className="text-emerald-500">✓</span> : <span className="text-text-muted">—</span>}</td>
                   </tr>
                 ))}
               </tbody>

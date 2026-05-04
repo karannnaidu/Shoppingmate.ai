@@ -24,22 +24,22 @@ export function PersonaForm({ initial }: { initial: Persona | null }) {
       <CardHeader><CardTitle>Persona</CardTitle></CardHeader>
       <CardContent>
         <form action={savePersona} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Voice descriptor</span>
-            <select name="voiceDescriptorId" defaultValue={initial?.voiceDescriptorId ?? VOICES[0].id} className="border rounded px-3 py-2">
+          <label className="flex flex-col gap-1.5 text-sm text-text-primary">
+            <span className="font-medium">Voice descriptor</span>
+            <select name="voiceDescriptorId" defaultValue={initial?.voiceDescriptorId ?? VOICES[0].id} className="rounded-md border border-border bg-surface px-3 py-2 text-text-primary focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30 transition-colors">
               {VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Brand voice notes</span>
+          <label className="flex flex-col gap-1.5 text-sm text-text-primary">
+            <span className="font-medium">Brand voice notes</span>
             <textarea name="brandVoiceNotes" maxLength={500} defaultValue={initial?.brandVoiceNotes ?? ''}
-              className="border rounded px-3 py-2 min-h-24"
+              className="rounded-md border border-border bg-surface px-3 py-2 min-h-24 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30 transition-colors"
               placeholder="Speak warmly, never use exclamation marks. Address customers by their first name when known." />
           </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Tone</span>
-            <input type="range" name="toneValue" min={1} max={5} step={1} defaultValue={initial?.toneValue ?? 3} />
-            <div className="flex justify-between text-xs text-zinc-500">
+          <label className="flex flex-col gap-1.5 text-sm text-text-primary">
+            <span className="font-medium">Tone</span>
+            <input type="range" name="toneValue" min={1} max={5} step={1} defaultValue={initial?.toneValue ?? 3} className="accent-violet" />
+            <div className="flex justify-between text-xs text-text-secondary">
               {TONE_LABELS.map((t) => <span key={t}>{t}</span>)}
             </div>
           </label>

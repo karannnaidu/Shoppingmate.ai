@@ -25,11 +25,12 @@ export default async function AppLayout({
   const alert = session.merchant ? await getActiveAlert(session.merchant.id) : null;
 
   return (
-    <div className="flex">
+    <div className="relative flex min-h-dvh bg-background text-text-primary">
+      <div className="aurora opacity-40" aria-hidden />
       <Sidebar pathname={pathname} />
-      <div className="flex-1 flex flex-col">
+      <div className="relative z-10 flex-1 flex flex-col">
         <AlertBanner alert={alert as Parameters<typeof AlertBanner>[0]['alert']} />
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6 md:p-8">{children}</main>
       </div>
     </div>
   );

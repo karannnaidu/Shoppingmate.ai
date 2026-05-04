@@ -16,10 +16,10 @@ export function DangerZone({ merchantId }: { merchantId: string }) {
   }
 
   return (
-    <Card className="border-red-200">
-      <CardHeader><CardTitle className="text-red-600">Danger zone</CardTitle></CardHeader>
+    <Card className="border-rose-500/30">
+      <CardHeader><CardTitle className="text-rose-500">Danger zone</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <p className="text-sm text-zinc-700">Cancels Stripe subscription, revokes Composio connections, soft-deletes your merchant. Type <code>{merchantId}</code> to confirm.</p>
+        <p className="text-sm text-text-secondary">Cancels Stripe subscription, revokes Composio connections, soft-deletes your merchant. Type <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-xs text-text-primary">{merchantId}</code> to confirm.</p>
         <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={merchantId} />
         <Button variant="destructive" disabled={confirmText !== merchantId || submitting} onClick={deleteAccount}>
           {submitting ? 'Deleting…' : 'Delete account'}

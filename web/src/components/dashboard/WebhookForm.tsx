@@ -29,12 +29,12 @@ export function WebhookForm({ initial }: { initial: string | null }) {
       <CardContent>
         <form action={saveWebhook} className="flex flex-col gap-3">
           <Input name="leadWebhookUrl" type="url" placeholder="https://your-crm.com/webhooks/shoppingmate" value={url} onChange={(e) => setUrl(e.target.value)} />
-          <p className="text-xs text-zinc-500">We POST a JSON body when a conversation captures a lead.</p>
+          <p className="text-xs text-text-secondary">We POST a JSON body when a conversation captures a lead.</p>
           <div className="flex gap-2">
             <Button type="submit">Save</Button>
             <Button type="button" variant="outline" onClick={testFire} disabled={!url}>Test fire</Button>
           </div>
-          {testResult && <p className="text-xs text-zinc-700">{testResult}</p>}
+          {testResult && <p className="text-xs text-text-secondary"><span className="text-text-primary font-mono">{testResult}</span></p>}
         </form>
       </CardContent>
     </Card>

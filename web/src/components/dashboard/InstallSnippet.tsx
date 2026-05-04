@@ -20,16 +20,16 @@ export function InstallSnippet({ merchantId, lastPing }: { merchantId: string; l
     <Card>
       <CardHeader><CardTitle>Install snippet</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <pre className="bg-zinc-900 text-zinc-100 text-xs rounded-md p-4 overflow-x-auto">{snippet}</pre>
-        <div className="flex gap-2 items-center">
+        <pre className="bg-foreground text-background text-xs font-mono rounded-md p-4 overflow-x-auto border border-border">{snippet}</pre>
+        <div className="flex gap-2 items-center flex-wrap">
           <Button onClick={() => navigator.clipboard.writeText(snippet)}>Copy</Button>
           <Button variant="outline" onClick={verify} disabled={verifying}>{verifying ? 'Checking…' : 'Re-verify'}</Button>
-          <span className="text-xs text-zinc-500">
-            Last ping: {lastPing ? new Date(lastPing).toLocaleString() : 'never'}
+          <span className="text-xs text-text-secondary">
+            Last ping: <span className="text-text-primary">{lastPing ? new Date(lastPing).toLocaleString() : 'never'}</span>
           </span>
         </div>
-        {result === 'ok' && <p className="text-xs text-emerald-700">Widget detected.</p>}
-        {result === 'fail' && <p className="text-xs text-red-700">Widget not detected.</p>}
+        {result === 'ok' && <p className="text-xs text-emerald-500">Widget detected.</p>}
+        {result === 'fail' && <p className="text-xs text-rose-500">Widget not detected.</p>}
       </CardContent>
     </Card>
   );

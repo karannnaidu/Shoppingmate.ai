@@ -10,9 +10,9 @@ type AlertProps = {
 };
 
 const SEVERITY_STYLES: Record<AlertProps['severity'], string> = {
-  info: 'bg-blue-50 border-blue-200 text-blue-900',
-  warning: 'bg-amber-50 border-amber-200 text-amber-900',
-  critical: 'bg-red-50 border-red-200 text-red-900',
+  info: 'bg-cyan/10 border-cyan/30 text-cyan',
+  warning: 'bg-amber-500/10 border-amber-500/30 text-amber-500',
+  critical: 'bg-rose-500/10 border-rose-500/30 text-rose-500',
 };
 
 export function AlertBanner({ alert }: { alert: AlertProps | null }) {
@@ -24,7 +24,7 @@ export function AlertBanner({ alert }: { alert: AlertProps | null }) {
   switch (alert.kind) {
     case 'override_failing': {
       const key = (alert.payload.selector_key as string) ?? 'unknown';
-      copy = <>Your <code className="px-1 bg-white/50 rounded">{key}</code> selector is failing — accept the suggested fix?</>;
+      copy = <>Your <code className="rounded bg-foreground/10 px-1 font-mono text-xs">{key}</code> selector is failing — accept the suggested fix?</>;
       action = (
         <form action={`/api/alerts/${alert.id}/accept`} method="post">
           <Button size="sm" type="submit">Accept fix</Button>
@@ -34,7 +34,7 @@ export function AlertBanner({ alert }: { alert: AlertProps | null }) {
     }
     case 'smoke_failing':
       copy = <>Your widget can&apos;t add items to cart. Catalog or selectors are broken.</>;
-      action = <a href={`/app/diagnostics?alert=${alert.id}`} className="underline text-sm font-medium">View details</a>;
+      action = <a href={`/app/diagnostics?alert=${alert.id}`} className="text-sm font-medium underline-offset-4 hover:underline">View details</a>;
       break;
     case 'catalog_drift':
       copy = <>Your catalog hasn&apos;t synced in 24h.</>;
@@ -46,12 +46,16 @@ export function AlertBanner({ alert }: { alert: AlertProps | null }) {
       break;
     case 'payment_failed':
       copy = <>Your last invoice failed. Update payment to keep your widget live.</>;
-      action = <a href="/app/billing" className="underline text-sm font-medium">Update payment</a>;
+      action = <a href="/app/billing" className="text-sm font-medium underline-offset-4 hover:underline">Update payment</a>;
       break;
   }
 
   return (
-    <div className={cn('flex items-center justify-between gap-4 border-b px-6 py-3', SEVERITY_STYLES[alert.severity])}>
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn('flex items-center justify-between gap-4 border-b px-6 py-3', SEVERITY_STYLES[alert.severity])}
+    >
       <div className="text-sm">{copy}</div>
       <div>{action}</div>
     </div>

@@ -28,7 +28,7 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Home</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Home</h1>
         <CatalogChip syncedAt={merchantRow?.catalogSyncedAt ?? null} productCount={productCountRow[0]?.count ?? 0} />
       </div>
 

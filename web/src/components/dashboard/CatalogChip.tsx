@@ -13,13 +13,13 @@ export function CatalogChip({ syncedAt, productCount }: { syncedAt: Date | null;
     <Link
       href="/app/settings"
       className={cn(
-        'inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full border',
-        tone === 'green' && 'bg-emerald-50 border-emerald-200 text-emerald-900',
-        tone === 'amber' && 'bg-amber-50 border-amber-200 text-amber-900',
-        tone === 'red' && 'bg-red-50 border-red-200 text-red-900',
+        'inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors',
+        tone === 'green' && 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/15',
+        tone === 'amber' && 'bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/15',
+        tone === 'red' && 'bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/15',
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', tone === 'green' ? 'bg-emerald-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-red-500')} />
+      <span className={cn('h-1.5 w-1.5 rounded-full animate-pulse', tone === 'green' ? 'bg-emerald-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-rose-500')} />
       {label}
     </Link>
   );

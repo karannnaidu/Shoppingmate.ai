@@ -13,7 +13,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Settings</h1>
       <PersonaForm initial={session.merchant.persona} />
       <WebhookForm initial={session.merchant.leadWebhookUrl} />
       <InstallSnippet merchantId={session.merchant.id} lastPing={session.merchant.lastWidgetPing} />

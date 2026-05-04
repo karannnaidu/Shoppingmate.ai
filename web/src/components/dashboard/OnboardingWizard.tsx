@@ -31,14 +31,14 @@ export function OnboardingWizard({ step, merchant }: { step: number; merchant: M
 function Progress({ current }: { current: number }) {
   return (
     <div className="flex items-center gap-2 mb-6">
-      <p className="text-sm text-zinc-500">Step {current} of 4</p>
+      <p className="text-sm text-text-secondary tabular-nums">{`Step ${current} of 4`}</p>
       <div className="flex flex-1 gap-1 ml-4">
         {STEPS.map((label, i) => {
           const idx = i + 1;
           return (
             <div
               key={label}
-              className={cn('h-1.5 flex-1 rounded-full', idx <= current ? 'bg-zinc-900' : 'bg-zinc-200')}
+              className={cn('h-1.5 flex-1 rounded-full transition-colors', idx <= current ? 'bg-foreground' : 'bg-border')}
             />
           );
         })}
@@ -62,7 +62,7 @@ function PayStep() {
         <CardTitle>Start your $30/mo Starter plan</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <ul className="text-sm text-zinc-700 list-disc pl-5 space-y-1">
+        <ul className="text-sm text-text-secondary list-disc pl-5 space-y-1 marker:text-violet">
           <li>100 conversations / month included</li>
           <li>Cross-platform widget (Shopify, Woo, Magento, BC, Wix, Squarespace, custom)</li>
           <li>Brand Knowledge base + persona settings</li>
@@ -91,13 +91,13 @@ function ConnectStep({ merchantId, status }: { merchantId: string; status: strin
           <CardTitle>Connect Shopify</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-zinc-600 mb-4">Fastest, 30 seconds.</p>
+          <p className="text-sm text-text-secondary mb-4">Fastest, 30 seconds.</p>
           <Button onClick={connectShopify} disabled={loading}>
             {loading ? 'Connecting…' : 'Connect'}
           </Button>
           {!['pending', 'onboarding'].includes(status) && (
-            <p className="text-xs text-zinc-500 mt-3">
-              Status: <code>{status}</code>
+            <p className="text-xs text-text-secondary mt-3">
+              Status: <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-text-primary">{status}</code>
             </p>
           )}
         </CardContent>
@@ -130,7 +130,7 @@ function UrlForm({ merchantId }: { merchantId: string }) {
   return (
     <form onSubmit={go} className="flex flex-col gap-2">
       <input
-        className="border border-zinc-200 rounded-md px-3 py-2 text-sm"
+        className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30 transition-colors"
         placeholder="https://yourstore.com"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
@@ -163,18 +163,18 @@ function InstallStep({ merchantId }: { merchantId: string }) {
         <CardTitle>Install your widget</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <pre className="bg-zinc-900 text-zinc-100 text-xs rounded-md p-4 overflow-x-auto">{snippet}</pre>
-        <div className="flex gap-2">
+        <pre className="bg-foreground text-background text-xs font-mono rounded-md p-4 overflow-x-auto border border-border">{snippet}</pre>
+        <div className="flex gap-2 flex-wrap items-center">
           <Button onClick={() => navigator.clipboard.writeText(snippet)}>Copy</Button>
           <Button variant="outline" onClick={verify} disabled={verifying}>
             {verifying ? 'Checking…' : "I've pasted it"}
           </Button>
-          <a href="/app" className="ml-auto text-sm text-zinc-500 underline self-center">
+          <a href="/app" className="ml-auto text-sm text-text-secondary underline-offset-4 hover:underline self-center">
             I&apos;ll do this later
           </a>
         </div>
         {result === 'fail' && (
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-rose-500" role="alert" aria-live="polite">
             We couldn&apos;t find the script tag yet. Make sure it&apos;s deployed and try again.
           </p>
         )}

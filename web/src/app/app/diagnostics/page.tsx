@@ -18,8 +18,8 @@ export default async function DiagnosticsPage({ searchParams }: { searchParams: 
   if (!alertRow || alertRow.merchantId !== session.merchant.id) {
     return (
       <div className="max-w-2xl flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Diagnostics</h1>
-        <p className="text-sm text-zinc-500">Open this page from a banner alert to see details.</p>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Diagnostics</h1>
+        <p className="text-sm text-text-secondary">Open this page from a banner alert to see details.</p>
       </div>
     );
   }
@@ -28,19 +28,19 @@ export default async function DiagnosticsPage({ searchParams }: { searchParams: 
 
   return (
     <div className="max-w-2xl flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Diagnostics</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Diagnostics</h1>
       <Card>
         <CardHeader><CardTitle>{alertRow.kind}</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-3 text-text-primary">
           {alertRow.kind === 'override_failing' && (
             <>
               <p className="text-sm">
-                Selector <code>{String(payload.selector_key)}</code> is failing on <code>{String(payload.url ?? 'unknown')}</code>.
+                Selector <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-xs">{String(payload.selector_key)}</code> is failing on <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-xs">{String(payload.url ?? 'unknown')}</code>.
               </p>
               {payload.suggested ? (
-                <p className="text-sm">Suggested fix: <code>{String(payload.suggested)}</code></p>
+                <p className="text-sm">Suggested fix: <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-xs">{String(payload.suggested)}</code></p>
               ) : (
-                <p className="text-sm text-zinc-500">No suggestion available — write your own selector via Settings &rarr; Persona.</p>
+                <p className="text-sm text-text-secondary">No suggestion available — write your own selector via Settings &rarr; Persona.</p>
               )}
               <div className="flex gap-2">
                 <form action={`/api/alerts/${alertRow.id}/accept`} method="post">

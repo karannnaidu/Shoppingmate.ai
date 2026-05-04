@@ -9,14 +9,14 @@ export function KpiTile({
   return (
     <Card>
       <CardContent className="pt-6">
-        <p className="text-sm text-zinc-500">{label}</p>
-        <p className="text-3xl font-semibold mt-1 tabular-nums">{value}</p>
+        <p className="text-xs uppercase tracking-wide text-text-muted font-medium">{label}</p>
+        <p className="font-display text-3xl font-semibold mt-2 tabular-nums tracking-tight text-text-primary">{value}</p>
         {pct && (
-          <p className={cn('text-xs mt-2', delta != null && delta >= 0 ? 'text-emerald-600' : 'text-red-600')}>
+          <p className={cn('text-xs mt-2 font-medium tabular-nums', delta != null && delta >= 0 ? 'text-emerald-500' : 'text-rose-500')}>
             {arrow} {pct} vs prev period
           </p>
         )}
-        {hint && <p className="text-xs text-zinc-500 mt-2">{hint}</p>}
+        {hint && <p className="text-xs text-text-secondary mt-2">{hint}</p>}
       </CardContent>
     </Card>
   );
