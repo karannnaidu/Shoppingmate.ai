@@ -8,5 +8,11 @@ export default defineConfig({
     environment: 'happy-dom',
     include: ['src/**/*.test.{ts,tsx}'],
     globals: false,
+    env: {
+      DATABASE_URL: 'postgres://test:test@localhost:5432/test',
+      BETTER_AUTH_SECRET: 'test-secret-for-vitest-only',
+      RESEND_API_KEY: 'test-resend-key',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    },
   },
 });
