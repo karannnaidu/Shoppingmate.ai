@@ -1,7 +1,8 @@
 import { createSTT } from './audio/stt.js';
 import { createTTS } from './audio/tts.js';
 import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
-import { bootstrap } from './bootstrap.js';
+import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
+import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
 import { decodeAgentEvent, encodeWidgetMessage } from './transport/codec.js';
@@ -12,6 +13,14 @@ import { renderPill } from './ui/pill.js';
 
 const TAG = 'shoppingmate-widget';
 
+function resolveVoiceStack(): 'live-kit' | 'web-speech' {
+  // Build-time replaced via esbuild `define`. Default ships as 'live-kit'.
+  const stack = (
+    globalThis as unknown as { __SHOPPINGMATE_VOICE_STACK__?: string }
+  ).__SHOPPINGMATE_VOICE_STACK__;
+  return stack === 'web-speech' ? 'web-speech' : 'live-kit';
+}
+
 class WidgetElement extends HTMLElement {
   private rootEl: HTMLElement | null = null;
   private pillHost: HTMLElement | null = null;
@@ -19,6 +28,7 @@ class WidgetElement extends HTMLElement {
   private store: Store = createStore({ sessionId: 'pending' });
   private socket: AgentSocket | null = null;
   private voiceMode: VoiceMode = createVoiceMode(null, createTTS());
+  private voice: VoiceBootstrap | null = null;
   private apiBase = '';
   private merchantId = '';
   private domain = window.location.host;
@@ -67,19 +77,37 @@ class WidgetElement extends HTMLElement {
     }
     this.store = createStore({ sessionId: result.sessionId });
     this.store.subscribe(() => this.render());
+    this.voice = result.voice;
+
+    const stack = resolveVoiceStack();
     const stt = createSTT();
-    this.voiceMode = createVoiceMode(stt, createTTS());
-    stt?.onFinal((text) => {
-      this.store.dispatch({ type: 'user_input', text, mode: 'voice' });
-      this.socket?.send(
-        encodeWidgetMessage({
-          type: 'user_text',
-          sessionId: result.sessionId,
-          text,
-          mode: 'voice',
-        }),
-      );
-    });
+    if (stack === 'live-kit' && this.voice) {
+      const lkVoiceMode = createVoiceModeFactory({
+        stack: 'live-kit',
+        livekit: {
+          wsUrl: this.voice.wsUrl,
+          token: this.voice.token,
+          roomName: this.voice.roomName,
+          onTranscriptEvent: (bytes) => this.handleLiveKitData(bytes),
+        },
+      });
+      if (lkVoiceMode) this.voiceMode = lkVoiceMode;
+    } else {
+      // Plan 5 fallback (web-speech) or live-kit unavailable.
+      const wsVoiceMode = createVoiceModeFactory({ stack: 'web-speech' });
+      if (wsVoiceMode) this.voiceMode = wsVoiceMode;
+      stt?.onFinal((text) => {
+        this.store.dispatch({ type: 'user_input', text, mode: 'voice' });
+        this.socket?.send(
+          encodeWidgetMessage({
+            type: 'user_text',
+            sessionId: result.sessionId,
+            text,
+            mode: 'voice',
+          }),
+        );
+      });
+    }
     this.voiceMode.onStateChange((s) => this.store.dispatch({ type: 'set_voice_state', state: s }));
     this.socket = connectAgentWs(result.wsUrl, {
       sessionId: result.sessionId,
@@ -142,6 +170,21 @@ class WidgetElement extends HTMLElement {
     this.store.dispatch({ type: 'user_input', text, mode });
     const sid = this.store.get().sessionId;
     this.socket?.send(encodeWidgetMessage({ type: 'user_text', sessionId: sid, text, mode }));
+  }
+
+  private handleLiveKitData(bytes: Uint8Array) {
+    // LiveKit data channel carries server-published JSON events from the
+    // voice-agent (user_text echo, say, cards, checkout_redirect, ...).
+    // Decode and route through the same store as WS-delivered events.
+    let raw: string;
+    try {
+      raw = new TextDecoder().decode(bytes);
+    } catch {
+      return;
+    }
+    const ev = decodeAgentEvent(raw);
+    if (!ev) return;
+    this.store.dispatch({ type: 'agent_event', event: ev });
   }
 
   private cardTap(p: { sku: string; variantId: string | null }) {

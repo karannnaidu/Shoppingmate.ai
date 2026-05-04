@@ -20,6 +20,9 @@ const options = {
   legalComments: 'none' as const,
   define: {
     'process.env.SHOPPINGMATE_API_BASE': JSON.stringify(apiBase),
+    'globalThis.__SHOPPINGMATE_VOICE_STACK__': JSON.stringify(
+      process.env.SHOPPINGMATE_VOICE_STACK ?? 'live-kit',
+    ),
   },
 };
 
@@ -39,4 +42,18 @@ if (watch) {
     console.error(`[widget] FAIL: bundle exceeds ${BUDGET_BYTES}-byte gzip budget`);
     process.exit(1);
   }
+  const distContent = bytes.toString('utf8');
+  // Sentinels are SDK-internal class names that only appear if livekit-client
+  // was statically bundled. The CDN URL substring is excluded — it's expected
+  // to remain because the lazy-loader composes the URL at runtime.
+  const SDK_SENTINELS = ['LocalParticipant', 'RemoteParticipant', 'RoomEvent.TrackSubscribed'];
+  for (const sentinel of SDK_SENTINELS) {
+    if (distContent.includes(sentinel)) {
+      console.error(
+        `[widget] FATAL: dist/v1.js contains "${sentinel}" — livekit-client appears statically bundled; must be lazy-loaded only`,
+      );
+      process.exit(1);
+    }
+  }
+  console.log('[widget] OK: livekit-client absent from bundle (lazy-load only)');
 }
