@@ -7,7 +7,7 @@ export const config = {
 
 const APP_HOST = process.env.NEXT_PUBLIC_APP_HOST ?? 'app.shoppingmate.ai';
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const url = req.nextUrl.clone();
   // Use hostname from the parsed URL (works in both prod and vitest environments).
   // req.headers.get('host') is null when NextRequest is constructed from a URL

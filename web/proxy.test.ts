@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { middleware } from './middleware';
+import { proxy } from './proxy';
 
 vi.mock('@/lib/auth', () => ({
   auth: {
@@ -8,17 +8,17 @@ vi.mock('@/lib/auth', () => ({
   },
 }));
 
-describe('middleware', () => {
+describe('proxy', () => {
   it('redirects unauthenticated /app requests to /login', async () => {
     const req = new NextRequest('https://app.shoppingmate.ai/app');
-    const res = await middleware(req);
+    const res = await proxy(req);
     expect(res?.status).toBe(307);
     expect(res?.headers.get('location')).toContain('/login');
   });
 
   it('rewrites app subdomain to /app prefix', async () => {
     const req = new NextRequest('https://app.shoppingmate.ai/');
-    const res = await middleware(req);
-    expect(res?.headers.get('x-middleware-rewrite') || res?.headers.get('location')).toBeTruthy();
+    const res = await proxy(req);
+    expect(res?.headers.get('x-proxy-rewrite') || res?.headers.get('location')).toBeTruthy();
   });
 });
