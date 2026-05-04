@@ -31,3 +31,42 @@ export async function recentConversations(args: { merchantId: string; limit?: nu
 
   return rows;
 }
+
+export type ListFilters = {
+  merchantId: string;
+  outcome?: 'purchased' | 'abandoned';
+  mode?: 'voice' | 'text';
+  hasAttributedSale?: boolean;
+  search?: string;
+  cursorRecordedAt?: Date;
+  limit?: number;
+};
+
+export async function listConversations(filters: ListFilters): Promise<ConversationRow[]> {
+  const limit = filters.limit ?? 50;
+  const conditions = [
+    eq(metricEvents.merchantId, filters.merchantId),
+    eq(metricEvents.metricName, 'conversationCompleted'),
+  ];
+  if (filters.outcome) conditions.push(sql`${metricEvents.tags}->>'outcome' = ${filters.outcome}`);
+  if (filters.mode) conditions.push(sql`${metricEvents.tags}->>'mode' = ${filters.mode}`);
+  if (filters.hasAttributedSale) conditions.push(sql`(${metricEvents.tags}->>'attributed_cents')::int > 0`);
+  if (filters.cursorRecordedAt) conditions.push(sql`${metricEvents.ts} < ${filters.cursorRecordedAt}`);
+
+  const rows = await db
+    .select({
+      id: sql<string>`(${metricEvents.tags}->>'session_id')`,
+      startedAt: metricEvents.ts,
+      durationSec: sql<number>`coalesce((${metricEvents.tags}->>'duration_sec')::int, 0)`,
+      turns: sql<number>`coalesce((${metricEvents.tags}->>'turns')::int, 0)`,
+      mode: sql<'voice' | 'text'>`coalesce(${metricEvents.tags}->>'mode', 'text')`,
+      outcome: sql<'purchased' | 'abandoned' | 'in_progress'>`coalesce(${metricEvents.tags}->>'outcome', 'in_progress')`,
+      attributedCents: sql<number | null>`nullif((${metricEvents.tags}->>'attributed_cents'), '')::int`,
+    })
+    .from(metricEvents)
+    .where(and(...conditions))
+    .orderBy(desc(metricEvents.ts))
+    .limit(limit);
+
+  return rows;
+}
