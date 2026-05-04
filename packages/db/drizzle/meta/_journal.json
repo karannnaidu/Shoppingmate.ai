@@ -43,6 +43,13 @@
       "when": 1777893539756,
       "tag": "0005_dashboard_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777893713852,
+      "tag": "0006_merchants_dashboard_columns",
+      "breakpoints": true
     }
   ]
 }

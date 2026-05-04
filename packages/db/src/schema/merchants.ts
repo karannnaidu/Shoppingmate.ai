@@ -1,4 +1,4 @@
-import { jsonb, numeric, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, numeric, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const merchantStatus = [
   'pending',
@@ -49,6 +49,19 @@ export const merchants = pgTable('merchants', {
   lastIndexedAt: timestamp('last_indexed_at', { withTimezone: true }),
   catalogSyncedAt: timestamp('catalog_synced_at', { withTimezone: true }),
   smokePassedAt: timestamp('smoke_passed_at', { withTimezone: true }),
+  stripeCustomerId: text('stripe_customer_id').unique(),
+  stripeSubscriptionId: text('stripe_subscription_id').unique(),
+  plan: text('plan').notNull().default('starter'),
+  billingStatus: text('billing_status').notNull().default('pending'),
+  persona: jsonb('persona').$type<{ voiceDescriptorId: string; brandVoiceNotes: string; toneValue: number } | null>(),
+  leadWebhookUrl: text('lead_webhook_url'),
+  knowledgeBaseStatus: text('knowledge_base_status').notNull().default('empty'),
+  lastWidgetPing: timestamp('last_widget_ping', { withTimezone: true }),
+  topupBalance: integer('topup_balance').notNull().default(0),
+  autoRechargeEnabled: boolean('auto_recharge_enabled').notNull().default(false),
+  autoRechargeThreshold: integer('auto_recharge_threshold'),
+  autoRechargePackSize: integer('auto_recharge_pack_size'),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 export type Merchant = typeof merchants.$inferSelect;
