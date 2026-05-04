@@ -25,6 +25,10 @@ export default defineConfig({
       COMPOSIO_API_KEY: 'test-composio-key',
       COMPOSIO_SHOPIFY_AUTH_CONFIG_ID: 'ac_test_shopify',
       COMPOSIO_WEBHOOK_SECRET: 'whsec_composio_test',
+      R2_ACCESS_KEY_ID: 'test-access-key',
+      R2_SECRET_ACCESS_KEY: 'test-secret-key',
+      R2_ACCOUNT_ID: 'testacct',
+      R2_BUCKET: 'shoppingmate-kb-test',
     },
   },
 });
