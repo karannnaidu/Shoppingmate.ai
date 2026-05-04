@@ -6,12 +6,17 @@ import { env, logger } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { Redis } from 'ioredis';
-import { decodeWidgetMessage, encodeAgentEvent } from './agent/events.js';
-import { replaySession } from './agent/replay.js';
-import { runTurn } from './agent/runtime.js';
-import { createSession, loadSession, saveSession } from './agent/state.js';
-import { NoOpWSTransport } from './agent/transport-noop.js';
-import type { SessionState } from './agent/types.js';
+import {
+  NoOpWSTransport,
+  type SessionState,
+  createSession,
+  decodeWidgetMessage,
+  encodeAgentEvent,
+  loadSession,
+  replaySession,
+  runTurn,
+  saveSession,
+} from '@shoppingmate/agent';
 import { healthRoute } from './routes/health.js';
 import { installRoute } from './routes/install.js';
 import { sessionRoute } from './routes/session.js';

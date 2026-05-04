@@ -7,8 +7,7 @@ import { readFileSync } from 'node:fs';
 import type { Adapter, AdapterResult } from '@shoppingmate/adapters';
 import type { Merchant, Product } from '@shoppingmate/db';
 import type { ChatToolsResult, chatTools as chatToolsType } from '@shoppingmate/shared';
-import { type RunTurnDeps, runTurn } from '../../apps/api/src/agent/runtime.js';
-import type { AgentEvent, SessionState, WidgetMessage } from '../../apps/api/src/agent/types.js';
+import { type AgentEvent, type RunTurnDeps, type SessionState, type WidgetMessage, runTurn } from '@shoppingmate/agent';
 
 export type FixtureSonnetResponse = {
   text: string;

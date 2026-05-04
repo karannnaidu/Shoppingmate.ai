@@ -1,7 +1,7 @@
 import { FakeWSTransport, InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import type { AdapterType, Merchant } from '@shoppingmate/db';
 import { describe, expect, it, vi } from 'vitest';
-import { dispatchTool } from '../../apps/api/src/agent/tools.js';
+import { dispatchTool } from '@shoppingmate/agent';
 
 vi.mock('@shoppingmate/db', async (orig) => {
   const actual = await orig<typeof import('@shoppingmate/db')>();

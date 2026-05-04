@@ -26,6 +26,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@shoppingmate/adapters": "workspace:^",
+    "@shoppingmate/agent": "workspace:^",
     "@shoppingmate/db": "workspace:^",
     "@shoppingmate/dom-harness": "workspace:^",
     "@shoppingmate/jobs": "workspace:^",

@@ -1,4 +1,4 @@
-// Mirrors apps/api/src/agent/types.ts and events.ts. Kept in sync via test-time
+// Mirrors packages/agent/src/types.ts and events.ts. Kept in sync via test-time
 // shape parity with the runtime codec; see test/transport-codec.test.ts.
 
 export type Mode = 'voice' | 'text';
