@@ -8,6 +8,7 @@ import { NoOpWSTransport, loadSession, runTurn, saveSession } from '@shoppingmat
 import { db, schema } from '@shoppingmate/db';
 import { childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
+import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
 import { voiceEnv } from './env.js';
 import { createGeminiSdkTransport } from './geminiSdkTransport.js';
@@ -68,6 +69,16 @@ const agentDefinition = defineAgent({
       },
     });
 
+    const caps = createSessionCaps({
+      onWarn: ({ remaining }) => dataChannel.publish({ type: 'cap_warning', remaining }),
+      onTrip: ({ cap }) => {
+        dataChannel.publish({ type: 'session_closed', reason: `cap_${cap}` });
+        job.room.disconnect().catch(() => {});
+      },
+    });
+    caps.start();
+    const tickInterval = setInterval(() => caps.tick(), 5_000);
+
     const bridge = createBridge({
       sessionId,
       merchantId: merchant.id,
@@ -89,14 +100,19 @@ const agentDefinition = defineAgent({
         job.room.disconnect().catch(() => {});
       },
       interrupt: () => gemini.interrupt(),
+      caps,
     });
 
     gemini.onEvent((e) => {
       if (e.type === 'final_transcript' && e.text.trim().length > 0) {
+        const words = e.text.split(/\s+/).filter(Boolean).length;
+        caps.recordVoiceSeconds(words / 3.3);
         bridge.handleUserText(e.text).catch((err) => {
           log.error({ err }, 'bridge.handleUserText threw');
         });
       } else if (e.type === 'audio_out') {
+        const seconds = e.bytes.length / (24_000 * 2);
+        caps.recordVoiceSeconds(seconds);
         log.debug({ bytes: e.bytes.length }, 'gemini audio_out');
       } else if (e.type === 'error') {
         log.error({ err: e.error }, 'gemini transport error');
@@ -125,6 +141,7 @@ const agentDefinition = defineAgent({
     });
 
     job.room.on(RoomEvent.Disconnected, () => {
+      clearInterval(tickInterval);
       gemini.close().catch(() => {});
       log.info({ sessionId }, 'voice-agent job ended');
     });

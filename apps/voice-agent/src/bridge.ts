@@ -35,6 +35,7 @@ export type BridgeDeps = {
   publishData: (msg: DataChannelMessage) => void;
   closeRoom: () => void;
   interrupt: () => void;
+  caps?: { recordTurn: () => void };
 };
 
 export type Bridge = {
@@ -48,6 +49,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
   return {
     async handleUserText(text) {
       aborted = false;
+      deps.caps?.recordTurn();
       deps.publishData({ type: 'user_text', text });
 
       const merchant = await deps.loadMerchant(deps.merchantId);
