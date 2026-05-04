@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   test: {
     environment: 'happy-dom',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', '*.test.{ts,tsx}'],
     globals: false,
     env: {
       DATABASE_URL: 'postgres://test:test@localhost:5432/test',
