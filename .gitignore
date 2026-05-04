@@ -11,3 +11,5 @@ coverage/
 drizzle/meta/
 playwright-report/
 test-results/
+
+.vercel

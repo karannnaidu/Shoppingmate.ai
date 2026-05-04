@@ -16,9 +16,6 @@ export const env = cleanEnv(process.env, {
   API_PORT: port({ default: 3000 }),
   PUBLIC_API_BASE_URL: str({ default: '' }),
   OPENROUTER_API_KEY: str({ default: '' }),
-  ELEVENLABS_API_KEY: str({ default: '' }),
-  OPENAI_API_KEY: str({ default: '' }),
-  GOOGLE_SAFE_BROWSING_API_KEY: str({ default: '' }),
 });
 
 export type Env = typeof env;
