@@ -1,9 +1,22 @@
 import { Composio } from '@composio/core';
 
-const apiKey = process.env.COMPOSIO_API_KEY;
-if (!apiKey) throw new Error('COMPOSIO_API_KEY is not set');
+let _composio: Composio | null = null;
 
-export const composio = new Composio({ apiKey });
+function getComposio(): Composio {
+  if (_composio) return _composio;
+  const apiKey = process.env.COMPOSIO_API_KEY;
+  if (!apiKey) throw new Error('COMPOSIO_API_KEY is not set');
+  _composio = new Composio({ apiKey });
+  return _composio;
+}
+
+export const composio = new Proxy({} as Composio, {
+  get(_target, prop) {
+    const c = getComposio();
+    const v = (c as unknown as Record<string | symbol, unknown>)[prop];
+    return typeof v === 'function' ? (v as (...args: unknown[]) => unknown).bind(c) : v;
+  },
+});
 
 /**
  * Initiates a Shopify OAuth connection via Composio.

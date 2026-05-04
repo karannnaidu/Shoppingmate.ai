@@ -4,30 +4,46 @@ import { magicLink } from 'better-auth/plugins';
 import { db, schema } from './db';
 import { sendMagicLink } from './resend';
 
-export const auth = betterAuth({
-  database: drizzleAdapter(db, {
-    provider: 'pg',
-    schema: {
-      user: schema.users,
-      session: schema.sessions,
-      verification: schema.verifications,
-    },
-  }),
-  baseURL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
-  secret: process.env.BETTER_AUTH_SECRET,
-  emailAndPassword: { enabled: false },
-  plugins: [
-    magicLink({
-      sendMagicLink: async ({ email, url }) => {
-        await sendMagicLink(email, url);
+type AuthInstance = ReturnType<typeof betterAuth>;
+
+let _auth: AuthInstance | null = null;
+
+function getAuth(): AuthInstance {
+  if (_auth) return _auth;
+  _auth = betterAuth({
+    database: drizzleAdapter(db, {
+      provider: 'pg',
+      schema: {
+        user: schema.users,
+        session: schema.sessions,
+        verification: schema.verifications,
       },
-      expiresIn: 60 * 15,
     }),
-  ],
-  rateLimit: {
-    window: 15 * 60,
-    max: 5,
+    baseURL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+    secret: process.env.BETTER_AUTH_SECRET,
+    emailAndPassword: { enabled: false },
+    plugins: [
+      magicLink({
+        sendMagicLink: async ({ email, url }) => {
+          await sendMagicLink(email, url);
+        },
+        expiresIn: 60 * 15,
+      }),
+    ],
+    rateLimit: {
+      window: 15 * 60,
+      max: 5,
+    },
+  });
+  return _auth;
+}
+
+export const auth = new Proxy({} as AuthInstance, {
+  get(_target, prop) {
+    const c = getAuth();
+    const v = (c as unknown as Record<string | symbol, unknown>)[prop];
+    return typeof v === 'function' ? (v as (...args: unknown[]) => unknown).bind(c) : v;
   },
 });
 
-export type Session = typeof auth.$Infer.Session;
+export type Session = AuthInstance['$Infer']['Session'];

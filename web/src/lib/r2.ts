@@ -1,19 +1,32 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-const accountId = process.env.R2_ACCOUNT_ID;
 const bucket = process.env.R2_BUCKET ?? 'shoppingmate-kb';
 
-if (!accessKeyId || !secretAccessKey || !accountId) {
-  throw new Error('R2 credentials missing');
+let _s3: S3Client | null = null;
+
+function getS3(): S3Client {
+  if (_s3) return _s3;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const accountId = process.env.R2_ACCOUNT_ID;
+  if (!accessKeyId || !secretAccessKey || !accountId) {
+    throw new Error('R2 credentials missing');
+  }
+  _s3 = new S3Client({
+    region: 'auto',
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+  });
+  return _s3;
 }
 
-export const s3 = new S3Client({
-  region: 'auto',
-  endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-  credentials: { accessKeyId, secretAccessKey },
+export const s3 = new Proxy({} as S3Client, {
+  get(_target, prop) {
+    const c = getS3();
+    const v = (c as unknown as Record<string | symbol, unknown>)[prop];
+    return typeof v === 'function' ? (v as (...args: unknown[]) => unknown).bind(c) : v;
+  },
 });
 
 export async function presignKbUpload(args: { key: string; contentType: string; expiresIn?: number }): Promise<string> {
