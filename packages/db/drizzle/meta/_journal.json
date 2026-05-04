@@ -57,6 +57,13 @@
       "when": 1777934793937,
       "tag": "0007_eminent_nocturne",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777936740986,
+      "tag": "0008_wise_proudstar",
+      "breakpoints": true
     }
   ]
 }
