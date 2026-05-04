@@ -21,6 +21,7 @@ import { healthRoute } from './routes/health.js';
 import { installRoute } from './routes/install.js';
 import { sessionRoute } from './routes/session.js';
 import { slackRoute } from './routes/slack/index.js';
+import { voiceTokenRoute } from './routes/voice-token.js';
 import { mountAgentWs } from './ws/agent.js';
 
 const app = new Hono();
@@ -28,6 +29,7 @@ app.route('/health', healthRoute);
 app.route('/v1/install', installRoute);
 app.route('/v1/session', sessionRoute);
 app.route('/v1/slack', slackRoute);
+app.route('/v1/voice/token', voiceTokenRoute);
 
 const server = serve({ fetch: app.fetch, port: env.API_PORT }, ({ port }) => {
   logger.info({ port }, 'api listening');
