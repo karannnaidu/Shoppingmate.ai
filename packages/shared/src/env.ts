@@ -14,6 +14,7 @@ export const env = cleanEnv(process.env, {
   S3_SECRET_ACCESS_KEY: str(),
   S3_BUCKET: str(),
   API_PORT: port({ default: 3000 }),
+  PUBLIC_API_BASE_URL: str({ default: '' }),
   OPENROUTER_API_KEY: str({ default: '' }),
   ELEVENLABS_API_KEY: str({ default: '' }),
   OPENAI_API_KEY: str({ default: '' }),
