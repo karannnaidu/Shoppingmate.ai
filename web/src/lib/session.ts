@@ -60,7 +60,7 @@ export async function getDashboardSession({ headers }: { headers: Headers }): Pr
 export function resolveOnboardingStep(merchant: DashboardSession['merchant']): string {
   if (!merchant) return '/app/onboarding?step=2';
   if (merchant.billingStatus === 'pending') return '/app/onboarding?step=2';
-  if (['catalog_pending', 'selectors_pending', 'smoke_pending'].includes(merchant.status)) {
+  if (['pending', 'onboarding'].includes(merchant.status)) {
     return '/app/onboarding?step=3';
   }
   if (merchant.status === 'live' && !merchant.lastWidgetPing) return '/app/onboarding?step=4';
