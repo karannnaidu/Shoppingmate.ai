@@ -114,6 +114,19 @@ describe('createBridge — STT-final → runTurn → say → speak', () => {
     expect(speak.mock.calls.map((c) => c[0])).toEqual(['long thought A']);
   });
 
+  it('on runTurn throw, publishes session_closed{error} and closes room', async () => {
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      runTurn: vi.fn(async function* () {
+        throw new Error('sonnet exploded');
+      }) as unknown as BridgeDeps['runTurn'],
+    };
+    const bridge = createBridge(deps);
+    await bridge.handleUserText('go');
+    expect(deps.publishData).toHaveBeenCalledWith({ type: 'session_closed', reason: 'error' });
+    expect(deps.closeRoom).toHaveBeenCalledOnce();
+  });
+
   it('pipelines: speak(N) starts before runTurn yields N+1', async () => {
     const speakOrder: string[] = [];
     const yieldOrder: string[] = [];
