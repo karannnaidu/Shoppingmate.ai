@@ -39,11 +39,15 @@ export type BridgeDeps = {
 
 export type Bridge = {
   handleUserText: (text: string) => Promise<void>;
+  handleBargeIn: () => void;
 };
 
 export function createBridge(deps: BridgeDeps): Bridge {
+  let aborted = false;
+
   return {
     async handleUserText(text) {
+      aborted = false;
       deps.publishData({ type: 'user_text', text });
 
       const merchant = await deps.loadMerchant(deps.merchantId);
@@ -63,6 +67,13 @@ export function createBridge(deps: BridgeDeps): Bridge {
 
       try {
         for await (const event of deps.runTurn(runDeps, merchant, session, widgetMsg)) {
+          if (aborted) {
+            log.info(
+              { sessionId: deps.sessionId },
+              'bridge: abort flag set, dropping remaining events',
+            );
+            return;
+          }
           await routeEvent(event, deps);
         }
       } catch (err) {
@@ -70,6 +81,13 @@ export function createBridge(deps: BridgeDeps): Bridge {
         deps.publishData({ type: 'session_closed', reason: 'error' });
         deps.closeRoom();
       }
+    },
+    handleBargeIn() {
+      aborted = true;
+      deps.interrupt();
+      deps
+        .recordMetric('voice.barge_in_succeeded', { sessionId: deps.sessionId })
+        .catch(() => {});
     },
   };
 }

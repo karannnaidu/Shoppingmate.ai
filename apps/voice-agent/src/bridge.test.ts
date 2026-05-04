@@ -80,6 +80,40 @@ describe('createBridge — STT-final → runTurn → say → speak', () => {
     expect(deps.closeRoom).toHaveBeenCalledOnce();
   });
 
+  it('handleBargeIn calls interrupt and aborts the current run', async () => {
+    let resolveSpeakA: () => void = () => {};
+    const speakAPromise = new Promise<void>((r) => {
+      resolveSpeakA = r;
+    });
+    const interruptCalls: number[] = [];
+    const speak = vi.fn(async (text: string) => {
+      if (text === 'long thought A') {
+        await speakAPromise;
+      }
+    });
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      runTurn: vi.fn(async function* () {
+        yield { type: 'say', text: 'long thought A' };
+        yield { type: 'say', text: 'long thought B (should be skipped)' };
+        yield { type: 'end_of_turn' };
+      }) as unknown as BridgeDeps['runTurn'],
+      speak,
+      interrupt: vi.fn(() => {
+        interruptCalls.push(Date.now());
+      }),
+    };
+    const bridge = createBridge(deps);
+    const handleP = bridge.handleUserText('start');
+    setTimeout(() => {
+      bridge.handleBargeIn();
+      resolveSpeakA();
+    }, 5);
+    await handleP;
+    expect(interruptCalls.length).toBe(1);
+    expect(speak.mock.calls.map((c) => c[0])).toEqual(['long thought A']);
+  });
+
   it('pipelines: speak(N) starts before runTurn yields N+1', async () => {
     const speakOrder: string[] = [];
     const yieldOrder: string[] = [];
