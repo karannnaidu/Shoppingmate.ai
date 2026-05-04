@@ -272,13 +272,13 @@ importers:
         specifier: ^15.11.0
         version: 15.11.7
       tsx:
-        specifier: ^4.19.0
+        specifier: ^4.19.2
         version: 4.21.0
       typescript:
-        specifier: ^5.5.0
+        specifier: ^5.6.3
         version: 5.9.3
       vitest:
-        specifier: ^2.1.0
+        specifier: ^2.1.4
         version: 2.1.9(@types/node@20.19.39)(happy-dom@15.11.7)(msw@2.14.2(@types/node@20.19.39)(typescript@5.9.3))
 
 packages:
