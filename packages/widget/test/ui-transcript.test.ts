@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { renderTranscript } from '../src/ui/transcript.js';
 import type { TranscriptItem } from '../src/state/store.js';
+import { renderTranscript } from '../src/ui/transcript.js';
 
 describe('renderTranscript', () => {
   it('renders text bubbles and inline cards in order', () => {

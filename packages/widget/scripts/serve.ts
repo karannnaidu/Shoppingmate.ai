@@ -1,5 +1,5 @@
-import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -13,9 +13,9 @@ const TYPES: Record<string, string> = {
 };
 
 createServer((req, res) => {
-  const urlPath = req.url === '/' ? '/examples/host-page.html' : req.url ?? '/';
+  const urlPath = req.url === '/' ? '/examples/host-page.html' : (req.url ?? '/');
   const safe = urlPath.replace(/\.\./g, '');
-  const filePath = resolve(root, '.' + safe);
+  const filePath = resolve(root, `.${safe}`);
   try {
     const data = readFileSync(filePath);
     const ext = safe.slice(safe.lastIndexOf('.'));

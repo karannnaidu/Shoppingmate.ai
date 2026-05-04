@@ -78,9 +78,7 @@ describe('connectAgentWs', () => {
     const second = MockWs.instances[1];
     if (!second) throw new Error('no second instance');
     second.open();
-    expect(second.sent[0]).toBe(
-      JSON.stringify({ type: 'session_resume', sessionId: 'ws_a' }),
-    );
+    expect(second.sent[0]).toBe(JSON.stringify({ type: 'session_resume', sessionId: 'ws_a' }));
     sock.close();
   });
 

@@ -1,8 +1,8 @@
-import type { CardItem } from '../transport/codec.js';
-import { STRINGS } from '../strings.js';
 import type { TranscriptItem } from '../state/store.js';
+import { STRINGS } from '../strings.js';
+import type { CardItem } from '../transport/codec.js';
 
-function escape(s: string): string {
+function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
     c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
   );
@@ -15,11 +15,11 @@ function cardEl(
   const el = document.createElement('button');
   el.className = 'card';
   el.type = 'button';
-  el.dataset['sku'] = c.sku;
+  el.dataset.sku = c.sku;
   el.innerHTML = `
-    ${c.image ? `<img src="${escape(c.image)}" alt="${escape(c.title)}" />` : `<div class="card-img-fallback"></div>`}
-    <div class="title">${escape(c.title)}</div>
-    <div class="price">${escape(c.priceFormatted)}</div>
+    ${c.image ? `<img src="${escapeHtml(c.image)}" alt="${escapeHtml(c.title)}" />` : `<div class="card-img-fallback"></div>`}
+    <div class="title">${escapeHtml(c.title)}</div>
+    <div class="price">${escapeHtml(c.priceFormatted)}</div>
   `;
   el.addEventListener('click', () => onTap({ sku: c.sku, variantId: c.variantId }));
   return el;

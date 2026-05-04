@@ -1,7 +1,7 @@
-import { gzipSync } from 'node:zlib';
-import { build, context } from 'esbuild';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { build, context } from 'esbuild';
 
 const BUDGET_BYTES = 120 * 1024; // 120 KB gzip
 

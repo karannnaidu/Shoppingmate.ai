@@ -35,7 +35,10 @@ export type Store = {
 };
 
 let idCounter = 0;
-const nextId = () => `t${(idCounter += 1)}`;
+const nextId = () => {
+  idCounter += 1;
+  return `t${idCounter}`;
+};
 
 function reduce(state: WidgetState, a: Action): WidgetState {
   switch (a.type) {

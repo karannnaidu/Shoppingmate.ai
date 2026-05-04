@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bootstrap, type BootstrapResult } from '../src/bootstrap.js';
+import { type BootstrapResult, bootstrap } from '../src/bootstrap.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();

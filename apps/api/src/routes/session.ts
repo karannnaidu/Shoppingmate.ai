@@ -45,10 +45,7 @@ sessionRoute.post('/', async (c) => {
   const referer = c.req.header('referer');
   if (!originMatches(origin, referer, body.domain)) {
     log.info({ merchantId: body.merchantId, origin, referer }, 'session rejected_origin');
-    return c.json(
-      { error: 'origin_mismatch', message: 'origin/referer must match domain' },
-      403,
-    );
+    return c.json({ error: 'origin_mismatch', message: 'origin/referer must match domain' }, 403);
   }
 
   const [merchant] = await db

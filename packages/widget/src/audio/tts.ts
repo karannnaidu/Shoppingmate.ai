@@ -5,8 +5,7 @@ export type TTS = {
 };
 
 export function createTTS(): TTS {
-  const synth = (globalThis as unknown as { speechSynthesis?: SpeechSynthesis })
-    .speechSynthesis;
+  const synth = (globalThis as unknown as { speechSynthesis?: SpeechSynthesis }).speechSynthesis;
   if (!synth) {
     return { speak: async () => {}, cancel: () => {}, available: () => false };
   }

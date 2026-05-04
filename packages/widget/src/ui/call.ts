@@ -1,5 +1,5 @@
-import { STRINGS } from '../strings.js';
 import type { TranscriptItem } from '../state/store.js';
+import { STRINGS } from '../strings.js';
 import { renderTranscript } from './transcript.js';
 
 export type CallProps = {

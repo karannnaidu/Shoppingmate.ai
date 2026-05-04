@@ -1,14 +1,14 @@
-import { bootstrap } from './bootstrap.js';
 import { createSTT } from './audio/stt.js';
 import { createTTS } from './audio/tts.js';
-import { createVoiceMode, type VoiceMode } from './audio/voiceMode.js';
-import { createStore, type Store } from './state/store.js';
-import { connectAgentWs, type AgentSocket } from './transport/ws.js';
+import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
+import { bootstrap } from './bootstrap.js';
+import { type Store, createStore } from './state/store.js';
+import { SHADOW_CSS } from './styles/shadow.css.js';
 import { decodeAgentEvent, encodeWidgetMessage } from './transport/codec.js';
+import { type AgentSocket, connectAgentWs } from './transport/ws.js';
 import { renderCall } from './ui/call.js';
 import { renderChat } from './ui/chat.js';
 import { renderPill } from './ui/pill.js';
-import { SHADOW_CSS } from './styles/shadow.css.js';
 
 const TAG = 'shoppingmate-widget';
 
@@ -80,9 +80,7 @@ class WidgetElement extends HTMLElement {
         }),
       );
     });
-    this.voiceMode.onStateChange((s) =>
-      this.store.dispatch({ type: 'set_voice_state', state: s }),
-    );
+    this.voiceMode.onStateChange((s) => this.store.dispatch({ type: 'set_voice_state', state: s }));
     this.socket = connectAgentWs(result.wsUrl, {
       sessionId: result.sessionId,
       onEvent: (raw) => {
