@@ -6,3 +6,4 @@ export * from './billingLedger.js';
 export * from './metricEvents.js';
 export * from './installAttempts.js';
 export * from './auth.js';
+export * from './dashboard.js';
