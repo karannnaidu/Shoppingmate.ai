@@ -5,7 +5,7 @@ import { merchants } from './merchants.js';
 export const merchantOwners = pgTable(
   'merchant_owners',
   {
-    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     merchantId: text('merchant_id').notNull().references(() => merchants.id, { onDelete: 'cascade' }),
     role: text('role').notNull().default('owner'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

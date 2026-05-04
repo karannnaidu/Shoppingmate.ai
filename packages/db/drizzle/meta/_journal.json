@@ -64,6 +64,13 @@
       "when": 1777936740986,
       "tag": "0008_wise_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777937324528,
+      "tag": "0009_amusing_maverick",
+      "breakpoints": true
     }
   ]
 }
