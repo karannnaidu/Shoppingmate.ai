@@ -79,4 +79,27 @@ describe('createBridge — STT-final → runTurn → say → speak', () => {
     await bridge.handleUserText('done');
     expect(deps.closeRoom).toHaveBeenCalledOnce();
   });
+
+  it('pipelines: speak(N) starts before runTurn yields N+1', async () => {
+    const speakOrder: string[] = [];
+    const yieldOrder: string[] = [];
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      runTurn: vi.fn(async function* () {
+        yieldOrder.push('first');
+        yield { type: 'say', text: 'first' };
+        yieldOrder.push('second');
+        yield { type: 'say', text: 'second' };
+        yield { type: 'end_of_turn' };
+      }) as unknown as BridgeDeps['runTurn'],
+      speak: vi.fn(async (text: string) => {
+        speakOrder.push(`speak:${text}`);
+        yieldOrder.push(`spoke:${text}`);
+      }),
+    };
+    const bridge = createBridge(deps);
+    await bridge.handleUserText('go');
+    expect(speakOrder).toEqual(['speak:first', 'speak:second']);
+    expect(yieldOrder).toEqual(['first', 'spoke:first', 'second', 'spoke:second']);
+  });
 });
