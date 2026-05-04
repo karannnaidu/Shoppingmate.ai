@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsx scripts/build.ts",
     "dev": "tsx scripts/build.ts --watch",
+    "serve": "tsx scripts/serve.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

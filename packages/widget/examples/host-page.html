@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>shoppingmate widget — local smoke</title>
+<style>
+  body { font: 14px system-ui; padding: 40px; max-width: 720px; margin: 0 auto; }
+  h1 { margin-top: 0; }
+  pre { background: #f4f4f5; padding: 12px; border-radius: 8px; overflow-x: auto; }
+</style>
+</head>
+<body>
+  <h1>Pretend merchant page</h1>
+  <p>This is a local smoke harness for the shoppingmate widget bundle. Open dev tools, talk to Sage in the bottom-right pill.</p>
+  <p>Make sure: (a) <code>pnpm --filter @shoppingmate/api dev</code> is running, (b) you've provisioned a dev merchant via <code>pnpm --filter @shoppingmate/cli exec -- shoppingmate provision --domain=localhost --name="Dev Store"</code>, and (c) the merchant id below matches what the CLI printed.</p>
+  <pre>SHOPPINGMATE_API_BASE=http://localhost:3000 pnpm --filter @shoppingmate/widget dev</pre>
+  <p>Then refresh this page from <code>http://localhost:5174/host-page.html</code> (or wherever you serve it).</p>
+
+  <!-- Replace SM-XXXXXX with the merchantId printed by `provision` -->
+  <script async src="../dist/v1.js" data-id="SM-DEV001" data-api="http://localhost:3000"></script>
+</body>
+</html>
