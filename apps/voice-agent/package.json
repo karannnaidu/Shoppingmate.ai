@@ -1,0 +1,28 @@
+{
+  "name": "@shoppingmate/voice-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "build": "tsc",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "pilot-replay": "tsx --env-file-if-exists=../../.env scripts/pilot-replay.ts"
+  },
+  "dependencies": {
+    "@shoppingmate/adapters": "workspace:*",
+    "@shoppingmate/agent": "workspace:*",
+    "@shoppingmate/db": "workspace:*",
+    "@shoppingmate/shared": "workspace:*",
+    "livekit-server-sdk": "^2.7.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
