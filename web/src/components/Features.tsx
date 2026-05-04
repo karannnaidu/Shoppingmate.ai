@@ -16,21 +16,21 @@ const features = [
     icon: Mic,
     title: "Voice + text, 8 personas",
     body:
-      "Whisper STT + ElevenLabs TTS, with eight pre-built personas. Pick your tone — calm clinician, witty stylist, no-nonsense gym coach.",
+      "Whisper STT + ElevenLabs TTS, eight pre-built voices. Pick the tone that fits — calm clinician, witty stylist, no-nonsense gym coach.",
     accent: "violet",
   },
   {
     icon: BookOpenText,
     title: "Trained on your brand",
     body:
-      "Upload PDFs, FAQs, returns and shipping copy. The agent quotes your docs verbatim — never guesses, never hallucinates pricing.",
+      "Upload PDFs, FAQs, returns and shipping copy. Answers quote your docs verbatim — never guess, never hallucinate pricing.",
     accent: "cyan",
   },
   {
     icon: Wand2,
     title: "Self-healing selectors",
     body:
-      "Daily recrawl detects broken triggers. The agent auto-heals — and your overrides stay locked, immune to recrawl drift.",
+      "Daily recrawl detects broken triggers and auto-heals them — and your overrides stay locked, immune to recrawl drift.",
     accent: "fuchsia",
   },
   {
@@ -51,7 +51,7 @@ const features = [
     icon: ChartLine,
     title: "Conversion attribution",
     body:
-      "Every sale closed through the agent is attributed back to a session. Reconciles to within 0.5% of cost-ledger totals.",
+      "Every sale closed through a conversation is attributed back to its session. Reconciles to within 0.5% of cost-ledger totals.",
     accent: "fuchsia",
   },
 ];
@@ -69,7 +69,7 @@ export function Features() {
         <SectionHead
           eyebrow="What it does"
           title="Built like a sales floor — runs like a system."
-          subtitle="Not a chatbot. Not a coupon banner. A full agent runtime, on your storefront."
+          subtitle="Not a chatbot. Not a coupon banner. A full conversational sales runtime, on your storefront."
         />
 
         <div className="mt-16 grid gap-4 md:grid-cols-2 lg:grid-cols-3">

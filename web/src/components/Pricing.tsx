@@ -21,9 +21,9 @@ const tiers: Tier[] = [
   {
     name: "Starter",
     tag: "Solo merchants",
-    price: "₹2,000",
+    price: "$30",
     suffix: "/ month",
-    desc: "Live agent, voice + text, 1 persona, brand KB up to 1MB. Unmetered conversations.",
+    desc: "Voice + text shopping live on your store, 1 persona, brand KB up to 1MB. Unmetered conversations.",
     features: [
       "1 persona",
       "Brand KB ≤ 1MB",
@@ -37,7 +37,7 @@ const tiers: Tier[] = [
   {
     name: "Growth",
     tag: "Closed-beta favorite",
-    price: "₹4,000",
+    price: "$60",
     suffix: "/ month",
     desc: "Everything in Starter, plus all 8 personas, coupon discovery, and multi-storefront.",
     features: [
@@ -48,7 +48,7 @@ const tiers: Tier[] = [
       "Slack support, 4h SLA",
     ],
     highlight: true,
-    cta: "Start free trial",
+    cta: "Get started",
     href: "/signup",
   },
   {

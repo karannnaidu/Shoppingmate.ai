@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 // Next.js 16: searchParams is a Promise (async props convention)
@@ -9,10 +10,19 @@ export default async function VerifyPage({
   const params = await searchParams;
   if (params.error) {
     return (
-      <div className="text-center">
-        <h1 className="text-lg font-semibold">Link expired or invalid</h1>
-        <p className="mt-2 text-sm text-zinc-600">Request a new sign-in link.</p>
-        <a href="/login" className="mt-4 inline-block underline">Back to sign in</a>
+      <div className="rounded-2xl border border-border bg-surface-elevated p-8 text-center shadow-[var(--shadow-sm)]">
+        <h1 className="font-display text-lg font-semibold text-text-primary">
+          Link expired or invalid
+        </h1>
+        <p className="mt-2 text-sm text-text-secondary">
+          Request a new sign-in link.
+        </p>
+        <Link
+          href="/login"
+          className="mt-4 inline-flex items-center justify-center rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:border-border-strong"
+        >
+          Back to sign in
+        </Link>
       </div>
     );
   }

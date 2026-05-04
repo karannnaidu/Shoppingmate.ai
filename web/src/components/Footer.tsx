@@ -48,7 +48,7 @@ export function Footer() {
           <div>
             <Logo />
             <p className="mt-4 max-w-sm text-sm text-text-secondary">
-              A 24/7 AI sales agent for every storefront.
+              Your AI salesmate, live on every storefront.
             </p>
             <p className="mt-4 font-mono text-[11px] uppercase tracking-wider text-text-muted">
               hello@shoppingmate.ai

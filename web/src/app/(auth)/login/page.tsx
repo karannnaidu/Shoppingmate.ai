@@ -29,11 +29,21 @@ export default function LoginPage() {
       </CardHeader>
       <CardContent>
         {sent ? (
-          <p className="text-sm text-zinc-700">Check your inbox at <strong>{email}</strong>.</p>
+          <p className="text-sm text-text-secondary">
+            Check your inbox at <strong className="text-text-primary">{email}</strong>.
+          </p>
         ) : (
           <form onSubmit={onSubmit} className="flex flex-col gap-3">
-            <Input type="email" placeholder="you@brand.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <Button type="submit" disabled={loading}>{loading ? 'Sending…' : 'Send link'}</Button>
+            <Input
+              type="email"
+              placeholder="you@brand.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Sending…' : 'Send link'}
+            </Button>
           </form>
         )}
       </CardContent>

@@ -22,9 +22,9 @@ const steps = [
   {
     n: "03",
     icon: Sparkles,
-    title: "Your agent goes live",
-    body: "A voice + text agent talks to visitors, picks variants, applies coupons, and hands off to your native checkout. You never touch a card.",
-    code: `agent.cart.add(sku, qty)\nagent.coupons.try("WINTER15")\nagent.checkout.handoff()`,
+    title: "Your storefront talks back",
+    body: "Voice + text shopping greets visitors, picks variants, applies coupons, and hands off to your native checkout. You never touch a card.",
+    code: `cart.add(sku, qty)\ncoupons.try("WINTER15")\ncheckout.handoff()`,
   },
 ];
 

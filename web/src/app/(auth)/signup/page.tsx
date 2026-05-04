@@ -32,18 +32,37 @@ export default function SignupPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>shoppingmate</CardTitle>
-        <CardDescription>Start your $30/mo Starter plan. Magic-link sign-up — no password.</CardDescription>
+        <CardTitle>Start with shoppingmate</CardTitle>
+        <CardDescription>
+          Start your $30/mo Starter plan. Magic-link sign-up — no password.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {sent ? (
-          <p className="text-sm text-zinc-700">Check your inbox at <strong>{email}</strong> for a sign-in link.</p>
+          <p className="text-sm text-text-secondary">
+            Check your inbox at{' '}
+            <strong className="text-text-primary">{email}</strong> for a sign-in link.
+          </p>
         ) : (
           <form onSubmit={onSubmit} className="flex flex-col gap-3">
-            <Input type="email" placeholder="you@brand.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" disabled={loading}>{loading ? 'Sending…' : 'Sign up'}</Button>
-            <p className="text-xs text-zinc-500">By continuing you agree to our Terms.</p>
+            <Input
+              type="email"
+              placeholder="you@brand.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            {error && (
+              <p className="text-sm text-rose-500" role="alert" aria-live="polite">
+                {error}
+              </p>
+            )}
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Sending…' : 'Sign up'}
+            </Button>
+            <p className="text-xs text-text-muted">
+              By continuing you agree to our Terms.
+            </p>
           </form>
         )}
       </CardContent>

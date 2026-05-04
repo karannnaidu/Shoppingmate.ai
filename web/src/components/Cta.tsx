@@ -53,7 +53,7 @@ export function Cta() {
                   href="#demo"
                   className="inline-flex items-center gap-2 rounded-full border border-background/25 px-6 py-3.5 text-[15px] font-medium text-background transition-colors hover:bg-background/5"
                 >
-                  Talk to a live agent
+                  Hear it talk
                 </Link>
               </div>
             </div>

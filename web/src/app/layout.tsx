@@ -16,14 +16,14 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "shoppingmate.ai — A 24/7 AI sales agent for every storefront",
+  title: "shoppingmate.ai — Your AI salesmate for every storefront",
   description:
-    "Paste one script tag. Get a voice + text AI agent that builds carts, applies coupons, and hands off to checkout — on Shopify, WooCommerce, Magento, Wix, Squarespace, and custom sites.",
+    "Paste one script tag. A voice + text AI sales agent that builds carts, applies coupons, and hands off to checkout — on Shopify, WooCommerce, Magento, Wix, Squarespace, and custom sites.",
   metadataBase: new URL("https://shoppingmate.ai"),
   openGraph: {
-    title: "shoppingmate.ai — Your store's 24/7 AI sales agent",
+    title: "shoppingmate.ai — Your store's 24/7 AI salesmate",
     description:
-      "One script tag. AI voice + text agent. Works on every major commerce platform.",
+      "One script tag. AI sales agent on voice + text. Works on every major commerce platform.",
     type: "website",
   },
 };

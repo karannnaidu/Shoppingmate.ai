@@ -21,7 +21,7 @@ const scripts: Record<string, Msg[]> = {
     {
       who: "agent",
       text:
-        "Two perfect picks: Hydra Soothe Cream (₹1,499) and our Barrier Repair Serum (₹2,200). Both fragrance-free. Pop them in your cart?",
+        "Two perfect picks: Hydra Soothe Cream ($19) and our Barrier Repair Serum ($28). Both fragrance-free. Pop them in your cart?",
     },
   ],
   stylist: [
@@ -39,7 +39,7 @@ const scripts: Record<string, Msg[]> = {
     {
       who: "agent",
       text:
-        "Stack: whey isolate, EAA intra, thermogenic. WINTER15 stacks with bundle pricing — ₹4,200 saved. Ready?",
+        "Stack: whey isolate, EAA intra, thermogenic. WINTER15 stacks with bundle pricing — $52 saved. Ready?",
     },
   ],
   concierge: [
@@ -128,8 +128,8 @@ export function Demo() {
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <SectionHead
           eyebrow="Live demo"
-          title="Try the agent. Switch the persona."
-          subtitle="Same engine. Eight personas. Pick the voice that fits your brand and your customer."
+          title="Try the conversation. Switch the persona."
+          subtitle="One engine, every voice. Pick the persona that fits your brand and your customer."
         />
 
         <div className="mt-14 grid gap-8 lg:grid-cols-[1fr_1.3fr] lg:items-start">

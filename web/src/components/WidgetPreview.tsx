@@ -21,19 +21,19 @@ const callScript: Turn[] = [
   {
     who: "agent",
     text:
-      "Got it — sensitive skin. I'd suggest Hydra Soothe Cream, ₹1,499. Barrier repair, no fragrance.",
+      "Got it — sensitive skin. I'd suggest Hydra Soothe Cream, $19. Barrier repair, no fragrance.",
   },
   { who: "user", text: "Sounds good. What about a serum to pair?" },
   {
     who: "agent",
     text:
-      "Barrier Repair Serum, ₹2,200. WINTER15 stacks — saves you ₹350 on both. Want me to add them?",
+      "Barrier Repair Serum, $28. WINTER15 stacks — saves you $5 on both. Want me to add them?",
   },
 ];
 
 const chatReplies: Record<string, string> = {
   "What does it cost?":
-    "Flat monthly: Starter ₹2K, Growth ₹4K, Enterprise custom. Unmetered conversations. Cancel anytime.",
+    "Flat monthly: Starter $30, Growth $60, Enterprise custom. Unmetered conversations. Cancel anytime.",
   "How does install work?":
     "One <script> tag in your <head>. Auto-onboards in 5–8 minutes. No SDK, no app, no plugin.",
   "Is my data safe?":
@@ -314,7 +314,7 @@ export function WidgetPreview() {
               </div>
 
               <div className="border-t border-border bg-surface-muted/30 px-4 py-2 text-center font-mono text-[10px] uppercase tracking-wider text-text-muted">
-                this is a demo · live agents speak too
+                this is a demo · the live widget talks too
               </div>
             </div>
           </motion.div>
@@ -441,7 +441,7 @@ export function WidgetPreview() {
               {mode === "pill" ? "Talk to Sage" : "Sage"}
             </span>
             <span className="block font-mono text-[9.5px] uppercase tracking-[0.18em] text-white/55">
-              AI Assistant
+              AI salesmate
             </span>
           </span>
         </button>

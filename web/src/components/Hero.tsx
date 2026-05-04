@@ -13,7 +13,7 @@ const lines = [
     text: "Got it. Two best matches in stock. Want me to pop both in your cart?",
   },
   { who: "user", text: "Yes please. And a coupon if you have one." },
-  { who: "agent", text: "Applied WINTER15 — saved you ₹420. Ready to check out?" },
+  { who: "agent", text: "Applied WINTER15 — saved you $5. Ready to check out?" },
 ];
 
 export function Hero() {
@@ -65,7 +65,7 @@ export function Hero() {
                 <span className="relative h-1.5 w-1.5 rounded-full bg-cyan" />
               </span>
               <Sparkles className="h-3.5 w-3.5 text-violet" />
-              <span>Live on Shopify, Woo, Magento, Wix, Squarespace + custom</span>
+              <span>Live on Shopify, Woo, Magento, BigCommerce, Wix, Squarespace + custom</span>
             </motion.div>
 
             <motion.h1
@@ -77,7 +77,7 @@ export function Hero() {
               The 24/7 sales floor
               <br />
               your store never had.{" "}
-              <span className="gradient-text">A voice agent</span> that builds carts.
+              <span className="gradient-text">Voice shopping</span> that builds carts.
             </motion.h1>
 
             <motion.p
@@ -86,10 +86,10 @@ export function Hero() {
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.12 }}
               className="mt-6 max-w-2xl text-lg text-text-secondary text-pretty md:text-xl"
             >
-              Paste one line of code. Within 8 minutes, an AI sales agent is live —
-              talking to your visitors, picking variants, applying coupons, and handing
-              off to your native checkout. <span className="text-text-primary">No
-              integrations. No PCI scope. No card data ever.</span>
+              Paste one line of code. Within 8 minutes your AI salesmate is live —
+              greeting visitors, picking variants, applying coupons, and handing off to
+              your native checkout. <span className="text-text-primary">No integrations.
+              No PCI scope. No card data ever.</span>
             </motion.p>
 
             <motion.div
@@ -162,7 +162,7 @@ export function Hero() {
                     <p className="text-xs text-text-muted">In stock · Fragrance-free</p>
                   </div>
                   <span className="font-mono text-sm font-semibold tabular-nums">
-                    ₹1,499
+                    $19.00
                   </span>
                 </div>
 

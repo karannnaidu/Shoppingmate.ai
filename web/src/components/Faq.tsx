@@ -12,11 +12,11 @@ const items = [
   },
   {
     q: "What happens on a custom-built website?",
-    a: "If we can't fingerprint a known platform, we fall back to DOM mode. Our agent literally drives the visitor's browser — clicks the add-to-cart, applies the coupon, taps checkout — through DOM control. Visitor experience is identical.",
+    a: "If we can't fingerprint a known platform, we fall back to DOM mode — the widget literally drives the visitor's browser: clicks the add-to-cart, applies the coupon, taps checkout. Visitor experience is identical.",
   },
   {
     q: "Will the AI hallucinate prices or product details?",
-    a: "No. Cards display prices from your DB-trusted catalog. The voice agent never speaks a numeric price — it always paraphrases and defers to what's on screen. Brand KB content is quoted verbatim from your uploaded docs.",
+    a: "No. Cards display prices from your DB-trusted catalog. The voice never speaks a numeric price — it always paraphrases and defers to what's on screen. Brand KB content is quoted verbatim from your uploaded docs.",
   },
   {
     q: "How does coupon discovery work?",
@@ -27,12 +27,12 @@ const items = [
     a: "Nowhere on our servers. The widget never collects card data. When a visitor taps Pay, we redirect to your native checkout. We are out of PCI scope by design.",
   },
   {
-    q: "Can I override what the agent does?",
+    q: "Can I override what the widget does?",
     a: "Yes. Open the recipe-card editor, point at the broken element, save the override — it's locked permanently. Auto-recrawl and LLM healing skip every locked selector. If a locked override starts failing, we email you a one-click suggested fix.",
   },
   {
     q: "How long does install take?",
-    a: "Under 60 seconds for the script paste. Auto-onboarding (platform fingerprint, catalog sync, selector extraction, smoke test) completes in 5–8 minutes. From paste to live agent: under 10 minutes total, zero merchant action.",
+    a: "Under 60 seconds for the script paste. Auto-onboarding (platform fingerprint, catalog sync, selector extraction, smoke test) completes in 5–8 minutes. From paste to live shopping: under 10 minutes total, zero merchant action.",
   },
 ];
 
