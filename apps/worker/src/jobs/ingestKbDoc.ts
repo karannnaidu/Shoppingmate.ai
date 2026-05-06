@@ -52,7 +52,6 @@ export async function ingestKbDoc(args: { documentId: string }): Promise<IngestR
 
 async function extractText(buf: Buffer, mime: string): Promise<string> {
   if (mime === 'application/pdf') {
-    // @ts-expect-error — pdf-parse types may not match dynamic import shape
     const { default: pdf } = await import('pdf-parse');
     const out = await pdf(buf);
     return out.text;
