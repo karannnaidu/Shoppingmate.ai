@@ -164,7 +164,8 @@ function UrlForm({ merchantId }: { merchantId: string }) {
 }
 
 function InstallStep({ merchantId }: { merchantId: string }) {
-  const snippet = `<script async src="https://cdn.shoppingmate.ai/widget/v1.js" data-id="${merchantId}"></script>`;
+  const cdnBase = process.env.NEXT_PUBLIC_WIDGET_CDN_BASE || 'https://shoppingmate-web.vercel.app';
+  const snippet = `<script async src="${cdnBase}/widget/v1.js" data-id="${merchantId}"></script>`;
   const [verifying, setVerifying] = useState(false);
   const [result, setResult] = useState<'idle' | 'ok' | 'fail'>('idle');
 

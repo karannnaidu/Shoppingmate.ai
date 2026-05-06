@@ -4,13 +4,14 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { Code2, Radar, Sparkles } from "lucide-react";
 import { useRef } from "react";
 
+const CDN_BASE = process.env.NEXT_PUBLIC_WIDGET_CDN_BASE || 'https://shoppingmate-web.vercel.app';
 const steps = [
   {
     n: "01",
     icon: Code2,
     title: "Paste one script tag",
     body: "Drop a single line into your <head>. No SDK, no OAuth, no platform integration. Works on every supported storefront the same way.",
-    code: `<script async\n  src="https://cdn.shoppingmate.ai/v1.js"\n  data-id="SM-XXXX"></script>`,
+    code: `<script async\n  src="${CDN_BASE}/widget/v1.js"\n  data-id="SM-XXXX"></script>`,
   },
   {
     n: "02",

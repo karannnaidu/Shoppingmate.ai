@@ -23,7 +23,7 @@ export async function POST(_req: Request) {
   }
 
   const expectedNeedle = `data-id="${session.merchant.id}"`;
-  const found = html.includes('cdn.shoppingmate.ai/widget') && html.includes(expectedNeedle);
+  const found = html.includes('/widget/v1.js') && html.includes(expectedNeedle);
 
   if (found) {
     await db.update(merchants).set({ lastWidgetPing: new Date() }).where(eq(merchants.id, session.merchant.id));

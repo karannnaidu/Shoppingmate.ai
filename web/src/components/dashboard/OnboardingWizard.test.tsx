@@ -30,6 +30,6 @@ describe('OnboardingWizard', () => {
     };
     render(<OnboardingWizard step={4} merchant={merchant} />);
     expect(screen.getByText(/SM-ABCDEF/)).toBeTruthy();
-    expect(screen.getByText(/cdn.shoppingmate.ai\/widget/)).toBeTruthy();
+    expect(screen.getByText(/\/widget\/v1\.js/)).toBeTruthy();
   });
 });

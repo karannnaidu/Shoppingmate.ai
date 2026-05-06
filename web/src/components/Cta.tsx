@@ -5,7 +5,8 @@ import { Copy, Check, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 
-const snippet = `<script async\n  src="https://cdn.shoppingmate.ai/v1.js"\n  data-id="SM-XXXX"></script>`;
+const CDN_BASE = process.env.NEXT_PUBLIC_WIDGET_CDN_BASE || 'https://shoppingmate-web.vercel.app';
+const snippet = `<script async\n  src="${CDN_BASE}/widget/v1.js"\n  data-id="SM-XXXX"></script>`;
 
 export function Cta() {
   const [copied, setCopied] = useState(false);
