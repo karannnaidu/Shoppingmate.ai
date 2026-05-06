@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "pnpm --filter \"./packages/*\" build && next build --webpack",
+    "build": "pnpm --filter \"web^...\" build && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run"
