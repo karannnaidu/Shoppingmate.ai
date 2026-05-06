@@ -1,6 +1,7 @@
 import type { TranscriptItem } from '../state/store.js';
 import { STRINGS } from '../strings.js';
 import { renderTranscript } from './transcript.js';
+import { ICON_MIC, ICON_MIC_OFF, ICON_PHONE_OFF, ICON_MESSAGE } from './icons.js';
 
 export type CallProps = {
   voiceState: 'idle' | 'listening' | 'speaking' | 'muted';
@@ -41,9 +42,9 @@ export function renderCall(host: HTMLElement, props: CallProps): void {
       <div class="transcript" data-region="transcript" aria-live="polite"></div>
       ${props.checkoutUrl ? `<a class="checkout-cta" data-action="checkout" href="${props.checkoutUrl}" target="_blank" rel="noopener">${STRINGS.payNow}</a>` : ''}
       <div class="controls">
-        <button class="ctrl ${props.muted ? 'muted' : ''}" data-action="mute" aria-pressed="${props.muted}" aria-label="${props.muted ? 'Unmute' : 'Mute'}">${props.muted ? '🔇' : '🎤'}</button>
-        <button class="ctrl end" data-action="end" aria-label="${STRINGS.endCallAria}">📵</button>
-        <button class="ctrl" data-action="chat" aria-label="${STRINGS.chatBtnAria}">💬</button>
+        <button class="ctrl ${props.muted ? 'muted' : ''}" data-action="mute" aria-pressed="${props.muted}" aria-label="${props.muted ? 'Unmute' : 'Mute'}">${props.muted ? ICON_MIC_OFF : ICON_MIC}</button>
+        <button class="ctrl end" data-action="end" aria-label="${STRINGS.endCallAria}">${ICON_PHONE_OFF}</button>
+        <button class="ctrl" data-action="chat" aria-label="${STRINGS.chatBtnAria}">${ICON_MESSAGE}</button>
       </div>
     </div>
   `;

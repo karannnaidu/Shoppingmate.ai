@@ -1,4 +1,5 @@
 import { STRINGS } from '../strings.js';
+import { ICON_MESSAGE, ICON_X, ICON_PHONE, ICON_PHONE_OFF } from './icons.js';
 
 export type PillProps = {
   mode: 'pill' | 'expanded' | 'call' | 'chat';
@@ -22,7 +23,7 @@ export function renderPill(host: HTMLElement, props: PillProps): void {
       <button class="avatar" data-action="toggle" aria-label="${expanded ? STRINGS.closeAria : STRINGS.pillCollapsed}">S</button>
       <div class="label">
         <span class="label-main">${labelMain}</span>
-        <span class="label-sub">AI Assistant</span>
+        <span class="label-sub">AI salesmate</span>
       </div>
       ${
         expanded
@@ -32,11 +33,11 @@ export function renderPill(host: HTMLElement, props: PillProps): void {
             props.callable
               ? `<button class="btn ${inCall ? 'btn-end' : ''}" data-action="call" aria-label="${
                   inCall ? STRINGS.endCallAria : STRINGS.callBtnAria
-                }">${inCall ? STRINGS.callBtnEnd : STRINGS.callBtn}</button>`
+                }">${inCall ? ICON_PHONE_OFF : ICON_PHONE}<span>${inCall ? STRINGS.callBtnEnd : STRINGS.callBtn}</span></button>`
               : ''
           }
-          <button class="btn btn-icon" data-action="chat" aria-pressed="${inChat}" aria-label="${STRINGS.chatBtnAria}">💬</button>
-          <button class="btn btn-icon" data-action="close" aria-label="${STRINGS.closeAria}">×</button>
+          <button class="btn btn-icon" data-action="chat" aria-pressed="${inChat}" aria-label="${STRINGS.chatBtnAria}">${ICON_MESSAGE}</button>
+          <button class="btn btn-icon" data-action="close" aria-label="${STRINGS.closeAria}">${ICON_X}</button>
         </div>
       `
           : ''

@@ -1,6 +1,7 @@
 import type { TranscriptItem } from '../state/store.js';
 import { STRINGS } from '../strings.js';
 import { renderTranscript } from './transcript.js';
+import { ICON_PHONE, ICON_SEND } from './icons.js';
 
 export type ChatProps = {
   transcript: TranscriptItem[];
@@ -22,13 +23,13 @@ export function renderChat(host: HTMLElement, props: ChatProps): void {
             <div class="sub">${STRINGS.chatHeaderSubtitle}</div>
           </div>
         </div>
-        <button class="btn" data-action="call" aria-label="${STRINGS.callBtnAria}">${STRINGS.callBtn}</button>
+        <button class="btn" data-action="call" aria-label="${STRINGS.callBtnAria}">${ICON_PHONE}<span>${STRINGS.callBtn}</span></button>
       </div>
       <div class="transcript" data-region="transcript" aria-live="polite"></div>
       ${props.checkoutUrl ? `<a class="checkout-cta" href="${props.checkoutUrl}" target="_blank" rel="noopener">${STRINGS.payNow}</a>` : ''}
       <form class="input-row">
         <input type="text" placeholder="${STRINGS.chatPlaceholder}" ${props.closed ? 'disabled' : ''} />
-        <button class="send" type="submit" aria-label="Send" ${props.closed ? 'disabled' : ''}>↵</button>
+        <button class="send" type="submit" aria-label="Send" ${props.closed ? 'disabled' : ''}>${ICON_SEND}</button>
       </form>
     </div>
   `;

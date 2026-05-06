@@ -1,4 +1,4 @@
-const DEFAULT_CDN_BASE = 'https://cdn.shoppingmate.ai/vendor';
+const DEFAULT_CDN_BASE = 'https://cdn.jsdelivr.net/npm';
 const DEFAULT_VERSION = '2.7.0';
 
 declare global {
@@ -25,7 +25,7 @@ async function loadLiveKit(): Promise<{ Room: new () => RoomShape }> {
       Room: new () => RoomShape;
     };
   }
-  const url = `${DEFAULT_CDN_BASE}/livekit-client@${DEFAULT_VERSION}/dist/livekit-client.esm.min.js`;
+  const url = `${DEFAULT_CDN_BASE}/livekit-client@${DEFAULT_VERSION}/dist/livekit-client.esm.mjs`;
   return (await import(/* @vite-ignore */ url)) as { Room: new () => RoomShape };
 }
 
