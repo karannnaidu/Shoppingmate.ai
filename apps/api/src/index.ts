@@ -5,6 +5,7 @@ import { mountWs } from '@shoppingmate/dom-harness';
 import { env, logger } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { Redis } from 'ioredis';
 import {
   NoOpWSTransport,
@@ -25,6 +26,21 @@ import { voiceTokenRoute } from './routes/voice-token.js';
 import { mountAgentWs } from './ws/agent.js';
 
 const app = new Hono();
+
+// CORS: widget runs on merchant origins (shoppingmate.ai, *.vercel.app, brand
+// shop domains). The per-route origin check still validates against the
+// merchant's allowedDomains; CORS just unblocks the browser preflight.
+app.use(
+  '/v1/*',
+  cors({
+    origin: (origin) => origin ?? '*',
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['content-type'],
+    maxAge: 600,
+    credentials: false,
+  }),
+);
+
 app.route('/health', healthRoute);
 app.route('/v1/install', installRoute);
 app.route('/v1/session', sessionRoute);
