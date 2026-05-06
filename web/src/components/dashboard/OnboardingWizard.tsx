@@ -110,24 +110,10 @@ function ConnectStep({ merchantId, status }: { merchantId: string; status: strin
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-sm text-text-secondary">
-            Skip ahead to grab the install snippet. Works on Woo, Magento, BigCommerce, Wix,
-            Squarespace, or a plain HTML site.
+            Works on Woo, Magento, BigCommerce, Wix, Squarespace, or a plain HTML site. We need your
+            store URL to ingest your catalog and scope the agent to your domain.
           </p>
-          <Button variant="outline" onClick={() => { window.location.href = '/app/onboarding?step=4'; }}>
-            Get my install snippet
-          </Button>
-          <details className="text-xs text-text-secondary">
-            <summary className="cursor-pointer hover:text-text-primary">
-              Have your store URL handy? (optional)
-            </summary>
-            <div className="mt-3">
-              <p className="mb-2">
-                Adding it now lets us auto-verify your snippet and pre-cache your catalog. You can
-                also add it later in Settings.
-              </p>
-              <UrlForm merchantId={merchantId} />
-            </div>
-          </details>
+          <UrlForm merchantId={merchantId} />
         </CardContent>
       </Card>
     </div>
@@ -165,8 +151,8 @@ function UrlForm({ merchantId }: { merchantId: string }) {
         onChange={(e) => setUrl(e.target.value)}
         required
       />
-      <Button type="submit" variant="outline" disabled={loading}>
-        {loading ? 'Working…' : 'Submit'}
+      <Button type="submit" disabled={loading}>
+        {loading ? 'Working…' : 'Continue to install'}
       </Button>
       {error && (
         <p className="text-sm text-rose-500" role="alert" aria-live="polite">
