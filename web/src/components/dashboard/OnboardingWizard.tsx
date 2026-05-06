@@ -91,9 +91,11 @@ function ConnectStep({ merchantId, status }: { merchantId: string; status: strin
           <CardTitle>Connect Shopify</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-text-secondary mb-4">Fastest, 30 seconds.</p>
+          <p className="text-sm text-text-secondary mb-4">
+            Fastest path — auto-syncs your catalog and verifies install in one click.
+          </p>
           <Button onClick={connectShopify} disabled={loading}>
-            {loading ? 'Connecting…' : 'Connect'}
+            {loading ? 'Connecting…' : 'Connect Shopify'}
           </Button>
           {!['pending', 'onboarding'].includes(status) && (
             <p className="text-xs text-text-secondary mt-3">
@@ -104,10 +106,28 @@ function ConnectStep({ merchantId, status }: { merchantId: string; status: strin
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Use any other store URL</CardTitle>
+          <CardTitle>Any other site</CardTitle>
         </CardHeader>
-        <CardContent>
-          <UrlForm merchantId={merchantId} />
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-sm text-text-secondary">
+            Skip ahead to grab the install snippet. Works on Woo, Magento, BigCommerce, Wix,
+            Squarespace, or a plain HTML site.
+          </p>
+          <Button variant="outline" onClick={() => { window.location.href = '/app/onboarding?step=4'; }}>
+            Get my install snippet
+          </Button>
+          <details className="text-xs text-text-secondary">
+            <summary className="cursor-pointer hover:text-text-primary">
+              Have your store URL handy? (optional)
+            </summary>
+            <div className="mt-3">
+              <p className="mb-2">
+                Adding it now lets us auto-verify your snippet and pre-cache your catalog. You can
+                also add it later in Settings.
+              </p>
+              <UrlForm merchantId={merchantId} />
+            </div>
+          </details>
         </CardContent>
       </Card>
     </div>
