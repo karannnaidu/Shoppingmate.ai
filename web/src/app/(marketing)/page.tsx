@@ -9,7 +9,6 @@ import { Pricing } from "@/components/Pricing";
 import { Faq } from "@/components/Faq";
 import { Cta } from "@/components/Cta";
 import { Footer } from "@/components/Footer";
-import { WidgetPreview } from "@/components/WidgetPreview";
 
 export default function Home() {
   return (
@@ -27,7 +26,6 @@ export default function Home() {
         <Cta />
       </main>
       <Footer />
-      <WidgetPreview />
     </>
   );
 }
