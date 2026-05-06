@@ -117,15 +117,24 @@ function ConnectStep({ merchantId, status }: { merchantId: string; status: strin
 function UrlForm({ merchantId }: { merchantId: string }) {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   async function go(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
     setLoading(true);
-    await fetch('/api/install/start-url', {
+    const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    const res = await fetch('/api/install/start-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ merchantId, url }),
+      body: JSON.stringify({ merchantId, url: normalized }),
     });
-    window.location.reload();
+    setLoading(false);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setError(json.error ?? `Couldn't save URL (status ${res.status}).`);
+      return;
+    }
+    window.location.href = '/app/onboarding?step=4';
   }
   return (
     <form onSubmit={go} className="flex flex-col gap-2">
@@ -139,6 +148,11 @@ function UrlForm({ merchantId }: { merchantId: string }) {
       <Button type="submit" variant="outline" disabled={loading}>
         {loading ? 'Working…' : 'Submit'}
       </Button>
+      {error && (
+        <p className="text-sm text-rose-500" role="alert" aria-live="polite">
+          {error}
+        </p>
+      )}
     </form>
   );
 }
