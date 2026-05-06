@@ -103,6 +103,26 @@ export async function chatTools(opts: {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
+  // Some upstream providers (Bedrock/Vertex) reject dots in tool names — they
+  // require ^[a-zA-Z0-9_-]{1,128}$. Normalize on the wire (`.` → `_`) and
+  // reverse the substitution on the way back so dispatchTool() and the rest
+  // of the runtime keep their canonical dotted names.
+  const wireTools = opts.tools.map((t) => ({
+    ...t,
+    function: { ...t.function, name: t.function.name.replace(/\./g, '_') },
+  }));
+  const wireMessages = opts.messages.map((m) => {
+    if (m.role === 'assistant' && 'tool_calls' in m && m.tool_calls) {
+      return {
+        ...m,
+        tool_calls: m.tool_calls.map((tc) => ({
+          ...tc,
+          function: { ...tc.function, name: tc.function.name.replace(/\./g, '_') },
+        })),
+      };
+    }
+    return m;
+  });
   try {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -114,14 +134,18 @@ export async function chatTools(opts: {
       },
       body: JSON.stringify({
         model: opts.model,
-        messages: opts.messages,
-        tools: opts.tools.length > 0 ? opts.tools : undefined,
-        tool_choice: opts.tools.length > 0 ? (opts.toolChoice ?? 'auto') : undefined,
+        messages: wireMessages,
+        tools: wireTools.length > 0 ? wireTools : undefined,
+        tool_choice: wireTools.length > 0 ? (opts.toolChoice ?? 'auto') : undefined,
       }),
       signal: controller.signal,
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
+      log.warn(
+        { status: res.status, body: errText.slice(0, 500), model: opts.model },
+        'chatTools http error',
+      );
       throw new Error(`openrouter http ${res.status}: ${errText.slice(0, 200)}`);
     }
     const body = (await res.json()) as {
@@ -134,11 +158,14 @@ export async function chatTools(opts: {
     const choice = body.choices[0];
     if (!choice) throw new Error('openrouter: empty choices');
     const stopReason = mapStopReason(choice.finish_reason);
-    const toolCalls = (choice.message.tool_calls ?? []).map((tc) => ({
-      id: tc.id,
-      name: tc.function.name,
-      argumentsJson: tc.function.arguments,
-    }));
+    // Map underscore tool names back to canonical dotted form so dispatchTool
+    // (which switches on `products.search`, `cart.add`, etc.) works unchanged.
+    const knownToolNames = new Set(wireTools.map((t) => t.function.name));
+    const toolCalls = (choice.message.tool_calls ?? []).map((tc) => {
+      const wire = tc.function.name;
+      const canonical = knownToolNames.has(wire) ? wire.replace(/_/g, '.') : wire;
+      return { id: tc.id, name: canonical, argumentsJson: tc.function.arguments };
+    });
     return {
       text: choice.message.content ?? '',
       toolCalls,

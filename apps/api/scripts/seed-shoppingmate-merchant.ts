@@ -22,10 +22,11 @@ async function main() {
       allowedDomains: [DOMAIN, 'www.shoppingmate.ai', 'shoppingmate-web.vercel.app'],
       status: 'live',
       personaId: 'sage',
+      adapterType: 'suggest',
       plan: 'starter',
       billingStatus: 'active',
     });
-    console.log(`inserted ${ID} with allowedDomains=[${DOMAIN}]`);
+    console.log(`inserted ${ID} with allowedDomains=[${DOMAIN}], adapterType=suggest`);
     return;
   }
 
@@ -33,9 +34,16 @@ async function main() {
   const merged = Array.from(new Set([...(existing.allowedDomains ?? []), ...wanted]));
   await db
     .update(schema.merchants)
-    .set({ allowedDomains: merged, status: 'live' })
+    .set({
+      allowedDomains: merged,
+      status: 'live',
+      domain: DOMAIN,
+      name: 'shoppingmate (dogfood)',
+      personaId: 'sage',
+      adapterType: 'suggest',
+    })
     .where(eq(schema.merchants.id, ID));
-  console.log(`updated ${ID} allowedDomains=${JSON.stringify(merged)}`);
+  console.log(`updated ${ID} allowedDomains=${JSON.stringify(merged)}, adapterType=suggest`);
 }
 
 main().then(
