@@ -98,10 +98,7 @@ export function mountWs(server: UpgradableServer): MountedWs {
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const m = url.pathname.match(/^\/v1\/widget\/([^/]+)\/ws$/);
-    if (!m) {
-      socket.destroy();
-      return;
-    }
+    if (!m) return; // not our path; let other upgrade listeners (e.g. agent ws) claim it
     const sessionId = decodeURIComponent(m[1] ?? '');
     const token = url.searchParams.get('token') ?? '';
     const payload = verifyWsToken(token);
