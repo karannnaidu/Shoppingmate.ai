@@ -21,7 +21,7 @@ async function main() {
       name: 'shoppingmate (dogfood)',
       allowedDomains: [DOMAIN, 'www.shoppingmate.ai', 'shoppingmate-web.vercel.app'],
       status: 'live',
-      personaId: 'sage',
+      personaId: 'calm-clinician',
       adapterType: 'suggest',
       plan: 'starter',
       billingStatus: 'active',
@@ -39,7 +39,7 @@ async function main() {
       status: 'live',
       domain: DOMAIN,
       name: 'shoppingmate (dogfood)',
-      personaId: 'sage',
+      personaId: 'calm-clinician',
       adapterType: 'suggest',
     })
     .where(eq(schema.merchants.id, ID));
