@@ -3,7 +3,7 @@ import type { Merchant } from '@shoppingmate/db';
 import { type ChatToolsResult, chatTools } from '@shoppingmate/shared';
 import { checkCaps } from './caps.js';
 import { redactPii, segmentSay, stripPrices } from './postprocess.js';
-import { buildSystemPrompt } from './prompts/system.js';
+import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
 import { type ToolResultEnvelope, buildToolSurface, dispatchTool } from './tools.js';
 import type {
   AgentEvent,
@@ -30,6 +30,10 @@ export type RunTurnDeps = {
   // mocking. Defaults to the shared `chatTools` import (which existing tests
   // continue to mock via `vi.mock('@shoppingmate/shared')`).
   chatToolsImpl?: typeof chatTools;
+  // Optional fetcher for system-prompt opts (KB text, demo-mode flag). When
+  // omitted, buildSystemPrompt runs with no KB text and demoMode=false — the
+  // pre-Phase-2 behavior tests rely on.
+  loadPromptOpts?: (merchant: Merchant) => Promise<SystemPromptOpts>;
 };
 
 export async function* runTurn(
@@ -43,6 +47,7 @@ export async function* runTurn(
   }
 
   const callChatTools = deps.chatToolsImpl ?? chatTools;
+  const promptOpts = deps.loadPromptOpts ? await deps.loadPromptOpts(merchant) : {};
   const now = Date.now();
   const cap = checkCaps(session, session.mode, now);
 
@@ -109,7 +114,7 @@ export async function* runTurn(
     const ackArgs = {
       model: SONNET_MODEL,
       messages: [
-        { role: 'system' as const, content: buildSystemPrompt(merchant) },
+        { role: 'system' as const, content: buildSystemPrompt(merchant, promptOpts) },
         ...cardTapSession.history,
         {
           role: 'user' as const,
@@ -165,7 +170,7 @@ export async function* runTurn(
 
   const userText = redactPii(message.text);
   const history: AnthropicMessage[] = [
-    { role: 'system', content: buildSystemPrompt(merchant) },
+    { role: 'system', content: buildSystemPrompt(merchant, promptOpts) },
     ...session.history,
     { role: 'user', content: userText },
   ];
@@ -261,6 +266,22 @@ export async function* runTurn(
           collectedCards.push(...cards);
           yield { type: 'cards', items: cards };
         }
+        // Demo-mode tour tracking: when shoppingmate.ai's own widget is in
+        // demoMode and the visitor picks a vertical, the model issues a
+        // products.search whose query matches a known vertical keyword. This
+        // is the cleanest signal we have for "tour engagement" without adding
+        // a new agent tool.
+        if (promptOpts.demoMode && call.name === 'products.search' && cards.length > 0) {
+          const vertical = matchTourVertical(call.argumentsJson);
+          if (vertical) {
+            await deps.recordMetric('agent.demo.tour_started', {
+              merchantId: merchant.id,
+              sessionId: session.sessionId,
+              vertical,
+              cardsShown: cards.length,
+            });
+          }
+        }
       }
       if (envelope.ok && call.name === 'checkout.url' && typeof envelope.value === 'string') {
         yield { type: 'checkout_redirect', url: envelope.value };
@@ -306,6 +327,33 @@ export async function* runTurn(
 
 function makeCtx(merchant: Merchant, session: SessionState): AdapterContext {
   return { merchant, cartToken: session.cartToken, sessionId: session.sessionId };
+}
+
+// Verticals available in the SM-XPK2EN showcase catalog. Matching is loose
+// because the model often paraphrases the visitor's choice ("dog food" →
+// "kibble for dogs", "supplements" → "vitamins"). Returns the canonical
+// vertical name for metric tagging, or null if the search wasn't a tour pick.
+const TOUR_VERTICAL_KEYWORDS: Record<string, string[]> = {
+  'dog food': ['dog food', 'dog', 'kibble', 'puppy', 'pet food'],
+  apparel: ['apparel', 'clothing', 'shirt', 'jeans', 'sweater', 'hoodie', 'trouser'],
+  jewelry: ['jewelry', 'jewellery', 'ring', 'earring', 'necklace', 'bracelet', 'pendant'],
+  electronics: ['electronics', 'headphone', 'webcam', 'keyboard', 'ssd', 'lamp', 'gadget'],
+  supplements: ['supplement', 'vitamin', 'protein', 'omega', 'magnesium', 'greens'],
+};
+
+function matchTourVertical(argumentsJson: string): string | null {
+  let q = '';
+  try {
+    const args = JSON.parse(argumentsJson) as { query?: unknown };
+    if (typeof args.query === 'string') q = args.query.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (!q) return null;
+  for (const [vertical, keywords] of Object.entries(TOUR_VERTICAL_KEYWORDS)) {
+    if (keywords.some((k) => q.includes(k))) return vertical;
+  }
+  return null;
 }
 
 function classifyError(err: Error): string {

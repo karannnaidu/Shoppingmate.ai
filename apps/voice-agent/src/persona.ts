@@ -6,11 +6,32 @@ export type VoiceContext = {
   systemInstruction: string;
 };
 
-export function resolveVoiceContext(personaId: string | null | undefined): VoiceContext {
+export type VoiceBrandContext = {
+  name: string | null;
+  domain: string;
+};
+
+export type VoiceContextOpts = {
+  kbText?: string;
+  demoMode?: boolean;
+};
+
+export function resolveVoiceContext(
+  personaId: string | null | undefined,
+  brand?: VoiceBrandContext,
+  opts: VoiceContextOpts = {},
+): VoiceContext {
   const persona = lookupPersona(personaId);
   return {
     personaId: persona.id,
     voiceId: persona.geminiVoiceId,
-    systemInstruction: buildVoiceSystemInstruction(persona),
+    systemInstruction: buildVoiceSystemInstruction(
+      persona,
+      {
+        name: brand?.name ?? brand?.domain ?? '',
+        domain: brand?.domain ?? '',
+      },
+      opts,
+    ),
   };
 }

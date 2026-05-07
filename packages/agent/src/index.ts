@@ -32,6 +32,10 @@ export { buildToolSurface, dispatchTool, type ToolResultEnvelope } from './tools
 export { redactPii, segmentSay, stripPrices, type PriceHit } from './postprocess.js';
 export { NoOpWSTransport } from './transport-noop.js';
 export { replaySession } from './replay.js';
-export { BRAND_KB_SLOT, buildSystemPrompt } from './prompts/system.js';
+export {
+  BRAND_KB_SLOT,
+  buildSystemPrompt,
+  type SystemPromptOpts,
+} from './prompts/system.js';
 export { PERSONAS, DEFAULT_PERSONA, lookupPersona, type Persona } from './prompts/persona-table.js';
 export { buildVoiceSystemInstruction } from './prompts/voice-instructions.js';

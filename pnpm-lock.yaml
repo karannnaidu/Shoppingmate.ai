@@ -92,6 +92,9 @@ importers:
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@opentelemetry/api@1.9.1)(@types/react@19.2.14)(kysely@0.28.17)(postgres@3.4.9)(react@19.2.4)
+      gpt-tokenizer:
+        specifier: ^2.5.0
+        version: 2.9.0
       hono:
         specifier: ^4.6.10
         version: 4.12.16

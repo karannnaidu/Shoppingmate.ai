@@ -11,7 +11,7 @@ import {
   TrackPublishOptions,
   TrackSource,
 } from '@livekit/rtc-node';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import { loadSession } from '@shoppingmate/agent';
 import { db, schema } from '@shoppingmate/db';
@@ -59,7 +59,20 @@ const agentDefinition = defineAgent({
       return;
     }
 
-    const voice = resolveVoiceContext(merchant.personaId);
+    const kbChunks = await db
+      .select({ text: schema.brandKbChunks.text })
+      .from(schema.brandKbChunks)
+      .where(eq(schema.brandKbChunks.merchantId, merchant.id))
+      .orderBy(asc(schema.brandKbChunks.chunkIndex))
+      .limit(24); // ~6K tokens; native-audio model is smaller-context than Sonnet
+    const kbText = kbChunks.length > 0 ? kbChunks.map((c) => c.text).join('\n\n') : undefined;
+    const demoMode = merchant.id === sharedEnv.SHOPPINGMATE_DEMO_MERCHANT_ID;
+
+    const voice = resolveVoiceContext(
+      merchant.personaId,
+      { name: merchant.name, domain: merchant.domain },
+      { kbText, demoMode },
+    );
     const transport = createGeminiSdkTransport();
     const gemini = createGeminiSession({
       transport,

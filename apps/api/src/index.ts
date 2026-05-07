@@ -3,7 +3,7 @@ import { InMemorySessionState, type WSTransport, getAdapter } from '@shoppingmat
 import { db, schema } from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
 import { env, logger } from '@shoppingmate/shared';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Redis } from 'ioredis';
@@ -122,6 +122,7 @@ mountAgentWs(server, {
           .values({ merchantId: merchant.id, metricName: name, tags })
           .onConflictDoNothing();
       },
+      loadPromptOpts: async (m: typeof merchant) => loadPromptOpts(m.id),
     };
 
     for await (const ev of runTurn(deps, merchant, session, msg)) {
@@ -131,3 +132,23 @@ mountAgentWs(server, {
 });
 
 logger.info({ port: env.API_PORT }, 'agent ws mounted at /v1/widget/:sessionId/agent');
+
+// Cap KB injection at the first 32 chunks (≈ 8K tokens at 256 tokens/chunk
+// target). Bigger contexts blow Sonnet/Gemini token budgets and slow first
+// token. Naïve concat is fine for Phase A — Phase 2's retrieval upgrade can
+// rank chunks by relevance if quality gets thin.
+const KB_CHUNK_LIMIT = 32;
+
+async function loadPromptOpts(merchantId: string): Promise<{
+  kbText?: string;
+  demoMode?: boolean;
+}> {
+  const chunks = await db
+    .select({ text: schema.brandKbChunks.text })
+    .from(schema.brandKbChunks)
+    .where(eq(schema.brandKbChunks.merchantId, merchantId))
+    .orderBy(asc(schema.brandKbChunks.chunkIndex))
+    .limit(KB_CHUNK_LIMIT);
+  const kbText = chunks.length > 0 ? chunks.map((c) => c.text).join('\n\n') : undefined;
+  return { kbText, demoMode: merchantId === env.SHOPPINGMATE_DEMO_MERCHANT_ID };
+}

@@ -19,6 +19,7 @@
     "@shoppingmate/jobs": "workspace:*",
     "@shoppingmate/shared": "workspace:*",
     "drizzle-orm": "^0.36.4",
+    "gpt-tokenizer": "^2.5.0",
     "hono": "^4.6.10",
     "ioredis": "^5.4.1",
     "livekit-server-sdk": "^2.7.0",
