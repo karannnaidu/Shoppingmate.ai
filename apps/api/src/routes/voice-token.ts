@@ -1,8 +1,9 @@
-import { lookupPersona } from '@shoppingmate/agent';
+import { createSession, loadSession, lookupPersona, saveSession } from '@shoppingmate/agent';
 import { db, schema } from '@shoppingmate/db';
-import { childLogger } from '@shoppingmate/shared';
+import { childLogger, env } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { Redis } from 'ioredis';
 import { AccessToken } from 'livekit-server-sdk';
 import { z } from 'zod';
 import { originMatches } from '../lib/originCheck.js';
@@ -15,6 +16,12 @@ const Body = z.object({
 });
 
 const TOKEN_TTL_SECONDS = 24 * 60 * 60;
+
+let _redis: Redis | null = null;
+function redis(): Redis {
+  if (!_redis) _redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  return _redis;
+}
 
 export const voiceTokenRoute = new Hono();
 
@@ -56,6 +63,20 @@ voiceTokenRoute.post('/', async (c) => {
   if (!lkUrl || !lkApiKey || !lkApiSecret) {
     log.error({}, 'LiveKit env not configured');
     return c.json({ error: 'voice_unavailable' }, 503);
+  }
+
+  // The voice-agent worker loads the session from Redis as soon as it joins
+  // the room. If the visitor clicks CALL without first sending a chat
+  // message, no session exists yet and the worker disconnects with
+  // "no session found — closing room". Seed an empty voice-mode session
+  // here so the worker has something to load. The chat path will keep
+  // appending to it via session_resume / user_text.
+  const existing = await loadSession(redis(), sessionId);
+  if (!existing) {
+    await saveSession(
+      redis(),
+      createSession({ sessionId, merchantId, mode: 'voice', nowMs: Date.now() }),
+    );
   }
 
   const roomName = `sm_${sessionId}`;

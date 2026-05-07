@@ -14,6 +14,14 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @shoppingmate/voice-agent... build
 
 FROM node:20-slim
+# @livekit/rtc-node bundles a Rust binary that uses rustls/reqwest for the
+# /settings/regions HTTPS handshake before opening the WebRTC engine. The
+# slim image's cert bundle is sometimes incomplete for this path; install
+# ca-certificates explicitly so the regions fetch resolves.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/* \
+  && update-ca-certificates
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app /app
