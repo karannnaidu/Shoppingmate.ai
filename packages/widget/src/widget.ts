@@ -3,6 +3,7 @@ import { createTTS } from './audio/tts.js';
 import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
 import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
+import { type PersonaDisplay, getPersonaDisplay } from './persona.js';
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
 import { decodeAgentEvent, encodeWidgetMessage } from './transport/codec.js';
@@ -15,9 +16,8 @@ const TAG = 'shoppingmate-widget';
 
 function resolveVoiceStack(): 'live-kit' | 'web-speech' {
   // Build-time replaced via esbuild `define`. Default ships as 'live-kit'.
-  const stack = (
-    globalThis as unknown as { __SHOPPINGMATE_VOICE_STACK__?: string }
-  ).__SHOPPINGMATE_VOICE_STACK__;
+  const stack = (globalThis as unknown as { __SHOPPINGMATE_VOICE_STACK__?: string })
+    .__SHOPPINGMATE_VOICE_STACK__;
   return stack === 'web-speech' ? 'web-speech' : 'live-kit';
 }
 
@@ -29,6 +29,7 @@ class WidgetElement extends HTMLElement {
   private socket: AgentSocket | null = null;
   private voiceMode: VoiceMode = createVoiceMode(null, createTTS());
   private voice: VoiceBootstrap | null = null;
+  private persona: PersonaDisplay = getPersonaDisplay(null);
   private apiBase = '';
   private merchantId = '';
   private domain = window.location.host;
@@ -78,6 +79,7 @@ class WidgetElement extends HTMLElement {
     this.store = createStore({ sessionId: result.sessionId });
     this.store.subscribe(() => this.render());
     this.voice = result.voice;
+    this.persona = getPersonaDisplay(result.voice?.personaId ?? null);
 
     const stack = resolveVoiceStack();
     const stt = createSTT();
@@ -131,21 +133,21 @@ class WidgetElement extends HTMLElement {
         muted: s.voiceState === 'muted',
         transcript: s.transcript,
         checkoutUrl: s.checkoutUrl,
-        onMute: (next) => this.voiceMode.setMuted(next),
-        onEnd: () => {
-          this.voiceMode.stop();
-          this.store.dispatch({ type: 'set_mode', mode: 'expanded' });
-        },
-        onChat: () => this.store.dispatch({ type: 'set_mode', mode: 'chat' }),
+        personaName: this.persona.name,
+        onClose: () => this.store.dispatch({ type: 'set_mode', mode: 'pill' }),
         onCardTap: (p) => this.cardTap(p),
         onCheckout: () => {},
       });
-    } else if (s.mode === 'chat') {
+    } else if (s.mode === 'chat' || s.mode === 'expanded') {
       renderChat(this.panelHost, {
         transcript: s.transcript,
         checkoutUrl: s.checkoutUrl,
+        personaName: this.persona.name,
+        personaInitial: this.persona.initial,
+        personaAvatarUrl: this.persona.avatarUrl,
         onSend: (text) => this.userText(text, 'text'),
         onCall: () => this.openCall(),
+        onClose: () => this.store.dispatch({ type: 'set_mode', mode: 'pill' }),
         onCardTap: (p) => this.cardTap(p),
         closed: s.closed,
       });
@@ -155,7 +157,16 @@ class WidgetElement extends HTMLElement {
     renderPill(this.pillHost, {
       mode: s.mode,
       callable,
+      voiceState: s.voiceState,
+      personaName: this.persona.name,
+      personaInitial: this.persona.initial,
+      personaAvatarUrl: this.persona.avatarUrl,
       onCall: () => this.openCall(),
+      onMute: (next) => this.voiceMode.setMuted(next),
+      onEnd: () => {
+        this.voiceMode.stop();
+        this.store.dispatch({ type: 'set_mode', mode: 'pill' });
+      },
       onChat: () => this.store.dispatch({ type: 'set_mode', mode: 'chat' }),
       onClose: () => this.store.dispatch({ type: 'set_mode', mode: 'pill' }),
     });

@@ -1,54 +1,83 @@
 import { STRINGS } from '../strings.js';
-import { ICON_MESSAGE, ICON_X, ICON_PHONE, ICON_PHONE_OFF } from './icons.js';
+import { ICON_MIC, ICON_MIC_OFF, ICON_PHONE_OFF } from './icons.js';
 
-export type PillProps = {
+export type TrayProps = {
   mode: 'pill' | 'expanded' | 'call' | 'chat';
   callable: boolean;
+  voiceState: 'idle' | 'listening' | 'speaking' | 'muted';
+  personaName: string;
+  personaInitial: string;
+  personaAvatarUrl: string;
   onCall: () => void;
+  onMute: (next: boolean) => void;
+  onEnd: () => void;
   onChat: () => void;
   onClose: () => void;
 };
 
-export function renderPill(host: HTMLElement, props: PillProps): void {
-  const expanded = props.mode !== 'pill';
-  const inCall = props.mode === 'call';
-  const inChat = props.mode === 'chat';
-  const labelMain = expanded
-    ? 'Sage'
-    : props.callable
-      ? STRINGS.pillCallable
-      : STRINGS.pillTextOnly;
-  host.innerHTML = `
-    <div class="pill" role="region" aria-label="Sage shopping assistant">
-      <button class="avatar" data-action="toggle" aria-label="${expanded ? STRINGS.closeAria : STRINGS.pillCollapsed}">S</button>
-      <div class="label">
-        <span class="label-main">${labelMain}</span>
-        <span class="label-sub">AI salesmate</span>
-      </div>
-      ${
-        expanded
-          ? `
-        <div class="actions">
-          ${
-            props.callable
-              ? `<button class="btn ${inCall ? 'btn-end' : ''}" data-action="call" aria-label="${
-                  inCall ? STRINGS.endCallAria : STRINGS.callBtnAria
-                }">${inCall ? ICON_PHONE_OFF : ICON_PHONE}<span>${inCall ? STRINGS.callBtnEnd : STRINGS.callBtn}</span></button>`
-              : ''
-          }
-          <button class="btn btn-icon" data-action="chat" aria-pressed="${inChat}" aria-label="${STRINGS.chatBtnAria}">${ICON_MESSAGE}</button>
-          <button class="btn btn-icon" data-action="close" aria-label="${STRINGS.closeAria}">${ICON_X}</button>
-        </div>
-      `
-          : ''
-      }
+export type PillProps = TrayProps;
+
+export function renderPill(host: HTMLElement, props: TrayProps): void {
+  const inCall = props.mode === 'call' || props.voiceState !== 'idle';
+  const muted = props.voiceState === 'muted';
+  const speaking = props.voiceState === 'speaking';
+  const connected = props.voiceState !== 'idle';
+  const waveformActive = connected && !muted;
+  const panelOpen = props.mode === 'chat' || props.mode === 'call' || props.mode === 'expanded';
+
+  const statusLabel = connected ? STRINGS.trayConnected : STRINGS.trayOffline;
+  const statusClass = connected ? 'tray-status connected' : 'tray-status idle';
+
+  const waveformHtml = `
+    <div class="tray-waveform ${waveformActive ? 'active' : ''} ${speaking ? 'speaking' : ''}" aria-hidden="true">
+      ${Array.from({ length: 18 })
+        .map(() => '<span class="bar"></span>')
+        .join('')}
     </div>
   `;
+
+  const micAriaLabel = !props.callable
+    ? STRINGS.micStart
+    : !inCall
+      ? STRINGS.micStart
+      : muted
+        ? STRINGS.micUnmute
+        : STRINGS.micMute;
+
+  const micIcon = muted ? ICON_MIC_OFF : ICON_MIC;
+  const endHidden = !inCall;
+
+  host.innerHTML = `
+    <div class="tray" role="region" aria-label="shoppingmate">
+      <button class="tray-avatar" data-action="toggle" aria-expanded="${panelOpen}" aria-label="${STRINGS.openAria}">
+        <img src="${props.personaAvatarUrl}" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" />
+        <span class="tray-avatar-fallback" aria-hidden="true">${props.personaInitial}</span>
+        <span class="tray-presence ${connected ? 'connected' : 'idle'}"></span>
+      </button>
+      <div class="tray-meta">
+        <div class="tray-name">${props.personaName}</div>
+        <div class="${statusClass}"><span class="tray-status-dot"></span>${statusLabel}</div>
+      </div>
+      ${waveformHtml}
+      <div class="tray-controls">
+        <button class="tray-btn ${muted ? 'muted' : ''}" data-action="mic" aria-pressed="${muted}" aria-label="${micAriaLabel}">${micIcon}</button>
+        <button class="tray-btn end ${endHidden ? 'hidden' : ''}" data-action="end" aria-label="${STRINGS.endCallAria}">${ICON_PHONE_OFF}</button>
+      </div>
+    </div>
+  `;
+
   host.querySelector('[data-action="toggle"]')?.addEventListener('click', () => {
-    if (props.mode === 'pill') props.onChat();
-    else props.onClose();
+    if (panelOpen) props.onClose();
+    else props.onChat();
   });
-  host.querySelector('[data-action="call"]')?.addEventListener('click', props.onCall);
-  host.querySelector('[data-action="chat"]')?.addEventListener('click', props.onChat);
-  host.querySelector('[data-action="close"]')?.addEventListener('click', props.onClose);
+
+  host.querySelector('[data-action="mic"]')?.addEventListener('click', () => {
+    if (!inCall) {
+      props.onCall();
+    } else {
+      props.onMute(!muted);
+    }
+  });
+
+  host.querySelector('[data-action="end"]')?.addEventListener('click', props.onEnd);
 }

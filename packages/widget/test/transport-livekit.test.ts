@@ -16,9 +16,9 @@ describe('connectToRoom', () => {
       throw new Error('cdn down');
     };
     const { connectToRoom } = await import('../src/transport/livekit.js');
-    await expect(
-      connectToRoom({ wsUrl: 'wss://x', token: 't', roomName: 'r' }),
-    ).rejects.toThrow(/cdn down|livekit/i);
+    await expect(connectToRoom({ wsUrl: 'wss://x', token: 't', roomName: 'r' })).rejects.toThrow(
+      /cdn down|livekit/i,
+    );
   });
 
   it('connects and returns a handle on success', async () => {

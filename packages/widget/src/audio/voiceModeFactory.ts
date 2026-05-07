@@ -1,7 +1,10 @@
 import { createSTT } from './stt.js';
 import { createTTS } from './tts.js';
 import { createVoiceModeLiveKit } from './voiceModeLiveKit.js';
-import { type VoiceMode, createVoiceMode as createVoiceModeWebSpeech } from './voiceModeWebSpeech.js';
+import {
+  type VoiceMode,
+  createVoiceMode as createVoiceModeWebSpeech,
+} from './voiceModeWebSpeech.js';
 
 export type VoiceModeFactoryOpts = {
   stack: 'live-kit' | 'web-speech';

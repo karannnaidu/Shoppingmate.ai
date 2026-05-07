@@ -1,0 +1,16 @@
+{
+  "name": "@shoppingmate/ops-persona-portraits",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "tsx --env-file-if-exists=../../.env generate.ts"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.4.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,61 +1,48 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { renderCall } from '../src/ui/call.js';
 
+const baseProps = {
+  voiceState: 'listening' as const,
+  muted: false,
+  transcript: [],
+  checkoutUrl: null,
+  personaName: 'Sage',
+  onClose: () => {},
+  onCardTap: () => {},
+  onCheckout: () => {},
+};
+
 describe('renderCall', () => {
-  it('renders header, waveform, transcript, controls', () => {
+  it('renders status-line and transcript', () => {
     const root = document.createElement('div');
-    renderCall(root, {
-      voiceState: 'listening',
-      muted: false,
-      transcript: [],
-      checkoutUrl: null,
-      onMute: () => {},
-      onEnd: () => {},
-      onChat: () => {},
-      onCardTap: () => {},
-      onCheckout: () => {},
-    });
-    expect(root.querySelector('.panel-header')).toBeTruthy();
-    expect(root.querySelector('.waveform')).toBeTruthy();
+    renderCall(root, baseProps);
+    expect(root.querySelector('.status-line')).toBeTruthy();
     expect(root.querySelector('.transcript')).toBeTruthy();
-    expect(root.querySelector('.controls')).toBeTruthy();
+  });
+
+  it('shows persona name in status text when listening', () => {
+    const root = document.createElement('div');
+    renderCall(root, baseProps);
+    expect(root.querySelector('.status-line')?.textContent).toContain('Sage is listening');
+  });
+
+  it('shows muted text when muted', () => {
+    const root = document.createElement('div');
+    renderCall(root, { ...baseProps, muted: true });
+    expect(root.querySelector('.status-line')?.textContent).toContain("you're muted");
   });
 
   it('shows checkout CTA when checkoutUrl is set', () => {
     const root = document.createElement('div');
-    renderCall(root, {
-      voiceState: 'listening',
-      muted: false,
-      transcript: [],
-      checkoutUrl: 'https://shop/checkout',
-      onMute: () => {},
-      onEnd: () => {},
-      onChat: () => {},
-      onCardTap: () => {},
-      onCheckout: () => {},
-    });
+    renderCall(root, { ...baseProps, checkoutUrl: 'https://shop/checkout' });
     const cta = root.querySelector('.checkout-cta');
     if (!(cta instanceof HTMLAnchorElement)) throw new Error('expected checkout cta anchor');
     expect(cta.getAttribute('href')).toBe('https://shop/checkout');
   });
 
-  it('mute click invokes onMute with toggled value', () => {
+  it('renders shoppingmate footer', () => {
     const root = document.createElement('div');
-    const onMute = vi.fn();
-    renderCall(root, {
-      voiceState: 'listening',
-      muted: false,
-      transcript: [],
-      checkoutUrl: null,
-      onMute,
-      onEnd: () => {},
-      onChat: () => {},
-      onCardTap: () => {},
-      onCheckout: () => {},
-    });
-    const btn = root.querySelector('[data-action="mute"]');
-    if (!(btn instanceof HTMLElement)) throw new Error('expected mute button');
-    btn.click();
-    expect(onMute).toHaveBeenCalledWith(true);
+    renderCall(root, baseProps);
+    expect(root.querySelector('.panel-footer')?.textContent).toContain('shoppingmate');
   });
 });
