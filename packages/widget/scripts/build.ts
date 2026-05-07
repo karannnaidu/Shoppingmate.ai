@@ -7,7 +7,10 @@ const BUDGET_BYTES = 120 * 1024; // 120 KB gzip
 
 const watch = process.argv.includes('--watch');
 
-const apiBase = process.env.SHOPPINGMATE_API_BASE ?? 'https://api.shoppingmate.ai';
+// Default to the Railway public URL until api.shoppingmate.ai DNS is configured.
+// Override at build time with SHOPPINGMATE_API_BASE once the apex domain resolves.
+const apiBase =
+  process.env.SHOPPINGMATE_API_BASE ?? 'https://api-production-1ea1.up.railway.app';
 
 const options = {
   entryPoints: [resolve(import.meta.dirname, '../src/index.ts')],
