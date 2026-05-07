@@ -88,10 +88,10 @@ export function createGeminiSdkTransport(): GeminiTransport {
       session.sendClientContent({ turns: [{ role: 'user', parts: [{ text }] }] });
     },
     interrupt() {
-      if (!session) return;
-      // Gemini Live: empty client content with turnComplete:false signals barge-in.
-      session.sendClientContent({ turns: [], turnComplete: false });
-      log.debug('gemini interrupt sent');
+      // No-op on native-audio: server-side VAD handles barge-in automatically once
+      // it sees the visitor's mic frames, so we don't need to signal anything.
+      // Sending {turns:[],turnComplete:false} causes Gemini to spam
+      // "Failed to parse client content" on every ActiveSpeakersChanged tick.
     },
     async close() {
       if (!session) return;
