@@ -12,6 +12,11 @@ const watch = process.argv.includes('--watch');
 const apiBase =
   process.env.SHOPPINGMATE_API_BASE ?? 'https://api-production-1ea1.up.railway.app';
 
+// Persona portrait CDN base. Defaults to the Vercel-served public folder
+// alongside the widget bundle (web/public/widget/personas/*.png).
+const cdnBase =
+  process.env.SHOPPINGMATE_CDN_BASE ?? 'https://shoppingmate-web.vercel.app/widget/personas';
+
 const options = {
   entryPoints: [resolve(import.meta.dirname, '../src/index.ts')],
   outfile: resolve(import.meta.dirname, '../dist/v1.js'),
@@ -26,6 +31,7 @@ const options = {
     'globalThis.__SHOPPINGMATE_VOICE_STACK__': JSON.stringify(
       process.env.SHOPPINGMATE_VOICE_STACK ?? 'live-kit',
     ),
+    'globalThis.__SHOPPINGMATE_CDN_BASE__': JSON.stringify(cdnBase),
   },
 };
 

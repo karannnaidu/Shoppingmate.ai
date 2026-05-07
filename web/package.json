@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "pnpm -F @shoppingmate/widget build && cp ../packages/widget/dist/v1.js public/widget/v1.js",
     "build": "pnpm --filter \"web^...\" build && next build --webpack",
     "start": "next start",
     "lint": "eslint",
