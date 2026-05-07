@@ -187,6 +187,14 @@ export const SHADOW_CSS = `
 .panel-header .who .sub {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em;
   color: #71717a; font-family: 'JetBrains Mono', ui-monospace, monospace;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.panel-header .who .sub.status-connected { color: #16a34a; }
+.panel-header .who .sub.status-connected::before {
+  content: ""; width: 6px; height: 6px; border-radius: 9999px;
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34,197,94,0.7);
+  animation: pulse 2s ease-in-out infinite;
 }
 .elapsed {
   font-family: 'JetBrains Mono', ui-monospace, monospace;

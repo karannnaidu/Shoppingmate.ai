@@ -36,6 +36,7 @@ describe('connectToRoom', () => {
     expect(handle.disconnect).toBeTypeOf('function');
     expect(handle.setMicEnabled).toBeTypeOf('function');
     expect(handle.onData).toBeTypeOf('function');
+    expect(handle.onAgentSpeaking).toBeTypeOf('function');
     expect(fakeRoom.connect).toHaveBeenCalledWith('wss://x', 't');
   });
 });

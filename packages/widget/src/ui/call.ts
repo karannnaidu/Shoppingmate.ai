@@ -17,11 +17,16 @@ export type CallProps = {
 
 export function renderCall(host: HTMLElement, props: CallProps): void {
   const speaking = props.voiceState === 'speaking';
+  const connected = props.voiceState !== 'idle';
   const subText = props.muted
     ? "you're muted"
     : speaking
       ? `Sage is ${STRINGS.callHeaderSpeaking}…`
       : `${STRINGS.callHeaderListening} to you…`;
+  // Animate the waveform any time the call is live and not muted — both when
+  // Sage speaks and when she's listening — so the visitor always has a visible
+  // signal that the agent is connected and active.
+  const waveformActive = connected && !props.muted;
   host.innerHTML = `
     <div class="panel">
       <div class="panel-header">
@@ -29,11 +34,11 @@ export function renderCall(host: HTMLElement, props: CallProps): void {
           <div class="avatar" aria-hidden="true">S</div>
           <div>
             <div class="name">Sage</div>
-            <div class="sub">on call · ${speaking ? STRINGS.callHeaderSpeaking : STRINGS.callHeaderListening}</div>
+            <div class="sub status-${connected ? 'connected' : 'idle'}">${connected ? STRINGS.callHeaderConnected : '…'}</div>
           </div>
         </div>
       </div>
-      <div class="waveform ${speaking && !props.muted ? 'active' : ''}">
+      <div class="waveform ${waveformActive ? 'active' : ''} ${speaking ? 'speaking' : ''}">
         ${Array.from({ length: 28 })
           .map(() => '<span class="bar"></span>')
           .join('')}

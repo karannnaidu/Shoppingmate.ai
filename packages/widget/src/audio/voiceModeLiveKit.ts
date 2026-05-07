@@ -27,6 +27,10 @@ export function createVoiceModeLiveKit(opts: {
             roomName: opts.roomName,
           });
           handle.onData((bytes) => opts.onTranscriptEvent(bytes));
+          handle.onAgentSpeaking((speaking) => {
+            if (muted) return;
+            set(speaking ? 'speaking' : 'listening');
+          });
           await handle.setMicEnabled(!muted);
           set(muted ? 'muted' : 'listening');
         } catch (err) {

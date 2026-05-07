@@ -10,6 +10,7 @@ export const STRINGS = {
   closeAria: 'Close',
   callHeaderSpeaking: 'speaking',
   callHeaderListening: 'listening',
+  callHeaderConnected: 'CONNECTED',
   chatHeaderSubtitle: 'text fallback · voice preferred',
   chatPlaceholder: 'Type a quick question…',
   chatGreeting: "Hi, I'm Sage. What are you shopping for today?",
