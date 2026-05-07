@@ -44,9 +44,16 @@ export function createGeminiSdkTransport(): GeminiTransport {
               emit({ type: 'speech_ended' });
             }
           },
-          onerror: (err: Error) => emit({ type: 'error', error: err }),
-          onopen: () => log.debug('gemini live ws open'),
-          onclose: () => log.info('gemini live ws closed'),
+          onerror: (err: unknown) => {
+            const e = err as { error?: unknown; message?: string };
+            log.error({ err: e?.error ?? err, message: e?.message }, 'gemini live ws error');
+            emit({ type: 'error', error: err as Error });
+          },
+          onopen: () => log.info('gemini live ws open'),
+          onclose: (ev: unknown) => {
+            const c = ev as { code?: number; reason?: string };
+            log.info({ code: c?.code, reason: c?.reason }, 'gemini live ws closed');
+          },
         },
       });
       log.info({ voiceId }, 'gemini live opened');
