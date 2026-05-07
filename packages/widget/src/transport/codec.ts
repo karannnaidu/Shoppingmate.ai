@@ -29,6 +29,9 @@ export type WidgetMessage =
 export type AgentEvent =
   | { type: 'thinking' }
   | { type: 'say'; text: string }
+  // Server-side ASR transcript of the visitor's own speech, echoed back from
+  // the voice-agent so the widget can render it in the call transcript.
+  | { type: 'user_text'; text: string }
   | { type: 'cards'; items: CardItem[] }
   | { type: 'tool_result'; toolName: string; ok: boolean; summary?: string }
   | { type: 'checkout_redirect'; url: string }
@@ -54,6 +57,8 @@ export function decodeAgentEvent(raw: string): AgentEvent | null {
       return { type: 'thinking' };
     case 'say':
       return typeof o.text === 'string' ? { type: 'say', text: o.text } : null;
+    case 'user_text':
+      return typeof o.text === 'string' ? { type: 'user_text', text: o.text } : null;
     case 'cards':
       return Array.isArray(o.items) ? { type: 'cards', items: o.items as CardItem[] } : null;
     case 'tool_result':

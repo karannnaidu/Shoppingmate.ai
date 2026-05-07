@@ -96,12 +96,20 @@ const agentDefinition = defineAgent({
 
     // Publish a local audio track so visitors hear Sage. Gemini Live native-audio
     // returns 24 kHz mono PCM16; we feed those bytes straight into AudioSource.
-    const audioSource = new AudioSource(24_000, 1);
+    // Queue 30s — Gemini emits replies in fast bursts and the default ~1s queue
+    // overflows immediately, leaving every captureFrame to fail with InvalidState.
+    const audioSource = new AudioSource(24_000, 1, 30_000);
     const botTrack = LocalAudioTrack.createAudioTrack('sage', audioSource);
     await job.room.localParticipant?.publishTrack(
       botTrack,
       new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
     );
+
+    // captureFrame returns a promise that resolves when the frame is buffered.
+    // Awaiting it serializes producer→queue and prevents the burst-overflow that
+    // the default fire-and-forget pattern would cause. We chain instead of
+    // awaiting inline because gemini.onEvent is sync.
+    let captureChain: Promise<void> = Promise.resolve();
 
     gemini.onEvent((e) => {
       if (e.type === 'final_transcript' && e.text.trim().length > 0) {
@@ -128,9 +136,9 @@ const agentDefinition = defineAgent({
         // Copy: AudioFrame keeps the buffer; the underlying Buffer may be reused.
         const pcm = new Int16Array(view);
         const frame = new AudioFrame(pcm, 24_000, 1, samples);
-        audioSource.captureFrame(frame).catch((err) =>
-          log.warn({ err }, 'captureFrame failed'),
-        );
+        captureChain = captureChain
+          .then(() => audioSource.captureFrame(frame))
+          .catch((err) => log.warn({ err }, 'captureFrame failed'));
       } else if (e.type === 'error') {
         log.error({ err: e.error }, 'gemini transport error');
       }

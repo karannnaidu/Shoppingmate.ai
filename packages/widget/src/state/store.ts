@@ -82,6 +82,14 @@ function reduce(state: WidgetState, a: Action): WidgetState {
               { id: nextId(), role: 'agent', kind: 'text', text: ev.text, ts: Date.now() },
             ],
           };
+        case 'user_text':
+          return {
+            ...state,
+            transcript: [
+              ...state.transcript,
+              { id: nextId(), role: 'user', kind: 'text', text: ev.text, ts: Date.now() },
+            ],
+          };
         case 'cards':
           return {
             ...state,
