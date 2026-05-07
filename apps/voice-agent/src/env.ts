@@ -8,12 +8,12 @@ const Schema = z.object({
   LIVEKIT_API_KEY: z.string().min(1),
   LIVEKIT_API_SECRET: z.string().min(1),
   GEMINI_API_KEY: z.string().min(1),
-  // Canonical model id from @google/genai docs (Gemini API, non-Vertex):
-  //   GOOGLE_GENAI_USE_VERTEXAI ? 'gemini-2.0-flash-live-preview-04-09'
-  //                             : 'gemini-live-2.5-flash-preview'
-  // The earlier 'gemini-2.5-flash-live' alias is not a valid model and
-  // causes live.connect() to open then immediately close the websocket.
-  GEMINI_LIVE_MODEL: z.string().min(1).default('gemini-live-2.5-flash-preview'),
+  // Verified via ListModels (v1beta, supportedGenerationMethods=bidiGenerateContent).
+  // The 2.0/2.5 'flash-live' aliases shown in @google/genai's TS examples are
+  // Vertex-only / not yet enabled on the GenAI API key path; the canonical
+  // public-API name is the native-audio-* family. 'native-audio-latest'
+  // auto-tracks the latest stable release without churning env vars.
+  GEMINI_LIVE_MODEL: z.string().min(1).default('gemini-2.5-flash-native-audio-latest'),
 });
 
 export type VoiceEnv = z.infer<typeof Schema>;
