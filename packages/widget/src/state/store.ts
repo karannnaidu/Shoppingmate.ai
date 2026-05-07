@@ -1,7 +1,7 @@
 import type { AgentEvent, CardItem, Mode } from '../transport/codec.js';
 
 export type TranscriptItem =
-  | { id: string; role: 'agent'; kind: 'text'; text: string; ts: number }
+  | { id: string; role: 'agent'; kind: 'text'; text: string; ts: number; partial?: boolean }
   | { id: string; role: 'user'; kind: 'text'; text: string; ts: number }
   | { id: string; role: 'agent'; kind: 'cards'; items: CardItem[]; ts: number }
   | { id: string; role: 'system'; kind: 'cap_warning'; remaining: number; ts: number }
@@ -73,7 +73,21 @@ function reduce(state: WidgetState, a: Action): WidgetState {
           return { ...state, thinking: true };
         case 'end_of_turn':
           return { ...state, thinking: false };
-        case 'say':
+        case 'say': {
+          // Final caption for the current turn. If we've been streaming
+          // partials into the last agent bubble, finalize it in place;
+          // otherwise append a fresh bubble.
+          const last = state.transcript[state.transcript.length - 1];
+          if (last && last.role === 'agent' && last.kind === 'text' && last.partial) {
+            return {
+              ...state,
+              thinking: false,
+              transcript: [
+                ...state.transcript.slice(0, -1),
+                { ...last, text: ev.text, partial: false, ts: Date.now() },
+              ],
+            };
+          }
           return {
             ...state,
             thinking: false,
@@ -82,6 +96,37 @@ function reduce(state: WidgetState, a: Action): WidgetState {
               { id: nextId(), role: 'agent', kind: 'text', text: ev.text, ts: Date.now() },
             ],
           };
+        }
+        case 'say_partial': {
+          // Streaming caption update. Replace the active partial agent bubble
+          // in place; create one if this is the first chunk of the turn.
+          const last = state.transcript[state.transcript.length - 1];
+          if (last && last.role === 'agent' && last.kind === 'text' && last.partial) {
+            return {
+              ...state,
+              thinking: false,
+              transcript: [
+                ...state.transcript.slice(0, -1),
+                { ...last, text: ev.text, ts: Date.now() },
+              ],
+            };
+          }
+          return {
+            ...state,
+            thinking: false,
+            transcript: [
+              ...state.transcript,
+              {
+                id: nextId(),
+                role: 'agent',
+                kind: 'text',
+                text: ev.text,
+                ts: Date.now(),
+                partial: true,
+              },
+            ],
+          };
+        }
         case 'user_text':
           return {
             ...state,

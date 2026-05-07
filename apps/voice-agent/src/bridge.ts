@@ -8,6 +8,7 @@ const log = childLogger({ mod: 'bridge' });
 export type DataChannelMessage =
   | { type: 'user_text'; text: string }
   | { type: 'say'; text: string }
+  | { type: 'say_partial'; text: string }
   | { type: 'cards'; items: unknown[] }
   | { type: 'checkout_redirect'; url: string }
   | { type: 'cap_warning'; remaining: number }

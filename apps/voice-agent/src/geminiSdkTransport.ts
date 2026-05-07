@@ -40,7 +40,13 @@ export function createGeminiSdkTransport(): GeminiTransport {
             const inputXcript = msg.serverContent?.inputTranscription?.text;
             if (inputXcript) inputBuf += inputXcript;
             const outputXcript = msg.serverContent?.outputTranscription?.text;
-            if (outputXcript) outputBuf += outputXcript;
+            if (outputXcript) {
+              outputBuf += outputXcript;
+              // Stream the running bot transcript out as each chunk arrives, so
+              // the widget can keep its caption bubble in sync with the audio
+              // instead of waiting for turnComplete to dump the full reply.
+              emit({ type: 'bot_text_partial', text: outputBuf });
+            }
 
             // Native-audio models emit audio via modelTurn.parts[].inlineData.
             const audioPart = msg.serverContent?.modelTurn?.parts?.find(

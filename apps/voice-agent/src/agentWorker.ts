@@ -134,6 +134,11 @@ const agentDefinition = defineAgent({
         // so the visitor's transcript goes straight to the widget for display.
         // The chat-bridge (with shoppingmate tools) is reserved for text mode.
         dataChannel.publish({ type: 'user_text', text: e.text });
+      } else if (e.type === 'bot_text_partial' && e.text.trim().length > 0) {
+        // Stream caption updates while the turn is still in progress. Widget
+        // replaces the active agent bubble in place so text scrolls alongside
+        // the audio instead of appearing only when Sage stops talking.
+        dataChannel.publish({ type: 'say_partial', text: e.text });
       } else if (e.type === 'bot_text' && e.text.trim().length > 0) {
         dataChannel.publish({ type: 'say', text: e.text });
       } else if (e.type === 'audio_out') {

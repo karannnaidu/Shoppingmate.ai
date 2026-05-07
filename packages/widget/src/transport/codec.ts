@@ -29,6 +29,10 @@ export type WidgetMessage =
 export type AgentEvent =
   | { type: 'thinking' }
   | { type: 'say'; text: string }
+  // Streaming caption update while Sage is still talking. The text is the full
+  // running transcript so far, so the widget can replace its active bubble in
+  // place rather than appending. A final 'say' event arrives at turn end.
+  | { type: 'say_partial'; text: string }
   // Server-side ASR transcript of the visitor's own speech, echoed back from
   // the voice-agent so the widget can render it in the call transcript.
   | { type: 'user_text'; text: string }
@@ -57,6 +61,8 @@ export function decodeAgentEvent(raw: string): AgentEvent | null {
       return { type: 'thinking' };
     case 'say':
       return typeof o.text === 'string' ? { type: 'say', text: o.text } : null;
+    case 'say_partial':
+      return typeof o.text === 'string' ? { type: 'say_partial', text: o.text } : null;
     case 'user_text':
       return typeof o.text === 'string' ? { type: 'user_text', text: o.text } : null;
     case 'cards':
