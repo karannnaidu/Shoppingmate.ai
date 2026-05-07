@@ -16,6 +16,12 @@ export function createGeminiSdkTransport(): GeminiTransport {
     for (const cb of listeners) cb(e);
   };
 
+  // Accumulate transcription chunks across a turn; flush as final on turnComplete.
+  // Gemini Live streams these in small pieces and only the boundary signal tells
+  // us the turn has ended.
+  let inputBuf = '';
+  let outputBuf = '';
+
   return {
     async open({ voiceId, systemInstruction }) {
       session = await client.live.connect({
@@ -24,13 +30,19 @@ export function createGeminiSdkTransport(): GeminiTransport {
           responseModalities: [Modality.AUDIO],
           systemInstruction: { parts: [{ text: systemInstruction }] },
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceId } } },
+          // Opt-in: without these, the server returns no transcripts at all,
+          // so the widget never sees the visitor's words or Sage's reply text.
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
         },
         callbacks: {
           onmessage: (msg) => {
             const inputXcript = msg.serverContent?.inputTranscription?.text;
-            if (inputXcript) {
-              emit({ type: 'partial_transcript', text: inputXcript });
-            }
+            if (inputXcript) inputBuf += inputXcript;
+            const outputXcript = msg.serverContent?.outputTranscription?.text;
+            if (outputXcript) outputBuf += outputXcript;
+
+            // Native-audio models emit audio via modelTurn.parts[].inlineData.
             const audioPart = msg.serverContent?.modelTurn?.parts?.find(
               (p) => p.inlineData?.mimeType?.startsWith('audio/'),
             );
@@ -41,6 +53,10 @@ export function createGeminiSdkTransport(): GeminiTransport {
               });
             }
             if (msg.serverContent?.turnComplete) {
+              if (inputBuf.trim()) emit({ type: 'final_transcript', text: inputBuf.trim() });
+              if (outputBuf.trim()) emit({ type: 'bot_text', text: outputBuf.trim() });
+              inputBuf = '';
+              outputBuf = '';
               emit({ type: 'speech_ended' });
             }
           },

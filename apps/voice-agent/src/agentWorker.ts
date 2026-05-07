@@ -1,13 +1,21 @@
 import { fileURLToPath } from 'node:url';
 import { type JobContext, ServerOptions, cli, defineAgent } from '@livekit/agents';
-import { AudioStream, RoomEvent, type RemoteAudioTrack, TrackKind } from '@livekit/rtc-node';
+import {
+  AudioFrame,
+  AudioSource,
+  AudioStream,
+  LocalAudioTrack,
+  RoomEvent,
+  type RemoteAudioTrack,
+  TrackKind,
+  TrackPublishOptions,
+  TrackSource,
+} from '@livekit/rtc-node';
 import { eq } from 'drizzle-orm';
 import { Redis } from 'ioredis';
-import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
-import { NoOpWSTransport, loadSession, runTurn, saveSession } from '@shoppingmate/agent';
+import { loadSession } from '@shoppingmate/agent';
 import { db, schema } from '@shoppingmate/db';
 import { childLogger, env as sharedEnv } from '@shoppingmate/shared';
-import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
 import { createMetricsLedger, defaultSink } from './metrics.js';
@@ -86,29 +94,14 @@ const agentDefinition = defineAgent({
     caps.start();
     const tickInterval = setInterval(() => caps.tick(), 5_000);
 
-    const bridge = createBridge({
-      sessionId,
-      merchantId: merchant.id,
-      runTurn,
-      loadMerchant: async () => merchant,
-      loadSession: async () => session,
-      saveSession: (s) => saveSession(redis(), s),
-      recordMetric: async () => {
-        // Phase G fills this with real ledger writes.
-      },
-      loadAdapter: (m) =>
-        getAdapter(m, {
-          transport: new NoOpWSTransport(),
-          state: new InMemorySessionState(),
-        }),
-      speak: (text) => gemini.speak(text),
-      publishData: (msg) => dataChannel.publish(msg),
-      closeRoom: () => {
-        job.room.disconnect().catch(() => {});
-      },
-      interrupt: () => gemini.interrupt(),
-      caps,
-    });
+    // Publish a local audio track so visitors hear Sage. Gemini Live native-audio
+    // returns 24 kHz mono PCM16; we feed those bytes straight into AudioSource.
+    const audioSource = new AudioSource(24_000, 1);
+    const botTrack = LocalAudioTrack.createAudioTrack('sage', audioSource);
+    await job.room.localParticipant?.publishTrack(
+      botTrack,
+      new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
+    );
 
     gemini.onEvent((e) => {
       if (e.type === 'final_transcript' && e.text.trim().length > 0) {
@@ -116,14 +109,28 @@ const agentDefinition = defineAgent({
         const inputSeconds = words / 3.3;
         caps.recordVoiceSeconds(inputSeconds);
         metrics.add('gemini_audio_input_seconds', inputSeconds);
-        bridge.handleUserText(e.text).catch((err) => {
-          log.error({ err }, 'bridge.handleUserText threw');
-        });
+        // Phase 1 design: native-audio model handles the conversation itself,
+        // so the visitor's transcript goes straight to the widget for display.
+        // The chat-bridge (with shoppingmate tools) is reserved for text mode.
+        dataChannel.publish({ type: 'user_text', text: e.text });
+      } else if (e.type === 'bot_text' && e.text.trim().length > 0) {
+        dataChannel.publish({ type: 'say', text: e.text });
       } else if (e.type === 'audio_out') {
-        const seconds = e.bytes.length / (24_000 * 2);
+        const samples = e.bytes.length / 2;
+        const seconds = samples / 24_000;
         caps.recordVoiceSeconds(seconds);
         metrics.add('gemini_audio_output_seconds', seconds);
-        log.debug({ bytes: e.bytes.length }, 'gemini audio_out');
+        const view = new Int16Array(
+          e.bytes.buffer,
+          e.bytes.byteOffset,
+          e.bytes.byteLength / 2,
+        );
+        // Copy: AudioFrame keeps the buffer; the underlying Buffer may be reused.
+        const pcm = new Int16Array(view);
+        const frame = new AudioFrame(pcm, 24_000, 1, samples);
+        audioSource.captureFrame(frame).catch((err) =>
+          log.warn({ err }, 'captureFrame failed'),
+        );
       } else if (e.type === 'error') {
         log.error({ err: e.error }, 'gemini transport error');
       }
@@ -147,7 +154,7 @@ const agentDefinition = defineAgent({
     job.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
       const localIdentity = job.room.localParticipant?.identity;
       const remoteSpeaking = speakers.some((p) => p.identity !== localIdentity);
-      if (remoteSpeaking) bridge.handleBargeIn();
+      if (remoteSpeaking) gemini.interrupt();
     });
 
     job.room.on(RoomEvent.Disconnected, () => {

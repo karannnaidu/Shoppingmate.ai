@@ -1,6 +1,8 @@
 export type GeminiTransportEvent =
-  | { type: 'partial_transcript'; text: string }
+  // Visitor's words, finalized at end of turn (server-side ASR via inputAudioTranscription).
   | { type: 'final_transcript'; text: string }
+  // Bot's words, finalized at end of turn (server-side captioning of model output).
+  | { type: 'bot_text'; text: string }
   | { type: 'audio_out'; bytes: Uint8Array }
   | { type: 'speech_started' }
   | { type: 'speech_ended' }
