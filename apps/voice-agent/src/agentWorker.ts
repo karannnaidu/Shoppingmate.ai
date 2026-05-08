@@ -34,6 +34,71 @@ function redis(): Redis {
   return _redis;
 }
 
+// Mirrors TOUR_VERTICAL_KEYWORDS in packages/agent/src/runtime.ts. Duplicated
+// here because voice-agent doesn't go through the chat tool-loop, so when the
+// visitor speaks a vertical we need to detect + surface cards locally.
+const VERTICAL_KEYWORDS: Record<string, string[]> = {
+  'dog food': ['dog food', 'dog', 'kibble', 'puppy', 'pet food'],
+  apparel: ['apparel', 'clothing', 'shirt', 'jeans', 'sweater', 'hoodie', 'trouser'],
+  jewelry: ['jewelry', 'jewellery', 'ring', 'earring', 'necklace', 'bracelet', 'pendant'],
+  electronics: ['electronics', 'headphone', 'webcam', 'keyboard', 'ssd', 'lamp', 'gadget'],
+  supplements: ['supplement', 'vitamin', 'protein', 'omega', 'magnesium', 'greens'],
+};
+
+function matchVertical(text: string): string | null {
+  const q = text.toLowerCase();
+  if (!q) return null;
+  for (const [vertical, keywords] of Object.entries(VERTICAL_KEYWORDS)) {
+    if (keywords.some((k) => q.includes(k))) return vertical;
+  }
+  return null;
+}
+
+function formatPrice(cents: number | null, currency: string | null): string {
+  if (cents == null) return '';
+  const cur = currency ?? 'USD';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur }).format(cents / 100);
+}
+
+async function publishShowcaseCards(
+  merchantId: string,
+  vertical: string,
+  dataChannel: { publish: (msg: { type: 'cards'; items: unknown[] }) => void },
+): Promise<void> {
+  const rows = await db
+    .select({
+      sku: schema.products.sku,
+      title: schema.products.title,
+      imageUrl: schema.products.imageUrl,
+      productUrl: schema.products.productUrl,
+      priceCents: schema.products.priceCents,
+      currency: schema.products.currency,
+      sourceMeta: schema.products.sourceMeta,
+    })
+    .from(schema.products)
+    .where(eq(schema.products.merchantId, merchantId))
+    .limit(40);
+  // sourceMeta.vertical filter is applied in JS — schema stores it as jsonb
+  // and the showcase set is small (~25 rows), so no need for a JSON path query.
+  const matched = rows
+    .filter((r) => {
+      const meta = r.sourceMeta as { vertical?: string } | null;
+      return meta?.vertical === vertical;
+    })
+    .slice(0, 3)
+    .map((r) => ({
+      image: r.imageUrl,
+      title: r.title,
+      priceFormatted: formatPrice(r.priceCents, r.currency),
+      variantId: null,
+      sku: r.sku,
+      productUrl: r.productUrl,
+    }));
+  if (matched.length > 0) {
+    dataChannel.publish({ type: 'cards', items: matched });
+  }
+}
+
 const agentDefinition = defineAgent({
   entry: async (job: JobContext) => {
     await job.connect();
@@ -124,6 +189,11 @@ const agentDefinition = defineAgent({
     // awaiting inline because gemini.onEvent is sync.
     let captureChain: Promise<void> = Promise.resolve();
 
+    // Track which verticals have already had their cards shown this session.
+    // Without this, every follow-up question about jewelry would re-publish
+    // the same three jewelry cards — noisy and disorienting.
+    const shownVerticals = new Set<string>();
+
     gemini.onEvent((e) => {
       if (e.type === 'final_transcript' && e.text.trim().length > 0) {
         const words = e.text.split(/\s+/).filter(Boolean).length;
@@ -134,6 +204,19 @@ const agentDefinition = defineAgent({
         // so the visitor's transcript goes straight to the widget for display.
         // The chat-bridge (with shoppingmate tools) is reserved for text mode.
         dataChannel.publish({ type: 'user_text', text: e.text });
+        // Demo tour: when Sage is on shoppingmate.ai itself and the visitor
+        // names a vertical, surface 3 showcase cards directly. Voice mode
+        // skips the chat-bridge tool-loop, so without this the tour is voice-
+        // only and people never see what Sage is talking about.
+        if (demoMode) {
+          const vertical = matchVertical(e.text);
+          if (vertical && !shownVerticals.has(vertical)) {
+            shownVerticals.add(vertical);
+            void publishShowcaseCards(merchant.id, vertical, dataChannel).catch((err) =>
+              log.warn({ err, vertical }, 'showcase card lookup failed'),
+            );
+          }
+        }
       } else if (e.type === 'bot_text_partial' && e.text.trim().length > 0) {
         // Stream caption updates while the turn is still in progress. Widget
         // replaces the active agent bubble in place so text scrolls alongside
