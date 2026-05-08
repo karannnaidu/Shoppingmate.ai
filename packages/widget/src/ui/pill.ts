@@ -17,7 +17,25 @@ export type TrayProps = {
 
 export type PillProps = TrayProps;
 
+// Tray rebuild key — covers everything that affects rendered output. The
+// parent re-renders on every store dispatch (incl. streaming say_partial),
+// so without this guard the avatar image and 18-bar waveform get torn down
+// and recreated on every caption chunk, producing visible flicker.
+function trayKey(props: TrayProps): string {
+  return [
+    props.mode,
+    props.callable ? '1' : '0',
+    props.voiceState,
+    props.personaName,
+    props.personaInitial,
+    props.personaAvatarUrl,
+  ].join('|');
+}
+
 export function renderPill(host: HTMLElement, props: TrayProps): void {
+  const key = trayKey(props);
+  if (host.dataset.trayKey === key) return;
+
   const inCall = props.mode === 'call' || props.voiceState !== 'idle';
   const muted = props.voiceState === 'muted';
   const speaking = props.voiceState === 'speaking';
@@ -80,4 +98,6 @@ export function renderPill(host: HTMLElement, props: TrayProps): void {
   });
 
   host.querySelector('[data-action="end"]')?.addEventListener('click', props.onEnd);
+
+  host.dataset.trayKey = key;
 }
