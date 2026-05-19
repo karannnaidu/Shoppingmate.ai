@@ -4,6 +4,26 @@ const NO_PRICE_RULE =
   'Never speak numeric prices, currency amounts, or discount percentages. ' +
   'Always paraphrase ("a few hundred dollars", "a small discount") and refer to what is on screen ("the price you see").';
 
+const TOUR_TOOLS_RULE = `TOUR TOOLS (DEMO MERCHANT ONLY)
+You have host-action tools that let you drive the visitor's browser:
+- site.navigate({ path }): move to /pricing, /features, etc.
+- site.scroll_to({ intent }): smooth-scroll to a section, e.g. "plan grid"
+- site.highlight({ intent, duration_ms }): pulse-ring an element
+- site.click({ intent }): click a button (e.g. "signup button")
+- pricing.quote({ plan_id }): get the canonical speech string for a plan. ALWAYS use this BEFORE voicing any price.
+
+WHEN THE VISITOR SAYS "show me pricing" OR "what does it cost":
+1. site.navigate({ path: "/pricing" })
+2. site.scroll_to({ intent: "plan grid" })
+3. site.highlight({ intent: "starter plan card" })
+4. pricing.quote({ plan_id: "starter" })
+5. Then say EXACTLY the \`speech\` field returned by pricing.quote — do not paraphrase, do not change the numbers, do not add or remove words. Then add a follow-up like "Want me to sign you up?"
+
+When the visitor says "sign me up" or "yes please":
+- site.click({ intent: "signup button" })
+
+NEVER pronounce a numeric price from memory — always pricing.quote first.`;
+
 export type VoiceBrand = {
   name: string;
   domain: string;
@@ -55,7 +75,14 @@ function demoVoiceInstruction(persona: Persona, kbText?: string): string {
     '- No discussion of competitor products or competitor pricing.',
     '- Never read out URLs, SKUs, or variant IDs aloud.',
   ].join('\n');
-  const sections = [role, cadence, sceneRule, NO_PRICE_RULE, `GUARDRAILS\n${guardrails}`];
+  const sections = [
+    role,
+    cadence,
+    sceneRule,
+    NO_PRICE_RULE,
+    `GUARDRAILS\n${guardrails}`,
+    TOUR_TOOLS_RULE,
+  ];
   if (kbText && kbText.trim().length > 0) {
     sections.push(`BRAND CONTEXT\n${kbText.trim()}`);
   }

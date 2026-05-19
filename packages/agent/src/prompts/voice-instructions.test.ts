@@ -18,4 +18,11 @@ describe('buildVoiceSystemInstruction', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.stylist!);
     expect(out).toMatch(/voice cadence/i);
   });
+
+  it('demo mode teaches tour-tool usage with site.navigate', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
+    expect(out).toContain('site.navigate');
+    expect(out).toContain('TOUR TOOLS');
+    expect(out).toContain('pricing.quote');
+  });
 });
