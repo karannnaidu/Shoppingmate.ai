@@ -9,6 +9,7 @@ import type {
 import type { Adapter } from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
 import { childLogger } from '@shoppingmate/shared';
+import { DEMO_TOUR_ENABLED } from './env.js';
 
 const log = childLogger({ mod: 'bridge' });
 
@@ -84,7 +85,9 @@ export function createBridge(deps: BridgeDeps): Bridge {
         loadAdapter: deps.loadAdapter,
         saveSession: deps.saveSession,
         recordMetric: deps.recordMetric,
-        dispatchHostAction: (action) => api.dispatchHostAction!(action),
+        dispatchHostAction: DEMO_TOUR_ENABLED
+          ? (action) => api.dispatchHostAction!(action)
+          : undefined,
       };
 
       try {

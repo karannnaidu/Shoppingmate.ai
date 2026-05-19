@@ -279,6 +279,13 @@ export async function* runTurn(
             accumulatedAllowedTokens.push(v.speech);
           }
         }
+        if (call.name === 'pricing.quote') {
+          await deps.recordMetric('pricing.quote.called', {
+            merchantId: merchant.id,
+            sessionId: session.sessionId,
+            planId: String(args.plan_id ?? 'unknown'),
+          });
+        }
         await deps.recordMetric('agent.tool.invoked', {
           merchantId: merchant.id,
           sessionId: session.sessionId,
@@ -333,6 +340,13 @@ export async function* runTurn(
         sessionId: session.sessionId,
         pattern: firstHit.pattern,
       },
+      hits.length,
+    );
+  }
+  if (accumulatedAllowedTokens.length > 0 && hits.length > 0) {
+    await deps.recordMetric(
+      'pricing.quote.rephrased_blocked',
+      { merchantId: merchant.id, sessionId: session.sessionId },
       hits.length,
     );
   }
