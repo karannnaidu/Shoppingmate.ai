@@ -1,4 +1,11 @@
-import type { AgentEvent, RunTurnDeps, SessionState, WidgetMessage } from '@shoppingmate/agent';
+import type {
+  AgentEvent,
+  HostAction,
+  HostActionResult,
+  RunTurnDeps,
+  SessionState,
+  WidgetMessage,
+} from '@shoppingmate/agent';
 import type { Adapter } from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
 import { childLogger } from '@shoppingmate/shared';
@@ -12,7 +19,9 @@ export type DataChannelMessage =
   | { type: 'cards'; items: unknown[] }
   | { type: 'checkout_redirect'; url: string }
   | { type: 'cap_warning'; remaining: number }
-  | { type: 'session_closed'; reason: string };
+  | { type: 'session_closed'; reason: string }
+  | { type: 'host_action_request'; callId: string; action: HostAction }
+  | { type: 'persona_swap'; personaId: string };
 
 export type BridgeDeps = {
   sessionId: string;
@@ -42,12 +51,21 @@ export type BridgeDeps = {
 export type Bridge = {
   handleUserText: (text: string) => Promise<void>;
   handleBargeIn: () => void;
+  dispatchHostAction?: (action: HostAction) => Promise<HostActionResult>;
+  deliverHostActionResult?: (msg: { callId: string; result: HostActionResult }) => void;
 };
+
+const HOST_ACTION_TIMEOUT_MS = 5000;
 
 export function createBridge(deps: BridgeDeps): Bridge {
   let aborted = false;
+  const pending = new Map<
+    string,
+    { resolve: (r: HostActionResult) => void; timer: ReturnType<typeof setTimeout> }
+  >();
+  let hostActionCounter = 0;
 
-  return {
+  const api: Bridge = {
     async handleUserText(text) {
       aborted = false;
       deps.caps?.recordTurn();
@@ -66,6 +84,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
         loadAdapter: deps.loadAdapter,
         saveSession: deps.saveSession,
         recordMetric: deps.recordMetric,
+        dispatchHostAction: (action) => api.dispatchHostAction!(action),
       };
 
       try {
@@ -92,7 +111,27 @@ export function createBridge(deps: BridgeDeps): Bridge {
         .recordMetric('voice.barge_in_succeeded', { sessionId: deps.sessionId })
         .catch(() => {});
     },
+    dispatchHostAction(action) {
+      return new Promise<HostActionResult>((resolve) => {
+        const callId = `ha_${++hostActionCounter}_${Date.now()}`;
+        const timer = setTimeout(() => {
+          pending.delete(callId);
+          resolve({ ok: false, reason: 'timeout' });
+        }, HOST_ACTION_TIMEOUT_MS);
+        pending.set(callId, { resolve, timer });
+        deps.publishData({ type: 'host_action_request', callId, action });
+      });
+    },
+    deliverHostActionResult({ callId, result }) {
+      const entry = pending.get(callId);
+      if (!entry) return;
+      clearTimeout(entry.timer);
+      pending.delete(callId);
+      entry.resolve(result);
+    },
   };
+
+  return api;
 }
 
 async function routeEvent(event: AgentEvent, deps: BridgeDeps): Promise<void> {
@@ -113,6 +152,13 @@ async function routeEvent(event: AgentEvent, deps: BridgeDeps): Promise<void> {
     case 'session_closed':
       deps.publishData({ type: 'session_closed', reason: event.reason });
       deps.closeRoom();
+      return;
+    case 'host_action':
+      // No-op: the actual publish happens inside dispatchHostAction (called from runtime).
+      // This case exists so the AgentEvent union exhausts cleanly without falling into default-warn.
+      return;
+    case 'persona_swap':
+      deps.publishData({ type: 'persona_swap', personaId: event.personaId });
       return;
     case 'thinking':
     case 'tool_result':

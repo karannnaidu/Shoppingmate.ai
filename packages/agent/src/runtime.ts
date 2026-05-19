@@ -265,8 +265,6 @@ export async function* runTurn(
             envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
           } else {
             const action = toHostAction(call.name, args);
-            const callId = `${call.id}_host`;
-            yield { type: 'host_action', callId, action };
             const result = await deps.dispatchHostAction(action);
             envelope = result.ok
               ? { ok: true, value: result }
