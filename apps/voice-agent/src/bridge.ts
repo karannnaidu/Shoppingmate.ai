@@ -156,7 +156,7 @@ async function routeEvent(event: AgentEvent, deps: BridgeDeps): Promise<void> {
       deps.publishData({ type: 'session_closed', reason: event.reason });
       deps.closeRoom();
       return;
-    case 'host_action':
+    case 'host_action_request':
       // No-op: the actual publish happens inside dispatchHostAction (called from runtime).
       // This case exists so the AgentEvent union exhausts cleanly without falling into default-warn.
       return;

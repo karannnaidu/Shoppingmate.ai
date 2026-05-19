@@ -1,5 +1,5 @@
 import type { AssistantToolCalls, ChatMessage, ToolCallMessage } from '@shoppingmate/shared';
-import type { HostAction } from './host-actions.js';
+import type { HostAction, HostActionResult } from './host-actions.js';
 
 export type Mode = 'voice' | 'text';
 
@@ -24,18 +24,21 @@ export type WidgetMessage =
       qty: number;
     }
   | { type: 'session_resume'; sessionId: string }
-  | { type: 'session_end'; sessionId: string };
+  | { type: 'session_end'; sessionId: string }
+  | { type: 'host_action_result'; callId: string; result: HostActionResult }
+  | { type: 'tour_request' };
 
 export type AgentEvent =
   | { type: 'thinking' }
   | { type: 'say'; text: string }
+  | { type: 'say_partial'; text: string }
   | { type: 'cards'; items: CardItem[] }
   | { type: 'tool_result'; toolName: string; ok: boolean; summary?: string }
   | { type: 'checkout_redirect'; url: string }
   | { type: 'cap_warning'; reason: 'turns' | 'voice_ms' | 'duration_ms'; remaining: number }
   | { type: 'end_of_turn' }
   | { type: 'session_closed'; reason: 'user' | 'cap' | 'error' }
-  | { type: 'host_action'; callId: string; action: HostAction }
+  | { type: 'host_action_request'; callId: string; action: HostAction }
   | { type: 'persona_swap'; personaId: string };
 
 export type AnthropicMessage = ChatMessage | AssistantToolCalls | ToolCallMessage;

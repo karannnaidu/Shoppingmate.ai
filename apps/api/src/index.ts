@@ -18,6 +18,7 @@ import {
   runTurn,
   saveSession,
 } from '@shoppingmate/agent';
+import type { HostAction, HostActionResult } from '@shoppingmate/agent';
 import { healthRoute } from './routes/health.js';
 import { installRoute } from './routes/install.js';
 import { sessionRoute } from './routes/session.js';
@@ -61,6 +62,16 @@ mountWs(server);
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const noopTransport: WSTransport = new NoOpWSTransport();
 
+// Per-session pending host action callbacks. The widget answers
+// host_action_request with host_action_result asynchronously over the same
+// WS, so dispatchHostAction parks a resolver here keyed by callId.
+const HOST_ACTION_TIMEOUT_MS = 5000;
+const pendingHostActions = new Map<
+  string,
+  Map<string, { resolve: (r: HostActionResult) => void; timer: NodeJS.Timeout }>
+>();
+let hostActionCounter = 0;
+
 mountAgentWs(server, {
   onMessage: async (sessionId, merchantId, raw, send) => {
     const msg = decodeWidgetMessage(raw);
@@ -69,8 +80,32 @@ mountAgentWs(server, {
       return;
     }
 
+    if (msg.type === 'host_action_result') {
+      const sessionPending = pendingHostActions.get(sessionId);
+      const entry = sessionPending?.get(msg.callId);
+      if (entry) {
+        clearTimeout(entry.timer);
+        sessionPending!.delete(msg.callId);
+        entry.resolve(msg.result);
+      }
+      return;
+    }
+
+    if (msg.type === 'tour_request') {
+      // The widget user accepted the soft prompt — the runtime decides what
+      // to do with this hint on the next user_text turn. For now we just
+      // log it; the actual tour is driven by the model's tool calls.
+      logger.info({ sessionId, merchantId }, 'tour_request received from widget');
+      return;
+    }
+
     if (msg.type === 'session_end') {
       await redis.del(`session:${sessionId}`);
+      const sessionPending = pendingHostActions.get(sessionId);
+      if (sessionPending) {
+        for (const entry of sessionPending.values()) clearTimeout(entry.timer);
+        pendingHostActions.delete(sessionId);
+      }
       send(encodeAgentEvent({ type: 'session_closed', reason: 'user' }));
       return;
     }
@@ -109,6 +144,23 @@ mountAgentWs(server, {
       return;
     }
 
+    const dispatchHostAction = async (action: HostAction): Promise<HostActionResult> => {
+      return new Promise<HostActionResult>((resolve) => {
+        const callId = `ha_${++hostActionCounter}_${Date.now()}`;
+        let sessionPending = pendingHostActions.get(sessionId);
+        if (!sessionPending) {
+          sessionPending = new Map();
+          pendingHostActions.set(sessionId, sessionPending);
+        }
+        const timer = setTimeout(() => {
+          sessionPending!.delete(callId);
+          resolve({ ok: false, reason: 'timeout' });
+        }, HOST_ACTION_TIMEOUT_MS);
+        sessionPending.set(callId, { resolve, timer });
+        send(encodeAgentEvent({ type: 'host_action_request', callId, action }));
+      });
+    };
+
     const deps = {
       loadAdapter: () =>
         getAdapter(merchant, {
@@ -123,6 +175,7 @@ mountAgentWs(server, {
           .onConflictDoNothing();
       },
       loadPromptOpts: async (m: typeof merchant) => loadPromptOpts(m.id),
+      dispatchHostAction,
     };
 
     for await (const ev of runTurn(deps, merchant, session, msg)) {

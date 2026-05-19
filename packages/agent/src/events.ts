@@ -1,7 +1,27 @@
 import type { AgentEvent, WidgetMessage } from './types.js';
+import type { HostActionResult } from './host-actions.js';
 
 export function encodeAgentEvent(ev: AgentEvent): string {
   return JSON.stringify(ev);
+}
+
+function parseHostActionResult(value: unknown): HostActionResult | null {
+  if (!value || typeof value !== 'object') return null;
+  const o = value as Record<string, unknown>;
+  if (o.ok === true) return { ok: true };
+  if (o.ok === false && typeof o.reason === 'string') {
+    const reasons: HostActionResult extends { reason: infer R } ? R[] : never = [
+      'not_found',
+      'stale_target',
+      'cross_origin',
+      'route_not_found',
+      'timeout',
+    ] as never;
+    if ((reasons as readonly string[]).includes(o.reason)) {
+      return { ok: false, reason: o.reason as Exclude<HostActionResult, { ok: true }>['reason'] };
+    }
+  }
+  return null;
 }
 
 export function decodeWidgetMessage(raw: string): WidgetMessage | null {
@@ -35,6 +55,14 @@ export function decodeWidgetMessage(raw: string): WidgetMessage | null {
     case 'session_end':
       if (typeof obj.sessionId !== 'string') return null;
       return { type: 'session_end', sessionId: obj.sessionId };
+    case 'host_action_result': {
+      if (typeof obj.callId !== 'string') return null;
+      const result = parseHostActionResult(obj.result);
+      if (!result) return null;
+      return { type: 'host_action_result', callId: obj.callId, result };
+    }
+    case 'tour_request':
+      return { type: 'tour_request' };
     default:
       return null;
   }
