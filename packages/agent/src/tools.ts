@@ -1,9 +1,14 @@
 import type { Adapter, AdapterContext, AdapterResult } from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
 import type { ToolDef } from '@shoppingmate/shared';
+import { findPlan } from './pricing/plans.js';
+import { formatPlanSpeech } from './pricing/speech.js';
 
-export function buildToolSurface(_merchant: Merchant): ToolDef[] {
-  return [
+export const SHOPPINGMATE_DEMO_MERCHANT_ID =
+  process.env.SHOPPINGMATE_DEMO_MERCHANT_ID ?? 'SM-XPK2EN';
+
+export function buildToolSurface(merchant: Merchant): ToolDef[] {
+  const base: ToolDef[] = [
     {
       type: 'function',
       function: {
@@ -98,7 +103,81 @@ export function buildToolSurface(_merchant: Merchant): ToolDef[] {
       },
     },
   ];
+  if (merchant.id !== SHOPPINGMATE_DEMO_MERCHANT_ID) return base;
+  return [...base, ...DEMO_TOOLS];
 }
+
+const DEMO_TOOLS: ToolDef[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'site.navigate',
+      description:
+        "Navigate the visitor's browser to a same-origin path on shoppingmate.ai (demo-only).",
+      parameters: {
+        type: 'object',
+        properties: { path: { type: 'string', description: 'e.g. /pricing, /features' } },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'site.scroll_to',
+      description: 'Smoothly scroll the visitor to a section matched by free-text intent.',
+      parameters: {
+        type: 'object',
+        properties: {
+          intent: { type: 'string', description: 'e.g. "plan grid", "features section", "starter plan card"' },
+        },
+        required: ['intent'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'site.highlight',
+      description: 'Visually pulse an element matched by intent for a few seconds.',
+      parameters: {
+        type: 'object',
+        properties: {
+          intent: { type: 'string' },
+          duration_ms: { type: 'integer', minimum: 500, maximum: 6000, default: 2000 },
+        },
+        required: ['intent'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'site.click',
+      description: 'Click an element on the page matched by intent (e.g. the Sign up button).',
+      parameters: {
+        type: 'object',
+        properties: { intent: { type: 'string' } },
+        required: ['intent'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'pricing.quote',
+      description:
+        "Get the canonical, server-formatted speech string for a plan. ALWAYS use this when voicing a price. Returns { planId, speech, card }. Speak the `speech` field verbatim — do not paraphrase or rewrite the numbers.",
+      parameters: {
+        type: 'object',
+        properties: {
+          plan_id: { type: 'string', enum: ['starter', 'growth', 'enterprise'] },
+        },
+        required: ['plan_id'],
+      },
+    },
+  },
+];
 
 export type ToolResultEnvelope =
   | { ok: true; value: unknown }
@@ -163,6 +242,27 @@ export async function dispatchTool(
     case 'checkout.url': {
       const r = await adapter.checkoutUrl(ctx);
       return toEnvelope(r);
+    }
+    case 'pricing.quote': {
+      const plan = findPlan(String(args.plan_id ?? ''));
+      if (!plan) return { ok: false, kind: 'not_found', query: String(args.plan_id ?? '') };
+      const speech = formatPlanSpeech(plan);
+      const priceFormatted =
+        plan.priceCents === null ? 'Custom' : `$${(plan.priceCents / 100).toFixed(0)}`;
+      return {
+        ok: true,
+        value: {
+          planId: plan.id,
+          speech,
+          card: { name: plan.displayName, priceFormatted, convCount: plan.convCount },
+        },
+      };
+    }
+    case 'site.navigate':
+    case 'site.scroll_to':
+    case 'site.highlight':
+    case 'site.click': {
+      return { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
     }
     default:
       return { ok: false, kind: 'unsupported', reason: 'unknown_tool' };
