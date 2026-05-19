@@ -183,6 +183,15 @@ const agentDefinition = defineAgent({
       new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
     );
 
+    // Kickoff: Gemini Live native-audio is purely reactive — it waits for the
+    // visitor to speak first. Visitors expect Sage to greet them when they
+    // click voice. Inject an internal prompt that triggers Sage's opening line
+    // without sounding like the visitor said it.
+    const kickoff = demoMode
+      ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
+      : 'The visitor just opened voice mode. Greet them in one short sentence and ask what they are shopping for today.';
+    gemini.speak(kickoff).catch((err) => log.warn({ err }, 'kickoff speak failed'));
+
     // captureFrame returns a promise that resolves when the frame is buffered.
     // Awaiting it serializes producer→queue and prevents the burst-overflow that
     // the default fire-and-forget pattern would cause. We chain instead of
