@@ -3,6 +3,7 @@ import { createTTS } from './audio/tts.js';
 import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
 import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
+import { executeHostAction } from './host/actions.js';
 import { type PersonaDisplay, getPersonaDisplay } from './persona.js';
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
@@ -11,6 +12,7 @@ import { type AgentSocket, connectAgentWs } from './transport/ws.js';
 import { renderCall } from './ui/call.js';
 import { renderChat } from './ui/chat.js';
 import { renderPill } from './ui/pill.js';
+import { mountSoftPrompt } from './ui/soft-prompt.js';
 
 const TAG = 'shoppingmate-widget';
 
@@ -116,11 +118,45 @@ class WidgetElement extends HTMLElement {
       onEvent: (raw) => {
         const ev = decodeAgentEvent(raw);
         if (!ev) return;
-        this.store.dispatch({ type: 'agent_event', event: ev });
-        if (ev.type === 'say') void this.voiceMode.speak(ev.text);
+        void this.handleAgentEvent(ev);
       },
       onStatus: (status) => this.store.dispatch({ type: 'set_connection', status }),
     });
+
+    const DEMO_MERCHANT_ID = 'SM-XPK2EN';
+    if (this.merchantId === DEMO_MERCHANT_ID) {
+      mountSoftPrompt(document.body, {
+        onAccept: () => {
+          this.publishWidgetMessage({ type: 'tour_request' });
+          this.openCall();
+        },
+        onDismiss: () => {},
+      });
+    }
+  }
+
+  private async handleAgentEvent(
+    ev: import('./transport/codec.js').AgentEvent,
+  ): Promise<void> {
+    if (ev.type === 'host_action_request') {
+      const result = await executeHostAction(ev.action);
+      this.publishWidgetMessage({
+        type: 'host_action_result',
+        callId: ev.callId,
+        result,
+      });
+      return;
+    }
+    if (ev.type === 'persona_swap') {
+      // v0.1: voice-agent owns the transport reconnect; widget no-ops.
+      return;
+    }
+    this.store.dispatch({ type: 'agent_event', event: ev });
+    if (ev.type === 'say') void this.voiceMode.speak(ev.text);
+  }
+
+  private publishWidgetMessage(msg: import('./transport/codec.js').WidgetMessage): void {
+    this.socket?.send(encodeWidgetMessage(msg));
   }
 
   private render() {
@@ -195,7 +231,7 @@ class WidgetElement extends HTMLElement {
     }
     const ev = decodeAgentEvent(raw);
     if (!ev) return;
-    this.store.dispatch({ type: 'agent_event', event: ev });
+    void this.handleAgentEvent(ev);
   }
 
   private cardTap(p: { sku: string; variantId: string | null }) {
