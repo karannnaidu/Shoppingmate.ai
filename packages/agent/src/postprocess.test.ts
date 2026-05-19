@@ -57,3 +57,42 @@ describe('segmentSay()', () => {
     expect(segmentSay('hello\n\n\n\nworld')).toEqual(['hello', 'world']);
   });
 });
+
+describe('stripPrices() with allowed speech tokens', () => {
+  it('passes through an exact-substring match of an allowed token', () => {
+    const allowed = new Set([
+      'Starter is thirty dollars per month for one hundred conversations.',
+    ]);
+    const input =
+      'Great question. Starter is thirty dollars per month for one hundred conversations. Want to sign up?';
+    const { text, hits } = stripPrices(input, allowed);
+    expect(text).toBe(input.replace(/\s{2,}/g, ' ').trim());
+    expect(hits.length).toBe(0);
+  });
+
+  it('still strips a free-form LLM rephrase that does not match', () => {
+    const allowed = new Set([
+      'Starter is thirty dollars per month for one hundred conversations.',
+    ]);
+    const { text, hits } = stripPrices('Starter costs $30 a month.', allowed);
+    expect(text).toBe('Starter costs the price on the card a month.');
+    expect(hits.length).toBeGreaterThan(0);
+  });
+
+  it('treats undefined allowedSpeechTokens as the legacy behavior (no bypass)', () => {
+    const { text } = stripPrices('It is $30.');
+    expect(text).toBe('It is the price on the card.');
+  });
+
+  it('handles multiple allowed tokens in the same string', () => {
+    const allowed = new Set([
+      'Starter is thirty dollars per month for one hundred conversations.',
+      'Growth is sixty dollars per month for five hundred conversations.',
+    ]);
+    const input =
+      'Two options: Starter is thirty dollars per month for one hundred conversations. Or Growth is sixty dollars per month for five hundred conversations.';
+    const { text, hits } = stripPrices(input, allowed);
+    expect(text).toBe(input);
+    expect(hits.length).toBe(0);
+  });
+});

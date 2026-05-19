@@ -10,18 +10,45 @@ const PRICE_PATTERNS: Array<{ pattern: string; re: RegExp }> = [
 
 export type PriceHit = { pattern: string; matched: string };
 
-export function stripPrices(input: string): { text: string; hits: PriceHit[] } {
+export function stripPrices(
+  input: string,
+  allowedSpeechTokens?: Set<string>,
+): { text: string; hits: PriceHit[] } {
   let text = input;
   const hits: PriceHit[] = [];
   for (const { pattern, re } of PRICE_PATTERNS) {
-    text = text.replace(re, (matched) => {
+    const mask = buildMask(text, allowedSpeechTokens);
+    text = text.replace(re, (matched, offset: number) => {
+      if (isMaskedSpan(mask, offset, matched.length)) return matched;
       hits.push({ pattern, matched });
       return 'the price on the card';
     });
   }
-  // collapse double spaces created by replacements
   text = text.replace(/ {2,}/g, ' ').trim();
   return { text, hits };
+}
+
+function buildMask(s: string, allowed?: Set<string>): Uint8Array {
+  const mask = new Uint8Array(s.length);
+  if (!allowed || allowed.size === 0) return mask;
+  for (const token of allowed) {
+    if (!token) continue;
+    let i = 0;
+    while (i <= s.length - token.length) {
+      const j = s.indexOf(token, i);
+      if (j < 0) break;
+      for (let k = j; k < j + token.length; k++) mask[k] = 1;
+      i = j + token.length;
+    }
+  }
+  return mask;
+}
+
+function isMaskedSpan(mask: Uint8Array, start: number, len: number): boolean {
+  for (let i = start; i < start + len; i++) {
+    if (mask[i] !== 1) return false;
+  }
+  return len > 0;
 }
 
 const EMAIL_RE = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g;
