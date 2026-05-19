@@ -137,14 +137,18 @@ class WidgetElement extends HTMLElement {
 
   private async handleAgentEvent(
     ev: import('./transport/codec.js').AgentEvent,
+    origin: 'ws' | 'livekit' = 'ws',
   ): Promise<void> {
     if (ev.type === 'host_action_request') {
       const result = await executeHostAction(ev.action);
-      this.publishWidgetMessage({
-        type: 'host_action_result',
-        callId: ev.callId,
-        result,
-      });
+      this.publishWidgetMessage(
+        {
+          type: 'host_action_result',
+          callId: ev.callId,
+          result,
+        },
+        origin,
+      );
       return;
     }
     if (ev.type === 'persona_swap') {
@@ -155,8 +159,21 @@ class WidgetElement extends HTMLElement {
     if (ev.type === 'say') void this.voiceMode.speak(ev.text);
   }
 
-  private publishWidgetMessage(msg: import('./transport/codec.js').WidgetMessage): void {
-    this.socket?.send(encodeWidgetMessage(msg));
+  private publishWidgetMessage(
+    msg: import('./transport/codec.js').WidgetMessage,
+    origin: 'ws' | 'livekit' = 'ws',
+  ): void {
+    const encoded = encodeWidgetMessage(msg);
+    if (origin === 'livekit' && this.voiceMode.publishData) {
+      // host_action_request came in over the LiveKit data channel from the
+      // voice-agent's bridge, so the result must land in the voice-agent's
+      // pending map — not the api WS pending map. Encode the same WidgetMessage
+      // and ship the bytes over LiveKit.
+      const bytes = new TextEncoder().encode(encoded);
+      void this.voiceMode.publishData(bytes);
+      return;
+    }
+    this.socket?.send(encoded);
   }
 
   private render() {
@@ -221,8 +238,10 @@ class WidgetElement extends HTMLElement {
 
   private handleLiveKitData(bytes: Uint8Array) {
     // LiveKit data channel carries server-published JSON events from the
-    // voice-agent (user_text echo, say, cards, checkout_redirect, ...).
-    // Decode and route through the same store as WS-delivered events.
+    // voice-agent (user_text echo, say, cards, checkout_redirect,
+    // host_action_request). Decode and route, tagging origin so any
+    // widget→agent reply (host_action_result) goes back over LiveKit
+    // instead of the api WS.
     let raw: string;
     try {
       raw = new TextDecoder().decode(bytes);
@@ -231,7 +250,7 @@ class WidgetElement extends HTMLElement {
     }
     const ev = decodeAgentEvent(raw);
     if (!ev) return;
-    void this.handleAgentEvent(ev);
+    void this.handleAgentEvent(ev, 'livekit');
   }
 
   private cardTap(p: { sku: string; variantId: string | null }) {

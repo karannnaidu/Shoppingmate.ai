@@ -13,9 +13,17 @@ import {
 } from '@livekit/rtc-node';
 import { asc, eq } from 'drizzle-orm';
 import { Redis } from 'ioredis';
-import { loadSession } from '@shoppingmate/agent';
+import {
+  NoOpWSTransport,
+  decodeWidgetMessage,
+  loadSession,
+  runTurn,
+  saveSession as saveSessionAgent,
+} from '@shoppingmate/agent';
+import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import { db, schema } from '@shoppingmate/db';
 import { childLogger, env as sharedEnv } from '@shoppingmate/shared';
+import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
 import { createMetricsLedger, defaultSink } from './metrics.js';
@@ -172,6 +180,75 @@ const agentDefinition = defineAgent({
     caps.start();
     const tickInterval = setInterval(() => caps.tick(), 5_000);
 
+    // Side-channel runtime: while Gemini Live owns the conversation audio,
+    // we run the chat tool-loop in parallel on every visitor utterance so
+    // host_action tools (site.navigate / site.scroll_to / site.highlight /
+    // pricing.quote) can actually drive the browser from voice mode.
+    // We drop the runtime's say/say_partial events — Gemini already speaks
+    // and captions — and only forward tool-action events to the widget.
+    const bridge = createBridge({
+      sessionId,
+      merchantId: merchant.id,
+      runTurn,
+      loadMerchant: async (id) => {
+        const rows = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id)).limit(1);
+        if (!rows[0]) throw new Error(`merchant not found: ${id}`);
+        return rows[0];
+      },
+      loadSession: async (sid) => {
+        const s = await loadSession(redis(), sid);
+        if (!s) throw new Error(`session not found: ${sid}`);
+        return s;
+      },
+      saveSession: (s) => saveSessionAgent(redis(), s),
+      recordMetric: async (name, tags) => {
+        await db
+          .insert(schema.metricEvents)
+          .values({ merchantId: merchant.id, metricName: name, tags })
+          .onConflictDoNothing();
+      },
+      loadAdapter: (m) =>
+        getAdapter(m, {
+          transport: new NoOpWSTransport(),
+          state: new InMemorySessionState(),
+        }),
+      speak: async () => {
+        // No-op: Gemini Live owns voice output. If we forward runtime `say`
+        // text into gemini.speak, Gemini answers twice (once autonomously,
+        // once for the injected text). Captions for Sage already stream
+        // via outputAudioTranscription.
+      },
+      publishData: (msg) => {
+        // Suppress runtime say/say_partial — Gemini's transcript is the
+        // canonical caption. Forward everything else (host_action_request,
+        // cards, persona_swap, checkout_redirect, cap_warning, session_closed).
+        if (msg.type === 'say' || msg.type === 'say_partial' || msg.type === 'user_text') return;
+        dataChannel.publish(msg);
+      },
+      closeRoom: () => {
+        job.room.disconnect().catch(() => {});
+      },
+      interrupt: () => gemini.interrupt(),
+      caps: { recordTurn: () => caps.recordTurn() },
+    });
+
+    // Visitor's widget posts host_action_result over the LiveKit data channel
+    // (see widget.ts handleLiveKitData + publishWidgetMessage). Decode and
+    // hand to the bridge so its pending-call promise resolves.
+    job.room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+      let raw: string;
+      try {
+        raw = new TextDecoder().decode(payload);
+      } catch {
+        return;
+      }
+      const msg = decodeWidgetMessage(raw);
+      if (!msg) return;
+      if (msg.type === 'host_action_result') {
+        bridge.deliverHostActionResult?.({ callId: msg.callId, result: msg.result });
+      }
+    });
+
     // Publish a local audio track so visitors hear Sage. Gemini Live native-audio
     // returns 24 kHz mono PCM16; we feed those bytes straight into AudioSource.
     // Queue 30s — Gemini emits replies in fast bursts and the default ~1s queue
@@ -209,14 +286,20 @@ const agentDefinition = defineAgent({
         const inputSeconds = words / 3.3;
         caps.recordVoiceSeconds(inputSeconds);
         metrics.add('gemini_audio_input_seconds', inputSeconds);
-        // Phase 1 design: native-audio model handles the conversation itself,
-        // so the visitor's transcript goes straight to the widget for display.
-        // The chat-bridge (with shoppingmate tools) is reserved for text mode.
+        // Phase 1 design: Gemini Live owns voice conversation; the visitor's
+        // transcript also goes to the widget for caption display.
         dataChannel.publish({ type: 'user_text', text: e.text });
+        // Side-channel: route the visitor's text through the chat tool-loop
+        // so host_action tools can navigate / scroll / quote pricing while
+        // Gemini speaks naturally over the top. The bridge's `say` events
+        // are suppressed (Gemini's transcript is the canonical caption).
+        bridge
+          .handleUserText(e.text)
+          .catch((err) => log.warn({ err }, 'bridge.handleUserText failed'));
         // Demo tour: when Sage is on shoppingmate.ai itself and the visitor
-        // names a vertical, surface 3 showcase cards directly. Voice mode
-        // skips the chat-bridge tool-loop, so without this the tour is voice-
-        // only and people never see what Sage is talking about.
+        // names a vertical, surface 3 showcase cards directly. Belt-and-
+        // suspenders next to the bridge tool-loop in case Sonnet picks a
+        // different action.
         if (demoMode) {
           const vertical = matchVertical(e.text);
           if (vertical && !shownVerticals.has(vertical)) {

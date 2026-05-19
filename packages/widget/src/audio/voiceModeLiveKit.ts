@@ -60,5 +60,9 @@ export function createVoiceModeLiveKit(opts: {
     onStateChange: (cb) => {
       listeners.push(cb);
     },
+    publishData: async (bytes) => {
+      if (!handle) return;
+      await handle.publishData(bytes);
+    },
   };
 }
