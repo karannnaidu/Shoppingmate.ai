@@ -22,6 +22,7 @@ export function createSession(opts: {
     startedAt: opts.nowMs,
     lastTurnAt: opts.nowMs,
     mode: opts.mode,
+    allowedSpeechTokens: [],
   };
 }
 
