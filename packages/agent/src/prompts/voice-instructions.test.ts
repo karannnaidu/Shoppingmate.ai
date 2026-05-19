@@ -19,10 +19,11 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).toMatch(/voice cadence/i);
   });
 
-  it('demo mode teaches tour-tool usage with site.navigate', () => {
+  it('demo mode tells the voice model it cannot drive the browser and not to recite tool names', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
-    expect(out).toContain('site.navigate');
-    expect(out).toContain('TOUR TOOLS');
-    expect(out).toContain('pricing.quote');
+    expect(out).toContain('PRICING IN VOICE MODE');
+    expect(out).toMatch(/cannot drive/i);
+    expect(out).not.toContain('site.navigate({');
+    expect(out).not.toContain('TOUR TOOLS');
   });
 });

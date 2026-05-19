@@ -4,25 +4,10 @@ const NO_PRICE_RULE =
   'Never speak numeric prices, currency amounts, or discount percentages. ' +
   'Always paraphrase ("a few hundred dollars", "a small discount") and refer to what is on screen ("the price you see").';
 
-const TOUR_TOOLS_RULE = `TOUR TOOLS (DEMO MERCHANT ONLY)
-You have host-action tools that let you drive the visitor's browser:
-- site.navigate({ path }): move to /pricing, /features, etc.
-- site.scroll_to({ intent }): smooth-scroll to a section, e.g. "plan grid"
-- site.highlight({ intent, duration_ms }): pulse-ring an element
-- site.click({ intent }): click a button (e.g. "signup button")
-- pricing.quote({ plan_id }): get the canonical speech string for a plan. ALWAYS use this BEFORE voicing any price.
+const VOICE_PRICING_FALLBACK = `PRICING IN VOICE MODE
+You CANNOT drive the visitor's browser from voice — there are no tools you can call here. If the visitor asks about pricing, do NOT speak any numeric amount. Say something like: "I'll pop the plans on screen for you — text me in the chat below and I'll walk you through them" or refer them to the pricing section on the page. NEVER recite tool names, JSON, or function-call syntax aloud. Never say words like "site.navigate" or "pricing.quote".
 
-WHEN THE VISITOR SAYS "show me pricing" OR "what does it cost":
-1. site.navigate({ path: "/pricing" })
-2. site.scroll_to({ intent: "plan grid" })
-3. site.highlight({ intent: "starter plan card" })
-4. pricing.quote({ plan_id: "starter" })
-5. Then say EXACTLY the \`speech\` field returned by pricing.quote — do not paraphrase, do not change the numbers, do not add or remove words. Then add a follow-up like "Want me to sign you up?"
-
-When the visitor says "sign me up" or "yes please":
-- site.click({ intent: "signup button" })
-
-NEVER pronounce a numeric price from memory — always pricing.quote first.`;
+If the visitor asks for a hands-on tour ("show me", "give me a tour"), suggest they type their pick in the chat — the visual tour runs from text mode.`;
 
 export type VoiceBrand = {
   name: string;
@@ -81,7 +66,7 @@ function demoVoiceInstruction(persona: Persona, kbText?: string): string {
     sceneRule,
     NO_PRICE_RULE,
     `GUARDRAILS\n${guardrails}`,
-    TOUR_TOOLS_RULE,
+    VOICE_PRICING_FALLBACK,
   ];
   if (kbText && kbText.trim().length > 0) {
     sections.push(`BRAND CONTEXT\n${kbText.trim()}`);
