@@ -254,9 +254,12 @@ const agentDefinition = defineAgent({
       }
     });
 
-    job.room.on(RoomEvent.TrackSubscribed, (track) => {
-      if (track.kind !== TrackKind.KIND_AUDIO) return;
-      const stream = new AudioStream(track as RemoteAudioTrack, 16_000, 1);
+    const subscribedTracks = new WeakSet<object>();
+    const pipeMic = (track: RemoteAudioTrack, participantIdentity: string) => {
+      if (subscribedTracks.has(track as unknown as object)) return;
+      subscribedTracks.add(track as unknown as object);
+      log.info({ participantIdentity, sid: track.sid }, 'subscribing to mic track');
+      const stream = new AudioStream(track, 16_000, 1);
       (async () => {
         for await (const frame of stream) {
           const bytes = new Uint8Array(
@@ -267,7 +270,25 @@ const agentDefinition = defineAgent({
           gemini.pushAudio(bytes);
         }
       })().catch((err) => log.error({ err }, 'audio stream ended with error'));
+    };
+
+    job.room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+      if (track.kind !== TrackKind.KIND_AUDIO) return;
+      pipeMic(track as RemoteAudioTrack, participant.identity);
     });
+
+    // Catch tracks that were already subscribed before this handler attached.
+    // RoomEvent.TrackSubscribed fires only for *new* subscriptions, so if the
+    // visitor's mic track lands during the awaits between job.connect() and
+    // here, the event is missed and Gemini never gets any audio in.
+    for (const participant of job.room.remoteParticipants.values()) {
+      for (const pub of participant.trackPublications.values()) {
+        const track = pub.track;
+        if (track && track.kind === TrackKind.KIND_AUDIO) {
+          pipeMic(track as RemoteAudioTrack, participant.identity);
+        }
+      }
+    }
 
     job.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
       const localIdentity = job.room.localParticipant?.identity;
