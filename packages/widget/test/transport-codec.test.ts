@@ -61,4 +61,29 @@ describe('codec', () => {
   it('returns null on unknown event type', () => {
     expect(decodeAgentEvent(JSON.stringify({ type: 'mystery' }))).toBeNull();
   });
+
+  it('decodes host_action_request', () => {
+    const raw = JSON.stringify({
+      type: 'host_action_request',
+      callId: 'tc1_host',
+      action: { type: 'scroll_to', intent: 'plan grid' },
+    });
+    expect(decodeAgentEvent(raw)).toEqual({
+      type: 'host_action_request',
+      callId: 'tc1_host',
+      action: { type: 'scroll_to', intent: 'plan grid' },
+    });
+  });
+
+  it('decodes persona_swap', () => {
+    expect(decodeAgentEvent(JSON.stringify({ type: 'persona_swap', personaId: 'stella' }))).toEqual({
+      type: 'persona_swap',
+      personaId: 'stella',
+    });
+  });
+
+  it('rejects host_action_request with invalid action', () => {
+    const raw = JSON.stringify({ type: 'host_action_request', callId: 'x', action: { type: 'unknown' } });
+    expect(decodeAgentEvent(raw)).toBeNull();
+  });
 });
