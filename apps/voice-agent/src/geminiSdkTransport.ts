@@ -32,12 +32,18 @@ export function createGeminiSdkTransport(): GeminiTransport {
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceId } } },
           // Opt-in: without these, the server returns no transcripts at all,
           // so the widget never sees the visitor's words or Sage's reply text.
-          // Lock the input language hint to en-US — without it, the auto-detect
-          // routinely renders English audio as Hindi/Bengali script when the
-          // signal is short or noisy, which both confuses the visitor's caption
-          // and poisons Sonnet's side-channel tool loop.
-          inputAudioTranscription: { languageCodes: ['en-US'] },
-          outputAudioTranscription: { languageCodes: ['en-US'] },
+          // Pass an explicit multilingual candidate list — leaving it empty
+          // (`{}`) made auto-detect render short/noisy English audio as
+          // Hindi/Bengali script, which both confused the visitor's caption
+          // and poisoned Sonnet's side-channel tool loop. A curated list keeps
+          // multilingual support while constraining the candidate set so the
+          // common English case stops mis-routing.
+          inputAudioTranscription: {
+            languageCodes: ['en-US', 'hi-IN', 'bn-IN', 'es-US', 'fr-FR'],
+          },
+          outputAudioTranscription: {
+            languageCodes: ['en-US', 'hi-IN', 'bn-IN', 'es-US', 'fr-FR'],
+          },
         },
         callbacks: {
           onmessage: (msg) => {
