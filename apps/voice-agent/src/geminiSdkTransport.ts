@@ -39,10 +39,38 @@ export function createGeminiSdkTransport(): GeminiTransport {
           // multilingual support while constraining the candidate set so the
           // common English case stops mis-routing.
           inputAudioTranscription: {
-            languageCodes: ['en-US', 'hi-IN', 'bn-IN', 'es-US', 'fr-FR'],
+            languageCodes: [
+              'en-US',
+              'hi-IN',
+              'bn-IN',
+              'ta-IN',
+              'te-IN',
+              'mr-IN',
+              'gu-IN',
+              'kn-IN',
+              'ml-IN',
+              'pa-IN',
+              'ur-IN',
+              'es-US',
+              'fr-FR',
+            ],
           },
           outputAudioTranscription: {
-            languageCodes: ['en-US', 'hi-IN', 'bn-IN', 'es-US', 'fr-FR'],
+            languageCodes: [
+              'en-US',
+              'hi-IN',
+              'bn-IN',
+              'ta-IN',
+              'te-IN',
+              'mr-IN',
+              'gu-IN',
+              'kn-IN',
+              'ml-IN',
+              'pa-IN',
+              'ur-IN',
+              'es-US',
+              'fr-FR',
+            ],
           },
         },
         callbacks: {
