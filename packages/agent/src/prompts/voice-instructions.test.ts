@@ -6,7 +6,12 @@ describe('buildVoiceSystemInstruction', () => {
   it('always includes the no-numeric-prices rule', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!);
     expect(out).toMatch(/never speak numeric prices/i);
-    expect(out).toMatch(/paraphrase/i);
+    // Regression for 2026-05-24 hallucination: the rule must explicitly tell
+    // the model to refer to the on-screen price card instead of "paraphrasing"
+    // a number it doesn't know. The old rule's example "a few hundred dollars"
+    // was being parroted back as the answer for $30/mo plans.
+    expect(out).toMatch(/on screen|price card|card on screen/i);
+    expect(out).toMatch(/do not invent|hallucinations/i);
   });
 
   it('includes the persona voice descriptor verbatim', () => {

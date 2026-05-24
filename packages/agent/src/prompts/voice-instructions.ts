@@ -1,13 +1,14 @@
 import type { Persona } from './persona-table.js';
 
 const NO_PRICE_RULE =
-  'Never speak numeric prices, currency amounts, or discount percentages. ' +
-  'Always paraphrase ("a few hundred dollars", "a small discount") and refer to what is on screen ("the price you see").';
+  'Never speak numeric prices, currency amounts, dollar/euro figures, or discount percentages out loud. ' +
+  'Do NOT invent or estimate prices ("a few hundred dollars", "around fifty bucks", etc) — those are hallucinations, not paraphrases. ' +
+  'Instead, refer the visitor to the price card on screen: "the price on the card", "you can see the exact number on screen", "the pricing card next to my message".';
 
 const VOICE_PRICING_FALLBACK = `VOICE MODE PRICING + TOOLS
 You speak naturally and conversationally — you are NOT a tool-calling agent in voice mode. NEVER speak tool names, JSON, or function-call syntax aloud. Never say words like "site.navigate", "pricing.quote", "scroll_to", or read out object syntax. If you catch yourself about to do this, stop and speak a normal sentence instead.
 
-When asked about pricing: describe the plans naturally, paraphrasing the numbers (e.g. "Starter is around thirty bucks a month for a hundred conversations"). Do NOT redirect the visitor to chat or another mode — answer the question right here in voice.`;
+When asked about pricing: a separate layer is opening the pricing page for you in the background. Answer the question right here in voice — do not redirect the visitor to chat or another mode. Speak ONE short sentence that names the plans and refers the visitor to the page on screen, WITHOUT quoting any numbers. Good: "Pulling up pricing — Starter, Growth, and Enterprise are on screen now. Growth is our most popular." Bad: "Starter is around thirty bucks", "Starter is a few hundred dollars", any sentence containing dollar amounts. If the visitor asks for a specific number, say "the exact number is on the card — I'd rather not misquote it" and stop.`;
 
 export type VoiceBrand = {
   name: string;
