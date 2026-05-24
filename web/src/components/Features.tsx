@@ -18,6 +18,7 @@ const features = [
     body:
       "Whisper STT + ElevenLabs TTS, eight pre-built voices. Pick the tone that fits — calm clinician, witty stylist, no-nonsense gym coach.",
     accent: "violet",
+    tourId: "personas",
   },
   {
     icon: BookOpenText,
@@ -25,6 +26,7 @@ const features = [
     body:
       "Upload PDFs, FAQs, returns and shipping copy. Answers quote your docs verbatim — never guess, never hallucinate pricing.",
     accent: "cyan",
+    tourId: "brand-kb",
   },
   {
     icon: Wand2,
@@ -32,6 +34,7 @@ const features = [
     body:
       "Daily recrawl detects broken triggers and auto-heals them — and your overrides stay locked, immune to recrawl drift.",
     accent: "fuchsia",
+    tourId: "selectors",
   },
   {
     icon: Zap,
@@ -39,6 +42,7 @@ const features = [
     body:
       "Discovers active codes, ranks the best one against the live cart, and auto-applies — visitor confirms or it stacks silently. Your pick.",
     accent: "violet",
+    tourId: "coupons",
   },
   {
     icon: ShieldCheck,
@@ -46,6 +50,7 @@ const features = [
     body:
       "We never see card data. Payment is always a redirect to your native checkout. Conversation transcripts auto-expire at 24 hours.",
     accent: "cyan",
+    tourId: "pci",
   },
   {
     icon: ChartLine,
@@ -53,6 +58,7 @@ const features = [
     body:
       "Every sale closed through a conversation is attributed back to its session. Reconciles to within 0.5% of cost-ledger totals.",
     accent: "fuchsia",
+    tourId: "attribution",
   },
 ];
 
@@ -64,7 +70,7 @@ const accentMap = {
 
 export function Features() {
   return (
-    <section id="features" className="relative py-24 md:py-32">
+    <section id="features" className="relative py-24 md:py-32" aria-label="Features" data-tour-stop="features">
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <SectionHead
           eyebrow="What it does"
@@ -76,6 +82,8 @@ export function Features() {
           {features.map((f, i) => (
             <motion.div
               key={f.title}
+              aria-label={`${f.title} card`}
+              data-tour-stop={f.tourId}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}

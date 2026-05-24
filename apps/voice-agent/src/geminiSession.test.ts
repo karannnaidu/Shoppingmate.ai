@@ -56,3 +56,43 @@ describe('createGeminiSession', () => {
     expect(t.close).toHaveBeenCalledOnce();
   });
 });
+
+describe('createGeminiSession allow-list bypass', () => {
+  it('passes through speak() text that exactly contains an allowed token', async () => {
+    const t = mockTransport();
+    const s = createGeminiSession({
+      transport: t,
+      voiceId: 'kore',
+      systemInstruction: 'x',
+      allowedSpeechTokens: new Set([
+        'Starter is thirty dollars per month for one hundred conversations.',
+      ]),
+    });
+    await s.open();
+    await s.speak('Starter is thirty dollars per month for one hundred conversations.');
+    expect(t.speak).toHaveBeenCalledOnce();
+  });
+
+  it('still rejects an LLM rephrase that contains digits/currency', async () => {
+    const t = mockTransport();
+    const s = createGeminiSession({
+      transport: t,
+      voiceId: 'kore',
+      systemInstruction: 'x',
+      allowedSpeechTokens: new Set([
+        'Starter is thirty dollars per month for one hundred conversations.',
+      ]),
+    });
+    await s.open();
+    await expect(s.speak('Starter costs $30 a month.')).rejects.toThrow(/numeric/i);
+  });
+
+  it('updateAllowedSpeechTokens() replaces the set at runtime', async () => {
+    const t = mockTransport();
+    const s = createGeminiSession({ transport: t, voiceId: 'kore', systemInstruction: 'x' });
+    await s.open();
+    s.updateAllowedSpeechTokens(new Set(['Growth is sixty dollars per month for five hundred conversations.']));
+    await s.speak('Growth is sixty dollars per month for five hundred conversations.');
+    expect(t.speak).toHaveBeenCalledOnce();
+  });
+});

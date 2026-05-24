@@ -1,7 +1,7 @@
 import type { Merchant } from '@shoppingmate/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type RunTurnDeps, runTurn } from './runtime.js';
-import type { SessionState } from './types.js';
+import type { AgentEvent, SessionState } from './types.js';
 
 vi.mock('@shoppingmate/shared', async (orig) => ({
   ...(await orig<typeof import('@shoppingmate/shared')>()),
@@ -30,8 +30,26 @@ function baseSession(overrides: Partial<SessionState> = {}): SessionState {
     startedAt: Date.now(),
     lastTurnAt: Date.now(),
     mode: 'text',
+    allowedSpeechTokens: [],
     ...overrides,
   };
+}
+
+// Alias used in new Bucket B tests — same shape, different name
+function makeBaseSession(overrides: Partial<SessionState> = {}): SessionState {
+  return baseSession(overrides);
+}
+
+function fakeAdapter() {
+  return {
+    searchProducts: async () => ({ kind: 'ok' as const, value: [] }),
+    getProduct: async () => ({ kind: 'ok' as const, value: null }),
+    cartAdd: async () => ({ kind: 'ok' as const, value: { cartToken: 'ct' } }),
+    cartUpdate: async () => ({ kind: 'ok' as const, value: null }),
+    cartGet: async () => ({ kind: 'ok' as const, value: { lines: [] } }),
+    couponApply: async () => ({ kind: 'ok' as const, value: null }),
+    checkoutUrl: async () => ({ kind: 'ok' as const, value: 'https://shop/checkout' }),
+  } as any;
 }
 
 const deps: RunTurnDeps = {
@@ -389,5 +407,86 @@ describe('runTurn() — card_tap', () => {
     expect(events.find((e) => e.type === 'say')).toMatchObject({
       text: 'Added — anything else?',
     });
+  });
+});
+
+describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
+  it('populates session.allowedSpeechTokens from pricing.quote and passes them to stripPrices', async () => {
+    const events: AgentEvent[] = [];
+    const fakeChatTools = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'tc1',
+            name: 'pricing.quote',
+            argumentsJson: JSON.stringify({ plan_id: 'starter' }),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        text: 'Starter is thirty dollars per month for one hundred conversations. Want to sign up?',
+        toolCalls: [],
+      });
+    const saved: SessionState[] = [];
+    const session: SessionState = makeBaseSession({
+      sessionId: 's1',
+      merchantId: 'SM-XPK2EN',
+      allowedSpeechTokens: [],
+    });
+    const merchant2 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as any;
+    for await (const ev of runTurn(
+      {
+        loadAdapter: () => fakeAdapter(),
+        saveSession: async (s: SessionState) => { saved.push(s); },
+        recordMetric: async () => {},
+        chatToolsImpl: fakeChatTools as any,
+        dispatchHostAction: async () => ({ ok: true as const }),
+      } as any,
+      merchant2,
+      session,
+      { type: 'user_text', sessionId: 's1', text: 'show me pricing', mode: 'voice' },
+    )) events.push(ev as AgentEvent);
+
+    const sayEvents = events.filter((e): e is { type: 'say'; text: string } => e.type === 'say');
+    const sayText = sayEvents.map((e) => e.text).join(' ');
+    expect(sayText).toContain(
+      'Starter is thirty dollars per month for one hundred conversations.',
+    );
+    expect(saved.at(-1)?.allowedSpeechTokens).toContain(
+      'Starter is thirty dollars per month for one hundred conversations.',
+    );
+  });
+
+  it('routes site.* tool calls through dispatchHostAction', async () => {
+    const dispatched: any[] = [];
+    const fakeChatTools = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          { id: 'tc1', name: 'site.navigate', argumentsJson: JSON.stringify({ path: '/pricing' }) },
+        ],
+      })
+      .mockResolvedValueOnce({ text: 'Done — pulled up pricing.', toolCalls: [] });
+    const session2 = makeBaseSession({ merchantId: 'SM-XPK2EN' });
+    const merchant3 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as any;
+    for await (const _ev of runTurn(
+      {
+        loadAdapter: () => fakeAdapter(),
+        saveSession: async () => {},
+        recordMetric: async () => {},
+        chatToolsImpl: fakeChatTools as any,
+        dispatchHostAction: async (action: any) => {
+          dispatched.push(action);
+          return { ok: true as const };
+        },
+      } as any,
+      merchant3,
+      session2,
+      { type: 'user_text', sessionId: 's1', text: 'show pricing', mode: 'voice' },
+    )) { /* drain */ }
+    expect(dispatched).toEqual([{ type: 'navigate', path: '/pricing' }]);
   });
 });

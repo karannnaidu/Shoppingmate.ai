@@ -55,6 +55,8 @@ export function Nav() {
           <ThemeToggle />
           <Link
             href="/signup"
+            aria-label="Sign up"
+            data-tour-stop="signup-nav"
             className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-transform hover:scale-[1.02] active:scale-[0.98]"
           >
             Get started

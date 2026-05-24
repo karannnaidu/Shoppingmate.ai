@@ -70,7 +70,7 @@ const tiers: Tier[] = [
 
 export function Pricing() {
   return (
-    <section id="pricing" className="relative py-24 md:py-32">
+    <section id="pricing" className="relative py-24 md:py-32" aria-label="Plan grid" data-tour-stop="pricing">
       <div className="absolute inset-x-0 top-0 -z-10 mx-auto h-96 max-w-3xl bg-gradient-to-b from-violet/10 to-transparent blur-3xl" aria-hidden />
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <SectionHead
@@ -83,6 +83,8 @@ export function Pricing() {
           {tiers.map((t, i) => (
             <motion.div
               key={t.name}
+              aria-label={`${t.name} plan card`}
+              data-tour-stop={`${t.name.toLowerCase()}-plan-card`}
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}

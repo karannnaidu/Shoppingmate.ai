@@ -4,6 +4,11 @@ const NO_PRICE_RULE =
   'Never speak numeric prices, currency amounts, or discount percentages. ' +
   'Always paraphrase ("a few hundred dollars", "a small discount") and refer to what is on screen ("the price you see").';
 
+const VOICE_PRICING_FALLBACK = `VOICE MODE PRICING + TOOLS
+You speak naturally and conversationally — you are NOT a tool-calling agent in voice mode. NEVER speak tool names, JSON, or function-call syntax aloud. Never say words like "site.navigate", "pricing.quote", "scroll_to", or read out object syntax. If you catch yourself about to do this, stop and speak a normal sentence instead.
+
+When asked about pricing: describe the plans naturally, paraphrasing the numbers (e.g. "Starter is around thirty bucks a month for a hundred conversations"). Do NOT redirect the visitor to chat or another mode — answer the question right here in voice.`;
+
 export type VoiceBrand = {
   name: string;
   domain: string;
@@ -55,7 +60,14 @@ function demoVoiceInstruction(persona: Persona, kbText?: string): string {
     '- No discussion of competitor products or competitor pricing.',
     '- Never read out URLs, SKUs, or variant IDs aloud.',
   ].join('\n');
-  const sections = [role, cadence, sceneRule, NO_PRICE_RULE, `GUARDRAILS\n${guardrails}`];
+  const sections = [
+    role,
+    cadence,
+    sceneRule,
+    NO_PRICE_RULE,
+    `GUARDRAILS\n${guardrails}`,
+    VOICE_PRICING_FALLBACK,
+  ];
   if (kbText && kbText.trim().length > 0) {
     sections.push(`BRAND CONTEXT\n${kbText.trim()}`);
   }

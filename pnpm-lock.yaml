@@ -166,6 +166,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.700.0
         version: 3.1041.0
+      '@google/generative-ai':
+        specifier: ^0.24.1
+        version: 0.24.1
       '@shoppingmate/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
@@ -263,6 +266,9 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      happy-dom:
+        specifier: ^15.11.0
+        version: 15.11.7
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -370,6 +376,28 @@ importers:
       msw:
         specifier: ^2.6.0
         version: 2.14.2(@types/node@22.19.17)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@22.19.17)(happy-dom@15.11.7)(lightningcss@1.32.0)(msw@2.14.2(@types/node@22.19.17)(typescript@5.9.3))
+
+  packages/site-graph:
+    dependencies:
+      '@shoppingmate/db':
+        specifier: workspace:*
+        version: link:../db
+      '@shoppingmate/shared':
+        specifier: workspace:*
+        version: link:../shared
+      drizzle-orm:
+        specifier: ^0.36.4
+        version: 0.36.4(@opentelemetry/api@1.9.1)(@types/react@19.2.14)(kysely@0.28.17)(postgres@3.4.9)(react@19.2.4)
+      gpt-tokenizer:
+        specifier: ^2.5.0
+        version: 2.9.0
+    devDependencies:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -1708,6 +1736,10 @@ packages:
     peerDependenciesMeta:
       '@modelcontextprotocol/sdk':
         optional: true
+
+  '@google/generative-ai@0.24.1':
+    resolution: {integrity: sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==}
+    engines: {node: '>=18.0.0'}
 
   '@hexagon/base64@1.1.28':
     resolution: {integrity: sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw==}
@@ -6735,6 +6767,8 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
+
+  '@google/generative-ai@0.24.1': {}
 
   '@hexagon/base64@1.1.28': {}
 

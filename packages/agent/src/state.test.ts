@@ -35,6 +35,7 @@ const baseSession: SessionState = {
   startedAt: 0,
   lastTurnAt: 0,
   mode: 'text',
+  allowedSpeechTokens: [],
 };
 
 describe('session repo', () => {

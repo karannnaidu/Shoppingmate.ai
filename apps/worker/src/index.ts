@@ -1,8 +1,13 @@
-import { type OnboardingJobData, createRedisConnection } from '@shoppingmate/jobs';
+import { type OnboardingJobData, createRedisConnection, siteGraphCrawlQueue as crawlQueue, siteGraphExtractQueue } from '@shoppingmate/jobs';
+import { db, schema } from '@shoppingmate/db';
+import { eq } from 'drizzle-orm';
 import { logger } from '@shoppingmate/shared';
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import { onboardingHandler } from './handlers/onboarding.js';
 import { ingestKbDoc } from './jobs/ingestKbDoc.js';
+import { runCrawlSite } from './jobs/crawlSite.js';
+import { runExtractSiteGraph } from './jobs/extractSiteGraph.js';
+import { runDriftDetect } from './cron/driftDetect.js';
 
 const worker = new Worker<OnboardingJobData>(
   'onboarding',
@@ -36,9 +41,71 @@ kbWorker.on('ready', () => logger.info('kb-ingest worker ready'));
 kbWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'kb-ingest completed'));
 kbWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: err.message }, 'kb-ingest failed'));
 
+const siteGraphCrawlWorker = new Worker(
+  'site-graph-crawl',
+  async (job) => {
+    const out = await runCrawlSite({ merchantId: job.data.merchantId as string });
+    if (out.status === 'ok') {
+      await siteGraphExtractQueue.add('extract', { merchantId: job.data.merchantId as string, crawlId: out.crawlId });
+    }
+    return out;
+  },
+  { connection: createRedisConnection(), concurrency: 2 },
+);
+
+const siteGraphExtractWorker = new Worker(
+  'site-graph-extract',
+  async (job) => runExtractSiteGraph({ merchantId: job.data.merchantId as string, crawlId: job.data.crawlId as string }),
+  { connection: createRedisConnection(), concurrency: 2 },
+);
+
+siteGraphCrawlWorker.on('ready', () => logger.info('site-graph-crawl worker ready'));
+siteGraphCrawlWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'site-graph-crawl completed'));
+siteGraphCrawlWorker.on('failed', (job, err) =>
+  logger.error({ jobId: job?.id, err: err.message }, 'site-graph-crawl failed'));
+
+siteGraphExtractWorker.on('ready', () => logger.info('site-graph-extract worker ready'));
+siteGraphExtractWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'site-graph-extract completed'));
+siteGraphExtractWorker.on('failed', (job, err) =>
+  logger.error({ jobId: job?.id, err: err.message }, 'site-graph-extract failed'));
+
+// Nightly drift-detect cron: checks top-20 page ETags at 3am UTC and re-crawls if >3 changed.
+const driftQueue = new Queue('site-graph-drift', { connection: createRedisConnection() });
+await driftQueue.add('drift-detect', {}, { repeat: { pattern: '0 3 * * *' } });
+
+const driftWorker = new Worker(
+  'site-graph-drift',
+  async () => {
+    const merchants = await db.query.merchants.findMany({
+      where: eq(schema.merchants.siteGraphEnabled, true),
+    });
+    for (const merchant of merchants) {
+      try {
+        const result = await runDriftDetect({ merchantId: merchant.id });
+        logger.info({ merchantId: merchant.id, ...result }, 'drift-detect done');
+      } catch (err) {
+        logger.error({ merchantId: merchant.id, err: (err as Error).message }, 'drift-detect failed');
+      }
+    }
+  },
+  { connection: createRedisConnection(), concurrency: 1 },
+);
+
+driftWorker.on('ready', () => logger.info('site-graph-drift worker ready'));
+driftWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'site-graph-drift completed'));
+driftWorker.on('failed', (job, err) =>
+  logger.error({ jobId: job?.id, err: err.message }, 'site-graph-drift failed'));
+
 const shutdown = async (signal: string) => {
   logger.info({ signal }, 'worker shutting down');
-  await Promise.all([worker.close(), kbWorker.close()]);
+  await Promise.all([
+    worker.close(),
+    kbWorker.close(),
+    siteGraphCrawlWorker.close(),
+    siteGraphExtractWorker.close(),
+    driftWorker.close(),
+    driftQueue.close(),
+  ]);
   process.exit(0);
 };
 process.on('SIGINT', () => shutdown('SIGINT'));

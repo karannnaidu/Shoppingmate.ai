@@ -3,6 +3,8 @@ import { createTTS } from './audio/tts.js';
 import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
 import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
+import { startActivityTracker } from './host/activity.js';
+import { executeHostAction } from './host/actions.js';
 import { type PersonaDisplay, getPersonaDisplay } from './persona.js';
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
@@ -11,6 +13,7 @@ import { type AgentSocket, connectAgentWs } from './transport/ws.js';
 import { renderCall } from './ui/call.js';
 import { renderChat } from './ui/chat.js';
 import { renderPill } from './ui/pill.js';
+import { mountSoftPrompt } from './ui/soft-prompt.js';
 
 const TAG = 'shoppingmate-widget';
 
@@ -33,6 +36,7 @@ class WidgetElement extends HTMLElement {
   private apiBase = '';
   private merchantId = '';
   private domain = window.location.host;
+  private stopActivityTracker: (() => void) | null = null;
 
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -64,6 +68,7 @@ class WidgetElement extends HTMLElement {
   disconnectedCallback() {
     this.socket?.close();
     this.voiceMode.stop();
+    this.stopActivityTracker?.();
   }
 
   private async start() {
@@ -116,11 +121,70 @@ class WidgetElement extends HTMLElement {
       onEvent: (raw) => {
         const ev = decodeAgentEvent(raw);
         if (!ev) return;
-        this.store.dispatch({ type: 'agent_event', event: ev });
-        if (ev.type === 'say') void this.voiceMode.speak(ev.text);
+        void this.handleAgentEvent(ev);
       },
       onStatus: (status) => this.store.dispatch({ type: 'set_connection', status }),
     });
+
+    const DEMO_MERCHANT_ID = 'SM-XPK2EN';
+    if (this.merchantId === DEMO_MERCHANT_ID) {
+      mountSoftPrompt(document.body, {
+        onAccept: () => {
+          this.publishWidgetMessage({ type: 'tour_request' });
+          this.openCall();
+        },
+        onDismiss: () => {},
+      });
+    }
+
+    // Task 15: start activity tracker for this session.
+    // TODO Task 15 follow-up: load hints from /v1/site-graph/:merchantId/intents
+    this.stopActivityTracker = startActivityTracker({
+      sessionId: result.sessionId,
+      hints: new Map(),
+      send: (msg) => this.publishWidgetMessage(msg),
+    });
+  }
+
+  private async handleAgentEvent(
+    ev: import('./transport/codec.js').AgentEvent,
+    origin: 'ws' | 'livekit' = 'ws',
+  ): Promise<void> {
+    if (ev.type === 'host_action_request') {
+      const result = await executeHostAction(ev.action);
+      this.publishWidgetMessage(
+        {
+          type: 'host_action_result',
+          callId: ev.callId,
+          result,
+        },
+        origin,
+      );
+      return;
+    }
+    if (ev.type === 'persona_swap') {
+      // v0.1: voice-agent owns the transport reconnect; widget no-ops.
+      return;
+    }
+    this.store.dispatch({ type: 'agent_event', event: ev });
+    if (ev.type === 'say') void this.voiceMode.speak(ev.text);
+  }
+
+  private publishWidgetMessage(
+    msg: import('./transport/codec.js').WidgetMessage,
+    origin: 'ws' | 'livekit' = 'ws',
+  ): void {
+    const encoded = encodeWidgetMessage(msg);
+    if (origin === 'livekit' && this.voiceMode.publishData) {
+      // host_action_request came in over the LiveKit data channel from the
+      // voice-agent's bridge, so the result must land in the voice-agent's
+      // pending map — not the api WS pending map. Encode the same WidgetMessage
+      // and ship the bytes over LiveKit.
+      const bytes = new TextEncoder().encode(encoded);
+      void this.voiceMode.publishData(bytes);
+      return;
+    }
+    this.socket?.send(encoded);
   }
 
   private render() {
@@ -185,8 +249,10 @@ class WidgetElement extends HTMLElement {
 
   private handleLiveKitData(bytes: Uint8Array) {
     // LiveKit data channel carries server-published JSON events from the
-    // voice-agent (user_text echo, say, cards, checkout_redirect, ...).
-    // Decode and route through the same store as WS-delivered events.
+    // voice-agent (user_text echo, say, cards, checkout_redirect,
+    // host_action_request). Decode and route, tagging origin so any
+    // widget→agent reply (host_action_result) goes back over LiveKit
+    // instead of the api WS.
     let raw: string;
     try {
       raw = new TextDecoder().decode(bytes);
@@ -195,7 +261,7 @@ class WidgetElement extends HTMLElement {
     }
     const ev = decodeAgentEvent(raw);
     if (!ev) return;
-    this.store.dispatch({ type: 'agent_event', event: ev });
+    void this.handleAgentEvent(ev, 'livekit');
   }
 
   private cardTap(p: { sku: string; variantId: string | null }) {

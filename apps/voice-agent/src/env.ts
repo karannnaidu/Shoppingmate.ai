@@ -29,3 +29,6 @@ export function voiceEnv(): VoiceEnv {
   if (!cached) cached = parseVoiceEnv(process.env);
   return cached;
 }
+
+export const DEMO_TOUR_ENABLED =
+  (process.env.SHOPPINGMATE_DEMO_TOUR_ENABLED ?? 'false').toLowerCase() === 'true';

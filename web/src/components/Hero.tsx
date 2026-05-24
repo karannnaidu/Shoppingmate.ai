@@ -100,6 +100,8 @@ export function Hero() {
             >
               <Link
                 href="/signup"
+                aria-label="Sign up"
+                data-tour-stop="signup-hero"
                 className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-foreground px-6 py-3.5 text-[15px] font-medium text-background shadow-[var(--shadow-md)] transition-transform hover:scale-[1.02] active:scale-[0.98]"
               >
                 <span className="relative z-10">Get started — $30/mo</span>

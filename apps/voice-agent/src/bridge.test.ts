@@ -150,3 +150,33 @@ describe('createBridge — STT-final → runTurn → say → speak', () => {
     expect(yieldOrder).toEqual(['first', 'spoke:first', 'second', 'spoke:second']);
   });
 });
+
+describe('bridge.dispatchHostAction()', () => {
+  it('publishes a host_action_request to the data channel and resolves with the matching result', async () => {
+    const deps = baseDeps();
+    const bridge = createBridge(deps);
+    const promise = bridge.dispatchHostAction!({ type: 'navigate', path: '/pricing' });
+    const calls = (deps.publishData as ReturnType<typeof vi.fn>).mock.calls;
+    const haCall = calls.find((c) => (c[0] as { type: string }).type === 'host_action_request');
+    expect(haCall).toBeDefined();
+    const msg = haCall![0] as { type: string; callId: string; action: unknown };
+    expect(msg).toMatchObject({
+      type: 'host_action_request',
+      action: { type: 'navigate', path: '/pricing' },
+    });
+    bridge.deliverHostActionResult!({ callId: msg.callId, result: { ok: true } });
+    const result = await promise;
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('times out a host action after 5 seconds with reason: timeout', async () => {
+    vi.useFakeTimers();
+    const deps = baseDeps();
+    const bridge = createBridge(deps);
+    const promise = bridge.dispatchHostAction!({ type: 'click', intent: 'signup button' });
+    vi.advanceTimersByTime(6000);
+    const result = await promise;
+    expect(result).toEqual({ ok: false, reason: 'timeout' });
+    vi.useRealTimers();
+  });
+});

@@ -109,3 +109,55 @@ describe('dispatchTool()', () => {
     expect(r).toEqual({ ok: false, kind: 'not_found', query: 'nonexistent' });
   });
 });
+
+describe('buildToolSurface (demo-merchant gate)', () => {
+  it('exposes site.* + pricing.quote tools only when merchant.id === SHOPPINGMATE_DEMO_MERCHANT_ID', () => {
+    const demo = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as unknown as Merchant;
+    const tools = buildToolSurface(demo);
+    const names = tools.map((t) => t.function.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'site.navigate',
+        'site.scroll_to',
+        'site.highlight',
+        'site.click',
+        'pricing.quote',
+      ]),
+    );
+  });
+
+  it('hides site.* + pricing.quote from non-demo merchants', () => {
+    const real = { id: 'M-FOO123', name: 'Real Brand', domain: 'real.example' } as unknown as Merchant;
+    const tools = buildToolSurface(real);
+    const names = tools.map((t) => t.function.name);
+    expect(names).not.toEqual(expect.arrayContaining(['site.navigate']));
+    expect(names).not.toEqual(expect.arrayContaining(['pricing.quote']));
+  });
+});
+
+describe('dispatchTool (Bucket B tools)', () => {
+  it('pricing.quote returns the canonical speech string for Starter', async () => {
+    const fakeAdapter = {} as unknown as Adapter;
+    const fakeCtx = {} as unknown as AdapterContext;
+    const r = await dispatchTool(fakeAdapter, fakeCtx, 'pricing.quote', { plan_id: 'starter' });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const v = r.value as { speech: string; planId: string; card: { name: string } };
+      expect(v.speech).toBe(
+        'Starter is thirty dollars per month for one hundred conversations.',
+      );
+      expect(v.planId).toBe('starter');
+      expect(v.card.name).toBe('Starter');
+    }
+  });
+
+  it('pricing.quote returns not_found for an unknown plan', async () => {
+    const r = await dispatchTool(
+      {} as unknown as Adapter,
+      {} as unknown as AdapterContext,
+      'pricing.quote',
+      { plan_id: 'mystery' },
+    );
+    expect(r.ok).toBe(false);
+  });
+});

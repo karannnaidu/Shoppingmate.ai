@@ -2,6 +2,7 @@ import type { Adapter, AdapterContext } from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
 import { type ChatToolsResult, chatTools } from '@shoppingmate/shared';
 import { checkCaps } from './caps.js';
+import type { HostAction, HostActionResult } from './host-actions.js';
 import { redactPii, segmentSay, stripPrices } from './postprocess.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
 import { type ToolResultEnvelope, buildToolSurface, dispatchTool } from './tools.js';
@@ -34,6 +35,9 @@ export type RunTurnDeps = {
   // omitted, buildSystemPrompt runs with no KB text and demoMode=false — the
   // pre-Phase-2 behavior tests rely on.
   loadPromptOpts?: (merchant: Merchant) => Promise<SystemPromptOpts>;
+  // Optional dispatcher for site.* host actions (navigations, scrolls, etc.).
+  // When omitted, site.* calls return an unsupported envelope.
+  dispatchHostAction?: (action: HostAction) => Promise<HostActionResult>;
 };
 
 export async function* runTurn(
@@ -182,6 +186,7 @@ export async function* runTurn(
   const ctx = makeCtx(merchant, session);
   const collectedCards: CardItem[] = [];
   const toolCallCounts = new Map<string, number>();
+  const accumulatedAllowedTokens: string[] = [...session.allowedSpeechTokens];
 
   let response: ChatToolsResult | undefined;
   for (let iter = 0; iter < MAX_TOOL_LOOP_ITERATIONS; iter += 1) {
@@ -250,7 +255,37 @@ export async function* runTurn(
           // bad arguments JSON from the model — surface as unsupported via dispatchTool
         }
         const start = Date.now();
-        envelope = await dispatchTool(adapter, ctx, call.name, args);
+        if (
+          call.name === 'site.navigate' ||
+          call.name === 'site.scroll_to' ||
+          call.name === 'site.highlight' ||
+          call.name === 'site.click'
+        ) {
+          if (!deps.dispatchHostAction) {
+            envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
+          } else {
+            const action = toHostAction(call.name, args);
+            const result = await deps.dispatchHostAction(action);
+            envelope = result.ok
+              ? { ok: true, value: result }
+              : { ok: false, kind: 'unsupported', reason: result.reason };
+          }
+        } else {
+          envelope = await dispatchTool(adapter, ctx, call.name, args);
+        }
+        if (envelope.ok && call.name === 'pricing.quote') {
+          const v = envelope.value as { speech?: string };
+          if (typeof v.speech === 'string') {
+            accumulatedAllowedTokens.push(v.speech);
+          }
+        }
+        if (call.name === 'pricing.quote') {
+          await deps.recordMetric('pricing.quote.called', {
+            merchantId: merchant.id,
+            sessionId: session.sessionId,
+            planId: String(args.plan_id ?? 'unknown'),
+          });
+        }
         await deps.recordMetric('agent.tool.invoked', {
           merchantId: merchant.id,
           sessionId: session.sessionId,
@@ -295,7 +330,7 @@ export async function* runTurn(
   }
 
   const responseText = response?.text ?? '';
-  const { text: stripped, hits } = stripPrices(responseText);
+  const { text: stripped, hits } = stripPrices(responseText, new Set(accumulatedAllowedTokens));
   const firstHit = hits[0];
   if (firstHit) {
     await deps.recordMetric(
@@ -305,6 +340,13 @@ export async function* runTurn(
         sessionId: session.sessionId,
         pattern: firstHit.pattern,
       },
+      hits.length,
+    );
+  }
+  if (accumulatedAllowedTokens.length > 0 && hits.length > 0) {
+    await deps.recordMetric(
+      'pricing.quote.rephrased_blocked',
+      { merchantId: merchant.id, sessionId: session.sessionId },
       hits.length,
     );
   }
@@ -320,6 +362,7 @@ export async function* runTurn(
     voiceMs: session.mode === 'voice' ? session.voiceMs + (Date.now() - now) : session.voiceMs,
     totalMs: Date.now() - session.startedAt,
     lastTurnAt: Date.now(),
+    allowedSpeechTokens: accumulatedAllowedTokens,
   };
   await deps.saveSession(updated);
   yield { type: 'end_of_turn' };
@@ -403,4 +446,23 @@ function formatPrice(cents: number, currency: string): string {
   if (currency === 'INR') return `\u20B9${amount}`;
   if (currency === 'USD') return `$${amount}`;
   return `${currency} ${amount}`;
+}
+
+function toHostAction(name: string, args: Record<string, unknown>): HostAction {
+  switch (name) {
+    case 'site.navigate':
+      return { type: 'navigate', path: String(args.path ?? '') };
+    case 'site.scroll_to':
+      return { type: 'scroll_to', intent: String(args.intent ?? '') };
+    case 'site.highlight':
+      return {
+        type: 'highlight',
+        intent: String(args.intent ?? ''),
+        durationMs: typeof args.duration_ms === 'number' ? args.duration_ms : undefined,
+      };
+    case 'site.click':
+      return { type: 'click', intent: String(args.intent ?? '') };
+    default:
+      throw new Error(`toHostAction: unknown site tool ${name}`);
+  }
 }

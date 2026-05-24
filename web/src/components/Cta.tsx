@@ -45,6 +45,8 @@ export function Cta() {
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
                   href="/signup"
+                  aria-label="Sign up"
+                  data-tour-stop="signup"
                   className="group inline-flex items-center gap-2 rounded-full bg-background px-6 py-3.5 text-[15px] font-medium text-foreground transition-transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   Get started — $30/mo

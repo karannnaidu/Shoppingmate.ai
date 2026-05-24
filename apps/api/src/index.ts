@@ -3,7 +3,7 @@ import { InMemorySessionState, type WSTransport, getAdapter } from '@shoppingmat
 import { db, schema } from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
 import { env, logger } from '@shoppingmate/shared';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Redis } from 'ioredis';
@@ -18,10 +18,13 @@ import {
   runTurn,
   saveSession,
 } from '@shoppingmate/agent';
+import type { HostAction, HostActionResult } from '@shoppingmate/agent';
 import { healthRoute } from './routes/health.js';
 import { installRoute } from './routes/install.js';
 import { sessionRoute } from './routes/session.js';
+import { siteGraphRoute } from './routes/siteGraph.js';
 import { slackRoute } from './routes/slack/index.js';
+import { shopifyWebhookRoute } from './routes/webhooks/shopify.js';
 import { voiceTokenRoute } from './routes/voice-token.js';
 import { mountAgentWs } from './ws/agent.js';
 
@@ -44,8 +47,10 @@ app.use(
 app.route('/health', healthRoute);
 app.route('/v1/install', installRoute);
 app.route('/v1/session', sessionRoute);
+app.route('/v1/site-graph', siteGraphRoute);
 app.route('/v1/slack', slackRoute);
 app.route('/v1/voice/token', voiceTokenRoute);
+app.route('/webhooks/shopify', shopifyWebhookRoute);
 
 const server = serve({ fetch: app.fetch, port: env.API_PORT }, ({ port }) => {
   logger.info({ port }, 'api listening');
@@ -61,6 +66,16 @@ mountWs(server);
 const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const noopTransport: WSTransport = new NoOpWSTransport();
 
+// Per-session pending host action callbacks. The widget answers
+// host_action_request with host_action_result asynchronously over the same
+// WS, so dispatchHostAction parks a resolver here keyed by callId.
+const HOST_ACTION_TIMEOUT_MS = 5000;
+const pendingHostActions = new Map<
+  string,
+  Map<string, { resolve: (r: HostActionResult) => void; timer: NodeJS.Timeout }>
+>();
+let hostActionCounter = 0;
+
 mountAgentWs(server, {
   onMessage: async (sessionId, merchantId, raw, send) => {
     const msg = decodeWidgetMessage(raw);
@@ -69,8 +84,47 @@ mountAgentWs(server, {
       return;
     }
 
+    if (msg.type === 'host_action_result') {
+      const sessionPending = pendingHostActions.get(sessionId);
+      const entry = sessionPending?.get(msg.callId);
+      if (entry) {
+        clearTimeout(entry.timer);
+        sessionPending!.delete(msg.callId);
+        entry.resolve(msg.result);
+      }
+      return;
+    }
+
+    if (msg.type === 'tour_request') {
+      // The widget user accepted the soft prompt — the runtime decides what
+      // to do with this hint on the next user_text turn. For now we just
+      // log it; the actual tour is driven by the model's tool calls.
+      logger.info({ sessionId, merchantId }, 'tour_request received from widget');
+      return;
+    }
+
+    if (msg.type === 'visitor_action') {
+      const session = await loadSession(redis, sessionId);
+      if (!session) {
+        // No active session — drop silently. visitor_action only makes sense
+        // mid-conversation when the runtime can pick it up on the next user_text.
+        return;
+      }
+      const label = msg.intentKey ?? msg.elementLabel ?? 'unknown element';
+      const ts = new Date(msg.timestamp).toISOString().slice(11, 19);
+      const note = `[VISITOR_CONTEXT] At ${ts} the visitor ${verbForAction(msg.action)} "${label}" on ${msg.url}.`;
+      session.history.push({ role: 'user', content: note });
+      await saveSession(redis, session);
+      return;
+    }
+
     if (msg.type === 'session_end') {
       await redis.del(`session:${sessionId}`);
+      const sessionPending = pendingHostActions.get(sessionId);
+      if (sessionPending) {
+        for (const entry of sessionPending.values()) clearTimeout(entry.timer);
+        pendingHostActions.delete(sessionId);
+      }
       send(encodeAgentEvent({ type: 'session_closed', reason: 'user' }));
       return;
     }
@@ -109,6 +163,23 @@ mountAgentWs(server, {
       return;
     }
 
+    const dispatchHostAction = async (action: HostAction): Promise<HostActionResult> => {
+      return new Promise<HostActionResult>((resolve) => {
+        const callId = `ha_${++hostActionCounter}_${Date.now()}`;
+        let sessionPending = pendingHostActions.get(sessionId);
+        if (!sessionPending) {
+          sessionPending = new Map();
+          pendingHostActions.set(sessionId, sessionPending);
+        }
+        const timer = setTimeout(() => {
+          sessionPending!.delete(callId);
+          resolve({ ok: false, reason: 'timeout' });
+        }, HOST_ACTION_TIMEOUT_MS);
+        sessionPending.set(callId, { resolve, timer });
+        send(encodeAgentEvent({ type: 'host_action_request', callId, action }));
+      });
+    };
+
     const deps = {
       loadAdapter: () =>
         getAdapter(merchant, {
@@ -123,6 +194,7 @@ mountAgentWs(server, {
           .onConflictDoNothing();
       },
       loadPromptOpts: async (m: typeof merchant) => loadPromptOpts(m.id),
+      dispatchHostAction,
     };
 
     for await (const ev of runTurn(deps, merchant, session, msg)) {
@@ -133,6 +205,18 @@ mountAgentWs(server, {
 
 logger.info({ port: env.API_PORT }, 'agent ws mounted at /v1/widget/:sessionId/agent');
 
+function verbForAction(a: string): string {
+  switch (a) {
+    case 'click': return 'clicked';
+    case 'route_change': return 'navigated to';
+    case 'dwell': return 'is reading';
+    case 'cart_add': return 'added to cart';
+    case 'form_focus': return 'started filling';
+    case 'outbound_click': return 'opened external link';
+    default: return 'interacted with';
+  }
+}
+
 // Cap KB injection at the first 32 chunks (≈ 8K tokens at 256 tokens/chunk
 // target). Bigger contexts blow Sonnet/Gemini token budgets and slow first
 // token. Naïve concat is fine for Phase A — Phase 2's retrieval upgrade can
@@ -142,6 +226,7 @@ const KB_CHUNK_LIMIT = 32;
 async function loadPromptOpts(merchantId: string): Promise<{
   kbText?: string;
   demoMode?: boolean;
+  siteGraphText?: string;
 }> {
   const chunks = await db
     .select({ text: schema.brandKbChunks.text })
@@ -150,5 +235,15 @@ async function loadPromptOpts(merchantId: string): Promise<{
     .orderBy(asc(schema.brandKbChunks.chunkIndex))
     .limit(KB_CHUNK_LIMIT);
   const kbText = chunks.length > 0 ? chunks.map((c) => c.text).join('\n\n') : undefined;
-  return { kbText, demoMode: merchantId === env.SHOPPINGMATE_DEMO_MERCHANT_ID };
+  const projection = await db.query.projectionCache.findFirst({
+    where: and(
+      eq(schema.projectionCache.merchantId, merchantId),
+      eq(schema.projectionCache.consumer, 'sonnet_addendum'),
+    ),
+  });
+  return {
+    kbText,
+    demoMode: merchantId === env.SHOPPINGMATE_DEMO_MERCHANT_ID,
+    siteGraphText: projection?.output,
+  };
 }

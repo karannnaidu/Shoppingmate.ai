@@ -10,6 +10,7 @@ export type LiveKitHandle = {
   setMicEnabled: (enabled: boolean) => Promise<void>;
   onData: (cb: (bytes: Uint8Array) => void) => void;
   onAgentSpeaking: (cb: (speaking: boolean) => void) => void;
+  publishData: (bytes: Uint8Array) => Promise<void>;
   disconnect: () => Promise<void>;
 };
 
@@ -22,7 +23,10 @@ type RemoteTrackShape = {
 type RoomShape = {
   connect: (url: string, token: string) => Promise<void>;
   on: (ev: string, cb: (...args: unknown[]) => void) => void;
-  localParticipant: { setMicrophoneEnabled: (b: boolean) => Promise<void> };
+  localParticipant: {
+    setMicrophoneEnabled: (b: boolean) => Promise<void>;
+    publishData: (bytes: Uint8Array, opts?: { reliable?: boolean }) => Promise<void>;
+  };
   disconnect: () => Promise<void>;
 };
 
@@ -88,6 +92,7 @@ export async function connectToRoom(opts: {
     onAgentSpeaking: (cb) => {
       speakingListeners.push(cb);
     },
+    publishData: (bytes) => room.localParticipant.publishData(bytes, { reliable: true }),
     disconnect: async () => {
       for (const el of attached.values()) el.remove();
       attached.clear();

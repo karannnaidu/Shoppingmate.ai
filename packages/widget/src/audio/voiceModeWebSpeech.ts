@@ -10,6 +10,11 @@ export type VoiceMode = {
   setMuted: (m: boolean) => void;
   getState: () => VoiceModeState;
   onStateChange: (cb: (s: VoiceModeState) => void) => void;
+  // Implementations that own an outbound channel (LiveKit data channel) can
+  // route widget→agent messages back. Web-speech mode no-ops since it has
+  // no transport. Used by host_action_result in voice mode so the result
+  // lands in the voice-agent's bridge, not the api WS.
+  publishData?: (bytes: Uint8Array) => Promise<void>;
 };
 
 export function createVoiceMode(stt: STT | null, tts: TTS): VoiceMode {

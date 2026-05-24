@@ -28,21 +28,25 @@ export type GeminiSession = {
   interrupt: () => void;
   close: () => Promise<void>;
   onEvent: (cb: (e: GeminiTransportEvent) => void) => void;
+  updateAllowedSpeechTokens: (tokens: Set<string>) => void;
 };
 
 const NUMERIC_PRICE = /[\$€£¥₹]|\b\d/;
+const NUMERIC_CHAR = /[\$€£¥₹\d]/;
 
 export function createGeminiSession(opts: {
   transport: GeminiTransport;
   voiceId: string;
   systemInstruction: string;
+  allowedSpeechTokens?: Set<string>;
 }): GeminiSession {
   const { transport, voiceId, systemInstruction } = opts;
+  let allowed = new Set(opts.allowedSpeechTokens ?? []);
   return {
     open: () => transport.open({ voiceId, systemInstruction }),
     pushAudio: (f) => transport.pushAudio(f),
     speak: async (text) => {
-      if (NUMERIC_PRICE.test(text)) {
+      if (NUMERIC_PRICE.test(text) && !isFullyCoveredByAllowed(text, allowed)) {
         throw new Error(
           `geminiSession.speak() refused numeric content (defense-in-depth on no-numeric-prices invariant): "${text}"`,
         );
@@ -52,5 +56,28 @@ export function createGeminiSession(opts: {
     interrupt: () => transport.interrupt(),
     close: () => transport.close(),
     onEvent: (cb) => transport.onEvent(cb),
+    updateAllowedSpeechTokens: (tokens) => {
+      allowed = new Set(tokens);
+    },
   };
+}
+
+function isFullyCoveredByAllowed(text: string, allowed: Set<string>): boolean {
+  if (allowed.size === 0) return false;
+  const mask = new Uint8Array(text.length);
+  for (const token of allowed) {
+    if (!token) continue;
+    let i = 0;
+    while (i <= text.length - token.length) {
+      const j = text.indexOf(token, i);
+      if (j < 0) break;
+      for (let k = j; k < j + token.length; k++) mask[k] = 1;
+      i = j + token.length;
+    }
+  }
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (NUMERIC_CHAR.test(ch) && mask[i] !== 1) return false;
+  }
+  return true;
 }

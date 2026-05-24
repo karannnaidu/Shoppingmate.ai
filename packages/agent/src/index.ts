@@ -39,3 +39,13 @@ export {
 } from './prompts/system.js';
 export { PERSONAS, DEFAULT_PERSONA, lookupPersona, type Persona } from './prompts/persona-table.js';
 export { buildVoiceSystemInstruction } from './prompts/voice-instructions.js';
+export type {
+  HostAction,
+  HostActionResult,
+  HostActionRequest,
+  HostActionResponse,
+  PricingQuote,
+} from './host-actions.js';
+export { PLANS, findPlan, type Plan } from './pricing/plans.js';
+export { formatPlanSpeech, numberToWords } from './pricing/speech.js';
+export { createTour, type Tour, type TourBeat, type TourState, type BeatPlan } from './demo-tour.js';
