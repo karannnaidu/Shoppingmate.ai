@@ -26,7 +26,16 @@ export type WidgetMessage =
   | { type: 'session_resume'; sessionId: string }
   | { type: 'session_end'; sessionId: string }
   | { type: 'host_action_result'; callId: string; result: HostActionResult }
-  | { type: 'tour_request' };
+  | { type: 'tour_request' }
+  | {
+      type: 'visitor_action';
+      sessionId: string;
+      action: 'click' | 'route_change' | 'dwell' | 'cart_add' | 'form_focus' | 'outbound_click';
+      intentKey: string | null;
+      url: string;
+      elementLabel: string | null;
+      timestamp: number;
+    };
 
 export type AgentEvent =
   | { type: 'thinking' }

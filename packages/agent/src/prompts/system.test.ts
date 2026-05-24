@@ -58,3 +58,16 @@ describe('SITE_GRAPH_SLOT injection', () => {
     expect(out).toContain('SITE MAP — pages');
   });
 });
+
+describe('VISITOR AWARENESS section', () => {
+  it('appears in the standard system prompt', () => {
+    const p = buildSystemPrompt(merchant);
+    expect(p).toContain('VISITOR AWARENESS');
+    expect(p).toContain('[VISITOR_CONTEXT]');
+  });
+  it('appears in the demo system prompt', () => {
+    const p = buildSystemPrompt(merchant, { demoMode: true });
+    expect(p).toContain('VISITOR AWARENESS');
+    expect(p).toContain('[VISITOR_CONTEXT]');
+  });
+});

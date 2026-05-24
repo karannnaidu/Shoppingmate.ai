@@ -63,6 +63,22 @@ export function decodeWidgetMessage(raw: string): WidgetMessage | null {
     }
     case 'tour_request':
       return { type: 'tour_request' };
+    case 'visitor_action': {
+      if (typeof obj.sessionId !== 'string') return null;
+      const ACTIONS = ['click', 'route_change', 'dwell', 'cart_add', 'form_focus', 'outbound_click'] as const;
+      if (typeof obj.action !== 'string' || !(ACTIONS as readonly string[]).includes(obj.action)) return null;
+      if (typeof obj.url !== 'string') return null;
+      if (typeof obj.timestamp !== 'number') return null;
+      return {
+        type: 'visitor_action',
+        sessionId: obj.sessionId,
+        action: obj.action as (typeof ACTIONS)[number],
+        intentKey: typeof obj.intentKey === 'string' ? obj.intentKey : null,
+        url: obj.url,
+        elementLabel: typeof obj.elementLabel === 'string' ? obj.elementLabel : null,
+        timestamp: obj.timestamp,
+      };
+    }
     default:
       return null;
   }

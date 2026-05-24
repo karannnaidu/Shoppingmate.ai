@@ -101,6 +101,21 @@ mountAgentWs(server, {
       return;
     }
 
+    if (msg.type === 'visitor_action') {
+      const session = await loadSession(redis, sessionId);
+      if (!session) {
+        // No active session — drop silently. visitor_action only makes sense
+        // mid-conversation when the runtime can pick it up on the next user_text.
+        return;
+      }
+      const label = msg.intentKey ?? msg.elementLabel ?? 'unknown element';
+      const ts = new Date(msg.timestamp).toISOString().slice(11, 19);
+      const note = `[VISITOR_CONTEXT] At ${ts} the visitor ${verbForAction(msg.action)} "${label}" on ${msg.url}.`;
+      session.history.push({ role: 'user', content: note });
+      await saveSession(redis, session);
+      return;
+    }
+
     if (msg.type === 'session_end') {
       await redis.del(`session:${sessionId}`);
       const sessionPending = pendingHostActions.get(sessionId);
@@ -187,6 +202,18 @@ mountAgentWs(server, {
 });
 
 logger.info({ port: env.API_PORT }, 'agent ws mounted at /v1/widget/:sessionId/agent');
+
+function verbForAction(a: string): string {
+  switch (a) {
+    case 'click': return 'clicked';
+    case 'route_change': return 'navigated to';
+    case 'dwell': return 'is reading';
+    case 'cart_add': return 'added to cart';
+    case 'form_focus': return 'started filling';
+    case 'outbound_click': return 'opened external link';
+    default: return 'interacted with';
+  }
+}
 
 // Cap KB injection at the first 32 chunks (≈ 8K tokens at 256 tokens/chunk
 // target). Bigger contexts blow Sonnet/Gemini token budgets and slow first

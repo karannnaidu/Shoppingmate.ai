@@ -54,6 +54,11 @@ ${kbBlock}
 
 SITE NAVIGATION (your map of this brand's site)
 ${siteGraphBlock}
+
+VISITOR AWARENESS
+- When you see a line beginning with [VISITOR_CONTEXT] in your history, it is ambient awareness of what the visitor just did on the page. Do not acknowledge every action.
+- Only speak about it if it changes what you'd do next — e.g. "I see you opened the Starter card, want me to walk you through what's included?"
+- For most actions, stay silent and let the visitor lead.
 `;
 }
 
@@ -116,5 +121,10 @@ ${kbBlock}
 
 SITE NAVIGATION (your map of this brand's site)
 ${siteGraphBlock}
+
+VISITOR AWARENESS
+- When you see a line beginning with [VISITOR_CONTEXT] in your history, it is ambient awareness of what the visitor just did on the page. Do not acknowledge every action.
+- Only speak about it if it changes what you'd do next — e.g. "I see you opened the Starter card, want me to walk you through what's included?"
+- For most actions, stay silent and let the visitor lead.
 `;
 }
