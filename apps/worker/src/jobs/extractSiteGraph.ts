@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm';
 import { loadSiteGraph, projectSonnetAddendum } from '@shoppingmate/site-graph';
 import { extractStructured } from '../steps/siteGraph/extractStructured.js';
 import { generateAltText, needsGeneratedAlt } from '../steps/siteGraph/vision.js';
+import { geminiExtractCall } from '../llm/geminiExtract.js';
+import { geminiVisionCall } from '../llm/geminiVision.js';
 
 export type ExtractSiteGraphArgs = {
   merchantId: string;
@@ -19,8 +21,8 @@ export type ExtractSiteGraphResult = { status: 'ok' | 'failed'; error?: string }
 
 export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<ExtractSiteGraphResult> {
   const db = args.db ?? defaultDb;
-  const extract = args.extractFn ?? ((opts) => extractStructured({ ...opts, llmCall: defaultLlm }));
-  const visionFn = args.visionFn ?? defaultVision;
+  const extract = args.extractFn ?? ((opts) => extractStructured({ ...opts, llmCall: geminiExtractCall }));
+  const visionFn = args.visionFn ?? geminiVisionCall;
   const visionCap = args.visionCap ?? 100;
 
   const merchant = await db.query.merchants.findFirst({
@@ -39,7 +41,7 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
     if (!art.contentType.includes('html')) continue;
     const buf = args.downloadObject ? await args.downloadObject(art.storageKey) : Buffer.alloc(0);
     const html = buf.toString('utf-8');
-    const extracted = await extract({ html, url: art.url, llmCall: defaultLlm });
+    const extracted = await extract({ html, url: art.url, llmCall: geminiExtractCall });
 
     const pageId = randomUUID();
     await db.insert(schema.sitePages).values({
@@ -124,11 +126,4 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
     .where(eq(schema.merchants.id, args.merchantId));
 
   return { status: 'ok' };
-}
-
-async function defaultLlm(_prompt: string): Promise<unknown> {
-  throw new Error('LLM not wired — provide extractFn arg');
-}
-async function defaultVision(_url: string): Promise<string> {
-  throw new Error('Vision not wired — provide visionFn arg');
 }
