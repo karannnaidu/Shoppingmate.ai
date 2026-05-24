@@ -3,7 +3,7 @@ import { InMemorySessionState, type WSTransport, getAdapter } from '@shoppingmat
 import { db, schema } from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
 import { env, logger } from '@shoppingmate/shared';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Redis } from 'ioredis';
@@ -195,6 +195,7 @@ const KB_CHUNK_LIMIT = 32;
 async function loadPromptOpts(merchantId: string): Promise<{
   kbText?: string;
   demoMode?: boolean;
+  siteGraphText?: string;
 }> {
   const chunks = await db
     .select({ text: schema.brandKbChunks.text })
@@ -203,5 +204,15 @@ async function loadPromptOpts(merchantId: string): Promise<{
     .orderBy(asc(schema.brandKbChunks.chunkIndex))
     .limit(KB_CHUNK_LIMIT);
   const kbText = chunks.length > 0 ? chunks.map((c) => c.text).join('\n\n') : undefined;
-  return { kbText, demoMode: merchantId === env.SHOPPINGMATE_DEMO_MERCHANT_ID };
+  const projection = await db.query.projectionCache.findFirst({
+    where: and(
+      eq(schema.projectionCache.merchantId, merchantId),
+      eq(schema.projectionCache.consumer, 'sonnet_addendum'),
+    ),
+  });
+  return {
+    kbText,
+    demoMode: merchantId === env.SHOPPINGMATE_DEMO_MERCHANT_ID,
+    siteGraphText: projection?.output,
+  };
 }

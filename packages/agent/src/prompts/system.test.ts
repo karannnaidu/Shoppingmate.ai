@@ -1,6 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { describe, expect, it } from 'vitest';
-import { BRAND_KB_SLOT, buildSystemPrompt } from './system.js';
+import { BRAND_KB_SLOT, SITE_GRAPH_SLOT, buildSystemPrompt } from './system.js';
 
 const merchant = {
   id: 'm_1',
@@ -38,5 +38,23 @@ describe('buildSystemPrompt()', () => {
     const m = { ...merchant, name: null } as unknown as Merchant;
     const p = buildSystemPrompt(m);
     expect(p).toContain('acme.test');
+  });
+});
+
+describe('SITE_GRAPH_SLOT injection', () => {
+  it('uses raw slot placeholder when siteGraphText is missing', () => {
+    const m = {
+      id: 'm1', name: 'Acme', domain: 'acme.com', personaId: 'concierge', adapterType: 'shopify',
+    } as never;
+    const out = buildSystemPrompt(m, {});
+    expect(out).toContain(SITE_GRAPH_SLOT);
+  });
+  it('replaces slot with provided siteGraphText', () => {
+    const m = {
+      id: 'm1', name: 'Acme', domain: 'acme.com', personaId: 'concierge', adapterType: 'shopify',
+    } as never;
+    const out = buildSystemPrompt(m, { siteGraphText: 'SITE MAP — pages: /\n  /pricing' });
+    expect(out).not.toContain(SITE_GRAPH_SLOT);
+    expect(out).toContain('SITE MAP — pages');
   });
 });
