@@ -24,6 +24,7 @@ import { installRoute } from './routes/install.js';
 import { sessionRoute } from './routes/session.js';
 import { siteGraphRoute } from './routes/siteGraph.js';
 import { slackRoute } from './routes/slack/index.js';
+import { shopifyWebhookRoute } from './routes/webhooks/shopify.js';
 import { voiceTokenRoute } from './routes/voice-token.js';
 import { mountAgentWs } from './ws/agent.js';
 
@@ -49,6 +50,7 @@ app.route('/v1/session', sessionRoute);
 app.route('/v1/site-graph', siteGraphRoute);
 app.route('/v1/slack', slackRoute);
 app.route('/v1/voice/token', voiceTokenRoute);
+app.route('/webhooks/shopify', shopifyWebhookRoute);
 
 const server = serve({ fetch: app.fetch, port: env.API_PORT }, ({ port }) => {
   logger.info({ port }, 'api listening');
