@@ -1,10 +1,13 @@
-import { type OnboardingJobData, createRedisConnection, siteGraphExtractQueue } from '@shoppingmate/jobs';
+import { type OnboardingJobData, createRedisConnection, siteGraphCrawlQueue as crawlQueue, siteGraphExtractQueue } from '@shoppingmate/jobs';
+import { db, schema } from '@shoppingmate/db';
+import { eq } from 'drizzle-orm';
 import { logger } from '@shoppingmate/shared';
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import { onboardingHandler } from './handlers/onboarding.js';
 import { ingestKbDoc } from './jobs/ingestKbDoc.js';
 import { runCrawlSite } from './jobs/crawlSite.js';
 import { runExtractSiteGraph } from './jobs/extractSiteGraph.js';
+import { runDriftDetect } from './cron/driftDetect.js';
 
 const worker = new Worker<OnboardingJobData>(
   'onboarding',
@@ -66,6 +69,33 @@ siteGraphExtractWorker.on('completed', (job) => logger.info({ jobId: job.id }, '
 siteGraphExtractWorker.on('failed', (job, err) =>
   logger.error({ jobId: job?.id, err: err.message }, 'site-graph-extract failed'));
 
+// Nightly drift-detect cron: checks top-20 page ETags at 3am UTC and re-crawls if >3 changed.
+const driftQueue = new Queue('site-graph-drift', { connection: createRedisConnection() });
+await driftQueue.add('drift-detect', {}, { repeat: { pattern: '0 3 * * *' } });
+
+const driftWorker = new Worker(
+  'site-graph-drift',
+  async () => {
+    const merchants = await db.query.merchants.findMany({
+      where: eq(schema.merchants.siteGraphEnabled, true),
+    });
+    for (const merchant of merchants) {
+      try {
+        const result = await runDriftDetect({ merchantId: merchant.id });
+        logger.info({ merchantId: merchant.id, ...result }, 'drift-detect done');
+      } catch (err) {
+        logger.error({ merchantId: merchant.id, err: (err as Error).message }, 'drift-detect failed');
+      }
+    }
+  },
+  { connection: createRedisConnection(), concurrency: 1 },
+);
+
+driftWorker.on('ready', () => logger.info('site-graph-drift worker ready'));
+driftWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'site-graph-drift completed'));
+driftWorker.on('failed', (job, err) =>
+  logger.error({ jobId: job?.id, err: err.message }, 'site-graph-drift failed'));
+
 const shutdown = async (signal: string) => {
   logger.info({ signal }, 'worker shutting down');
   await Promise.all([
@@ -73,6 +103,8 @@ const shutdown = async (signal: string) => {
     kbWorker.close(),
     siteGraphCrawlWorker.close(),
     siteGraphExtractWorker.close(),
+    driftWorker.close(),
+    driftQueue.close(),
   ]);
   process.exit(0);
 };
