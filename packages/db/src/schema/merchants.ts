@@ -61,6 +61,8 @@ export const merchants = pgTable('merchants', {
   autoRechargeEnabled: boolean('auto_recharge_enabled').notNull().default(false),
   autoRechargeThreshold: integer('auto_recharge_threshold'),
   autoRechargePackSize: integer('auto_recharge_pack_size'),
+  siteGraphEnabled: boolean('site_graph_enabled').notNull().default(false),
+  siteGraphVersion: integer('site_graph_version').notNull().default(0),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 

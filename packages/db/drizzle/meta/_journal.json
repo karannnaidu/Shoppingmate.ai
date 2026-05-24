@@ -71,6 +71,13 @@
       "when": 1777937324528,
       "tag": "0009_amusing_maverick",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779625820291,
+      "tag": "0010_adorable_landau",
+      "breakpoints": true
     }
   ]
 }
