@@ -26,7 +26,15 @@ export type WidgetMessage =
   | { type: 'session_resume'; sessionId: string }
   | { type: 'session_end'; sessionId: string }
   | { type: 'host_action_result'; callId: string; result: HostActionResult }
-  | { type: 'tour_request' };
+  | { type: 'tour_request' }
+  | { type: 'visitor_action';
+      sessionId: string;
+      action: 'click' | 'route_change' | 'dwell' | 'cart_add' | 'form_focus' | 'outbound_click';
+      intentKey: string | null;
+      url: string;
+      elementLabel: string | null;
+      timestamp: number;
+    };
 
 export type AgentEvent =
   | { type: 'thinking' }
@@ -51,7 +59,9 @@ export type HostAction =
   | { type: 'navigate'; path: string }
   | { type: 'scroll_to'; intent: string }
   | { type: 'highlight'; intent: string; durationMs?: number }
-  | { type: 'click'; intent: string };
+  | { type: 'click'; intent: string }
+  | { type: 'point_at'; intent: string }
+  | { type: 'demo_click'; intent: string };
 
 export type HostActionResult =
   | { ok: true }
@@ -65,6 +75,8 @@ function isValidHostAction(a: any): a is HostAction {
     case 'scroll_to':
     case 'highlight':
     case 'click':
+    case 'point_at':
+    case 'demo_click':
       return typeof a.intent === 'string';
     default:
       return false;

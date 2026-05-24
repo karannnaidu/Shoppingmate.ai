@@ -3,6 +3,7 @@ import { createTTS } from './audio/tts.js';
 import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
 import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
+import { startActivityTracker } from './host/activity.js';
 import { executeHostAction } from './host/actions.js';
 import { type PersonaDisplay, getPersonaDisplay } from './persona.js';
 import { type Store, createStore } from './state/store.js';
@@ -35,6 +36,7 @@ class WidgetElement extends HTMLElement {
   private apiBase = '';
   private merchantId = '';
   private domain = window.location.host;
+  private stopActivityTracker: (() => void) | null = null;
 
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -66,6 +68,7 @@ class WidgetElement extends HTMLElement {
   disconnectedCallback() {
     this.socket?.close();
     this.voiceMode.stop();
+    this.stopActivityTracker?.();
   }
 
   private async start() {
@@ -133,6 +136,14 @@ class WidgetElement extends HTMLElement {
         onDismiss: () => {},
       });
     }
+
+    // Task 15: start activity tracker for this session.
+    // TODO Task 15 follow-up: load hints from /v1/site-graph/:merchantId/intents
+    this.stopActivityTracker = startActivityTracker({
+      sessionId: result.sessionId,
+      hints: new Map(),
+      send: (msg) => this.publishWidgetMessage(msg),
+    });
   }
 
   private async handleAgentEvent(
