@@ -184,6 +184,9 @@ importers:
       '@shoppingmate/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@shoppingmate/site-graph':
+        specifier: workspace:*
+        version: link:../../packages/site-graph
       bullmq:
         specifier: ^5.27.0
         version: 5.76.4
