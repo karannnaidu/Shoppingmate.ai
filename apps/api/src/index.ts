@@ -22,6 +22,7 @@ import type { HostAction, HostActionResult } from '@shoppingmate/agent';
 import { healthRoute } from './routes/health.js';
 import { installRoute } from './routes/install.js';
 import { sessionRoute } from './routes/session.js';
+import { siteGraphRoute } from './routes/siteGraph.js';
 import { slackRoute } from './routes/slack/index.js';
 import { voiceTokenRoute } from './routes/voice-token.js';
 import { mountAgentWs } from './ws/agent.js';
@@ -45,6 +46,7 @@ app.use(
 app.route('/health', healthRoute);
 app.route('/v1/install', installRoute);
 app.route('/v1/session', sessionRoute);
+app.route('/v1/site-graph', siteGraphRoute);
 app.route('/v1/slack', slackRoute);
 app.route('/v1/voice/token', voiceTokenRoute);
 

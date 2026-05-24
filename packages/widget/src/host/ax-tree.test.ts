@@ -58,3 +58,39 @@ describe('resolveIntent()', () => {
     expect(el?.textContent).toContain('Sign up');
   });
 });
+
+describe('resolveIntent() with hints', () => {
+  it('uses hint selector first when intent matches a hint key', () => {
+    document.body.innerHTML = `
+      <button id="signup-hint" aria-label="Sign up">Sign up</button>
+      <button id="signup-other" aria-label="Sign up here">Sign up here</button>
+    `;
+    const hints = new Map([['sign up', '#signup-hint']]);
+    const el = resolveIntent('sign up', hints);
+    expect(el?.id).toBe('signup-hint');
+  });
+
+  it('falls back to AX-tree when hint selector matches nothing', () => {
+    document.body.innerHTML = `<button id="signup" aria-label="Sign up">Sign up</button>`;
+    const hints = new Map([['sign up', '#nonexistent']]);
+    const el = resolveIntent('sign up', hints);
+    expect(el?.id).toBe('signup'); // AX-tree fallback found it
+  });
+
+  it('falls back to AX-tree when hint element is invisible', () => {
+    document.body.innerHTML = `
+      <button id="hidden-btn" style="display:none" aria-label="Sign up">Sign up</button>
+      <button id="visible-btn" aria-label="Sign up">Sign up</button>
+    `;
+    const hints = new Map([['sign up', '#hidden-btn']]);
+    const el = resolveIntent('sign up', hints);
+    expect(el?.id).toBe('visible-btn');
+  });
+
+  it('matches hint key case-insensitively with trim', () => {
+    document.body.innerHTML = `<button id="atc">Add to cart</button>`;
+    const hints = new Map([['add to cart', '#atc']]);
+    const el = resolveIntent('  Add To Cart  ', hints);
+    expect(el?.id).toBe('atc');
+  });
+});

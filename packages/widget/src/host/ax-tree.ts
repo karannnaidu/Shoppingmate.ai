@@ -24,7 +24,18 @@ type Candidate = {
   visible: boolean;
 };
 
-export function resolveIntent(intent: string): HTMLElement | null {
+export function resolveIntent(intent: string, hints?: Map<string, string>): HTMLElement | null {
+  if (hints) {
+    const sel = hints.get(intent.toLowerCase().trim());
+    if (sel) {
+      try {
+        const el = document.querySelector(sel);
+        if (el instanceof HTMLElement && isVisible(el)) return el;
+      } catch {
+        // bad selector — fall through to AX-tree
+      }
+    }
+  }
   const intentTokens = tokenize(intent);
   if (intentTokens.size === 0) return null;
   const candidates = collectCandidates(document.body);
