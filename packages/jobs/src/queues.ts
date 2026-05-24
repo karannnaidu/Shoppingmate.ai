@@ -12,3 +12,25 @@ export const onboardingQueue = new Queue<OnboardingJobData>('onboarding', {
     removeOnFail: { count: 1000 },
   },
 });
+
+export type SiteGraphCrawlJobData = { merchantId: string };
+export const siteGraphCrawlQueue = new Queue<SiteGraphCrawlJobData>('site-graph-crawl', {
+  connection: createRedisConnection(),
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 60_000 },
+    removeOnComplete: { count: 500 },
+    removeOnFail: { count: 500 },
+  },
+});
+
+export type SiteGraphExtractJobData = { merchantId: string; crawlId: string };
+export const siteGraphExtractQueue = new Queue<SiteGraphExtractJobData>('site-graph-extract', {
+  connection: createRedisConnection(),
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 30_000 },
+    removeOnComplete: { count: 500 },
+    removeOnFail: { count: 500 },
+  },
+});
