@@ -19,10 +19,15 @@ export function createVoiceModeLiveKit(opts: {
   return {
     start: () => {
       if (state !== 'idle') return;
-      // Show 'connecting' until LiveKit + mic are actually ready. Without this
-      // the tray flips to "CONNECTED" / "listening" the instant the visitor
-      // clicks call, but Sage can't hear them yet — confusing.
+      // Stay 'connecting' until Sage's first audio arrives. The LiveKit WS
+      // handshake + setMicEnabled finish in ~500ms, but the agent dispatch +
+      // voice-agent boot + Gemini Live greeting takes another 5–10s on cold
+      // start. Without this the tray flips to "CONNECTED / listening" the
+      // instant LK acks, and the visitor speaks into a dead room for 10s
+      // before Sage actually joins. The agent-speaking signal is the only
+      // honest "Sage is online" trigger we have.
       set('connecting');
+      let sageHasJoined = false;
       (async () => {
         try {
           handle = await connectToRoom({
@@ -33,10 +38,19 @@ export function createVoiceModeLiveKit(opts: {
           handle.onData((bytes) => opts.onTranscriptEvent(bytes));
           handle.onAgentSpeaking((speaking) => {
             if (muted) return;
+            // First time Sage's audio is detected → cold start is over.
+            // Treat speaking=true as the canonical 'online' signal even if a
+            // later speaking=false would normally flip us to listening.
+            if (speaking) sageHasJoined = true;
+            if (!sageHasJoined) return; // suppress false 'listening' from local mic activity
             set(speaking ? 'speaking' : 'listening');
           });
           await handle.setMicEnabled(!muted);
-          set(muted ? 'muted' : 'listening');
+          // Note: we deliberately do NOT set('listening') here. The state
+          // stays 'connecting' until onAgentSpeaking fires with speaking=true
+          // (Sage's first audio frame arrived). If the visitor mutes during
+          // the cold start, surface that immediately so the mic UI is correct.
+          if (muted) set('muted');
         } catch (err) {
           set('idle');
           throw err;
