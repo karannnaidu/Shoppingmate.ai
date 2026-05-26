@@ -30,48 +30,13 @@ export function createGeminiSdkTransport(): GeminiTransport {
           responseModalities: [Modality.AUDIO],
           systemInstruction: { parts: [{ text: systemInstruction }] },
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceId } } },
-          // Opt-in: without these, the server returns no transcripts at all,
-          // so the widget never sees the visitor's words or Sage's reply text.
-          // Pass an explicit multilingual candidate list — leaving it empty
-          // (`{}`) made auto-detect render short/noisy English audio as
-          // Hindi/Bengali script, which both confused the visitor's caption
-          // and poisoned Sonnet's side-channel tool loop. A curated list keeps
-          // multilingual support while constraining the candidate set so the
-          // common English case stops mis-routing.
-          inputAudioTranscription: {
-            languageCodes: [
-              'en-US',
-              'hi-IN',
-              'bn-IN',
-              'ta-IN',
-              'te-IN',
-              'mr-IN',
-              'gu-IN',
-              'kn-IN',
-              'ml-IN',
-              'pa-IN',
-              'ur-IN',
-              'es-US',
-              'fr-FR',
-            ],
-          },
-          outputAudioTranscription: {
-            languageCodes: [
-              'en-US',
-              'hi-IN',
-              'bn-IN',
-              'ta-IN',
-              'te-IN',
-              'mr-IN',
-              'gu-IN',
-              'kn-IN',
-              'ml-IN',
-              'pa-IN',
-              'ur-IN',
-              'es-US',
-              'fr-FR',
-            ],
-          },
+          // Opt-in transcripts: without these the server returns no transcripts
+          // at all, so the widget never sees the visitor's words or Sage's
+          // reply text. The Gemini API rejects a `languageCodes` field here
+          // (SDK throws `languageCodes parameter is not supported`), so we pass
+          // empty configs and let the server auto-detect.
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
         },
         callbacks: {
           onmessage: (msg) => {

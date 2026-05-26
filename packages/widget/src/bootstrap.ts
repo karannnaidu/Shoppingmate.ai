@@ -17,6 +17,7 @@ export type BootstrapResult =
       sessionId: string;
       wsUrl: string;
       merchantStatus: string;
+      personaId: string | null;
       voice: VoiceBootstrap | null;
     }
   | { kind: 'err'; reason: string };
@@ -34,7 +35,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       }),
     });
     if (!installRes.ok) return { kind: 'err', reason: `install_${installRes.status}` };
-    const installBody = (await installRes.json()) as { status: string };
+    const installBody = (await installRes.json()) as { status: string; personaId?: string | null };
 
     const sessionRes = await fetch(`${input.apiBase}/v1/session`, {
       method: 'POST',
@@ -68,6 +69,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       sessionId: sessionBody.sessionId,
       wsUrl: sessionBody.wsUrl,
       merchantStatus: installBody.status,
+      personaId: installBody.personaId ?? voice?.personaId ?? null,
       voice,
     };
   } catch (err) {

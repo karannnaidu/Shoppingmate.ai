@@ -5,7 +5,7 @@ import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
 import { startActivityTracker } from './host/activity.js';
 import { executeHostAction } from './host/actions.js';
-import { type PersonaDisplay, getPersonaDisplay } from './persona.js';
+import { type PersonaDisplay, getPersonaDisplay, getPersonaPlaceholder } from './persona.js';
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
 import { decodeAgentEvent, encodeWidgetMessage } from './transport/codec.js';
@@ -32,7 +32,7 @@ class WidgetElement extends HTMLElement {
   private socket: AgentSocket | null = null;
   private voiceMode: VoiceMode = createVoiceMode(null, createTTS());
   private voice: VoiceBootstrap | null = null;
-  private persona: PersonaDisplay = getPersonaDisplay(null);
+  private persona: PersonaDisplay = getPersonaPlaceholder();
   private apiBase = '';
   private merchantId = '';
   private domain = window.location.host;
@@ -84,7 +84,7 @@ class WidgetElement extends HTMLElement {
     this.store = createStore({ sessionId: result.sessionId });
     this.store.subscribe(() => this.render());
     this.voice = result.voice;
-    this.persona = getPersonaDisplay(result.voice?.personaId ?? null);
+    this.persona = getPersonaDisplay(result.personaId ?? result.voice?.personaId ?? null);
 
     const stack = resolveVoiceStack();
     const stt = createSTT();

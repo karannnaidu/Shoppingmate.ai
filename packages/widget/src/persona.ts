@@ -21,8 +21,6 @@ const NAMES: Record<string, string> = {
   host: 'Ana',
 };
 
-const DEFAULT_ID = 'concierge';
-
 function resolveCdnBase(): string {
   // Build-time replaced via esbuild `define`. Falls back to public CDN host.
   const override = (globalThis as unknown as { __SHOPPINGMATE_CDN_BASE__?: string })
@@ -31,13 +29,28 @@ function resolveCdnBase(): string {
   return 'https://cdn.shoppingmate.ai/v1/personas';
 }
 
+// Neutral placeholder used until bootstrap resolves the merchant's actual
+// persona. Picking a specific persona (e.g. 'concierge'/Olivia) caused a
+// visible flash of the wrong name on sites whose merchant uses a different
+// persona, with click handlers wired up before the WS was open.
+const PLACEHOLDER: PersonaDisplay = {
+  id: 'pending',
+  name: 'Assistant',
+  initial: 'A',
+  avatarUrl: '',
+};
+
+export function getPersonaPlaceholder(): PersonaDisplay {
+  return PLACEHOLDER;
+}
+
 export function getPersonaDisplay(personaId: string | null | undefined): PersonaDisplay {
-  const id = personaId && NAMES[personaId] ? personaId : DEFAULT_ID;
-  const name = NAMES[id] ?? 'Olivia';
+  if (!personaId || !NAMES[personaId]) return PLACEHOLDER;
+  const name = NAMES[personaId];
   return {
-    id,
+    id: personaId,
     name,
     initial: name.charAt(0).toUpperCase(),
-    avatarUrl: `${resolveCdnBase()}/${id}.png`,
+    avatarUrl: `${resolveCdnBase()}/${personaId}.png`,
   };
 }
