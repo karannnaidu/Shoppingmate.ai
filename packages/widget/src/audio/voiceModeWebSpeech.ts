@@ -15,6 +15,12 @@ export type VoiceMode = {
   // no transport. Used by host_action_result in voice mode so the result
   // lands in the voice-agent's bridge, not the api WS.
   publishData?: (bytes: Uint8Array) => Promise<void>;
+  // LiveKit mode: voice-agent emits `agent_ready` over the data channel as
+  // soon as Gemini WS is open and Sage's audio track is published. The widget
+  // forwards that here so the tray can flip CONNECTING → listening without
+  // waiting for Sage's first audio frame (we no longer inject a spoken
+  // greeting). Web-speech mode no-ops; it goes 'listening' from start().
+  signalAgentReady?: () => void;
 };
 
 export function createVoiceMode(stt: STT | null, tts: TTS): VoiceMode {

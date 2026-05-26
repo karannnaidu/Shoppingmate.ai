@@ -166,6 +166,12 @@ class WidgetElement extends HTMLElement {
       // v0.1: voice-agent owns the transport reconnect; widget no-ops.
       return;
     }
+    if (ev.type === 'agent_ready') {
+      // Voice-agent says Gemini WS is open + Sage's audio track is published.
+      // Flip the tray immediately so the visitor stops staring at CONNECTING.
+      this.voiceMode.signalAgentReady?.();
+      return;
+    }
     this.store.dispatch({ type: 'agent_event', event: ev });
     if (ev.type === 'say') void this.voiceMode.speak(ev.text);
   }

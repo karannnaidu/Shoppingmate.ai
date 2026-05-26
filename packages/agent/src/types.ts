@@ -48,7 +48,8 @@ export type AgentEvent =
   | { type: 'end_of_turn' }
   | { type: 'session_closed'; reason: 'user' | 'cap' | 'error' }
   | { type: 'host_action_request'; callId: string; action: HostAction }
-  | { type: 'persona_swap'; personaId: string };
+  | { type: 'persona_swap'; personaId: string }
+  | { type: 'agent_ready' };
 
 export type AnthropicMessage = ChatMessage | AssistantToolCalls | ToolCallMessage;
 

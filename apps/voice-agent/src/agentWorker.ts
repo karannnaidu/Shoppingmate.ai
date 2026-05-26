@@ -120,24 +120,26 @@ const agentDefinition = defineAgent({
       await job.room.disconnect();
       return;
     }
-    const merchants = await db
-      .select()
-      .from(schema.merchants)
-      .where(eq(schema.merchants.id, session.merchantId))
-      .limit(1);
+    // Merchant + KB queries are independent — fire in parallel to save ~150ms.
+    const [merchants, kbChunks] = await Promise.all([
+      db
+        .select()
+        .from(schema.merchants)
+        .where(eq(schema.merchants.id, session.merchantId))
+        .limit(1),
+      db
+        .select({ text: schema.brandKbChunks.text })
+        .from(schema.brandKbChunks)
+        .where(eq(schema.brandKbChunks.merchantId, session.merchantId))
+        .orderBy(asc(schema.brandKbChunks.chunkIndex))
+        .limit(24), // ~6K tokens; native-audio model is smaller-context than Sonnet
+    ]);
     const merchant = merchants[0];
     if (!merchant) {
       log.warn({ merchantId: session.merchantId }, 'no merchant — closing room');
       await job.room.disconnect();
       return;
     }
-
-    const kbChunks = await db
-      .select({ text: schema.brandKbChunks.text })
-      .from(schema.brandKbChunks)
-      .where(eq(schema.brandKbChunks.merchantId, merchant.id))
-      .orderBy(asc(schema.brandKbChunks.chunkIndex))
-      .limit(24); // ~6K tokens; native-audio model is smaller-context than Sonnet
     const kbText = kbChunks.length > 0 ? kbChunks.map((c) => c.text).join('\n\n') : undefined;
     const demoMode = merchant.id === sharedEnv.SHOPPINGMATE_DEMO_MERCHANT_ID;
 
@@ -152,7 +154,9 @@ const agentDefinition = defineAgent({
       voiceId: voice.voiceId,
       systemInstruction: voice.systemInstruction,
     });
-    await gemini.open();
+    // Kick off the Gemini Live WS handshake but DON'T await yet — we can
+    // publish the audio track in parallel so both legs finish concurrently.
+    const geminiOpen = gemini.open();
 
     const dataChannel = createDataChannel({
       publish: (bytes, opts) => {
@@ -255,19 +259,22 @@ const agentDefinition = defineAgent({
     // overflows immediately, leaving every captureFrame to fail with InvalidState.
     const audioSource = new AudioSource(24_000, 1, 30_000);
     const botTrack = LocalAudioTrack.createAudioTrack('sage', audioSource);
-    await job.room.localParticipant?.publishTrack(
+    const publishTrackP = job.room.localParticipant?.publishTrack(
       botTrack,
       new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
     );
 
-    // Kickoff: Gemini Live native-audio is purely reactive — it waits for the
-    // visitor to speak first. Visitors expect Sage to greet them when they
-    // click voice. Inject an internal prompt that triggers Sage's opening line
-    // without sounding like the visitor said it.
-    const kickoff = demoMode
-      ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
-      : 'The visitor just opened voice mode. Greet them in one short sentence and ask what they are shopping for today.';
-    gemini.speak(kickoff).catch((err) => log.warn({ err }, 'kickoff speak failed'));
+    // Wait for both the Gemini WS and the audio track publish before signalling
+    // ready. Either alone is insufficient: no WS = Sage can't hear; no track =
+    // Sage can't be heard. Running them concurrently saves ~500ms vs sequential.
+    await Promise.all([geminiOpen, publishTrackP]);
+
+    // Tell the widget Sage is online. The widget flips its tray from
+    // CONNECTING → listening immediately on this signal instead of waiting
+    // for Sage's first audio frame — and we no longer inject a kickoff
+    // greeting, so the visitor speaks first. That removes 2-4s of perceived
+    // cold-start: greeting generation + the time Sage takes to say it.
+    dataChannel.publish({ type: 'agent_ready' });
 
     // captureFrame returns a promise that resolves when the frame is buffered.
     // Awaiting it serializes producer→queue and prevents the burst-overflow that

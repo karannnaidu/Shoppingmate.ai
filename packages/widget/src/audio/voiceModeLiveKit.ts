@@ -10,6 +10,7 @@ export function createVoiceModeLiveKit(opts: {
   let state: VoiceModeState = 'idle';
   let handle: LiveKitHandle | null = null;
   let muted = false;
+  let sageHasJoined = false;
   const listeners: ((s: VoiceModeState) => void)[] = [];
   const set = (s: VoiceModeState) => {
     if (state === s) return;
@@ -27,7 +28,7 @@ export function createVoiceModeLiveKit(opts: {
       // before Sage actually joins. The agent-speaking signal is the only
       // honest "Sage is online" trigger we have.
       set('connecting');
-      let sageHasJoined = false;
+      sageHasJoined = false;
       (async () => {
         try {
           handle = await connectToRoom({
@@ -77,6 +78,14 @@ export function createVoiceModeLiveKit(opts: {
     getState: () => state,
     onStateChange: (cb) => {
       listeners.push(cb);
+    },
+    signalAgentReady: () => {
+      // The voice-agent has finished its cold start (Gemini WS open + audio
+      // track published). Flip CONNECTING → listening immediately so the
+      // tray stops lying. If the visitor muted during the connect window,
+      // honor that — the muted display takes priority over listening.
+      sageHasJoined = true;
+      if (state === 'connecting') set(muted ? 'muted' : 'listening');
     },
     publishData: async (bytes) => {
       if (!handle) return;

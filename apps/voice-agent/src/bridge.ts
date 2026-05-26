@@ -22,7 +22,8 @@ export type DataChannelMessage =
   | { type: 'cap_warning'; remaining: number }
   | { type: 'session_closed'; reason: string }
   | { type: 'host_action_request'; callId: string; action: HostAction }
-  | { type: 'persona_swap'; personaId: string };
+  | { type: 'persona_swap'; personaId: string }
+  | { type: 'agent_ready' };
 
 export type BridgeDeps = {
   sessionId: string;
