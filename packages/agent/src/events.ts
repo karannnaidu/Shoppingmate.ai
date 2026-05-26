@@ -63,6 +63,9 @@ export function decodeWidgetMessage(raw: string): WidgetMessage | null {
     }
     case 'tour_request':
       return { type: 'tour_request' };
+    case 'start_voice':
+      if (typeof obj.sessionId !== 'string') return null;
+      return { type: 'start_voice', sessionId: obj.sessionId };
     case 'visitor_action': {
       if (typeof obj.sessionId !== 'string') return null;
       const ACTIONS = ['click', 'route_change', 'dwell', 'cart_add', 'form_focus', 'outbound_click'] as const;

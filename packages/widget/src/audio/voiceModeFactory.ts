@@ -9,6 +9,7 @@ import {
 export type VoiceModeFactoryOpts = {
   stack: 'live-kit' | 'web-speech';
   livekit?: {
+    sessionId: string;
     wsUrl: string;
     token: string;
     roomName: string;

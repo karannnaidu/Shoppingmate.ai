@@ -99,13 +99,21 @@ class WidgetElement extends HTMLElement {
       const lkVoiceMode = createVoiceModeFactory({
         stack: 'live-kit',
         livekit: {
+          sessionId: result.sessionId,
           wsUrl: this.voice.wsUrl,
           token: this.voice.token,
           roomName: this.voice.roomName,
           onTranscriptEvent: (bytes) => this.handleLiveKitData(bytes),
         },
       });
-      if (lkVoiceMode) this.voiceMode = lkVoiceMode;
+      if (lkVoiceMode) {
+        this.voiceMode = lkVoiceMode;
+        // Pre-connect the LiveKit room now so Phase A (agent dispatch +
+        // job.connect + track publish) overlaps with the visitor scrolling
+        // the landing page. By the time they click, agent_warmed has usually
+        // arrived and the click → agent_ready path is just one Gemini WS open.
+        this.voiceMode.warm?.();
+      }
     } else {
       // Plan 5 fallback (web-speech) or live-kit unavailable.
       const wsVoiceMode = createVoiceModeFactory({ stack: 'web-speech' });
@@ -171,6 +179,12 @@ class WidgetElement extends HTMLElement {
     }
     if (ev.type === 'persona_swap') {
       // v0.1: voice-agent owns the transport reconnect; widget no-ops.
+      return;
+    }
+    if (ev.type === 'agent_warmed') {
+      // Phase A done: voice-agent has joined the room + published an empty
+      // track. We don't change UI here (visitor hasn't clicked yet) — this
+      // is purely telemetry/sequencing for the two-phase agent split.
       return;
     }
     if (ev.type === 'agent_ready') {

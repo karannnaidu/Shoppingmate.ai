@@ -153,15 +153,6 @@ const agentDefinition = defineAgent({
       { name: merchant.name, domain: merchant.domain },
       { kbText, demoMode },
     );
-    const transport = createGeminiSdkTransport();
-    const gemini = createGeminiSession({
-      transport,
-      voiceId: voice.voiceId,
-      systemInstruction: voice.systemInstruction,
-    });
-    // Kick off the Gemini Live WS handshake but DON'T await yet — we can
-    // publish the audio track in parallel so both legs finish concurrently.
-    const geminiOpen = gemini.open();
 
     const dataChannel = createDataChannel({
       publish: (bytes, opts) => {
@@ -188,6 +179,91 @@ const agentDefinition = defineAgent({
     });
     caps.start();
     const tickInterval = setInterval(() => caps.tick(), 5_000);
+
+    // Publish a local audio track so visitors hear Sage. Gemini Live native-audio
+    // returns 24 kHz mono PCM16; we feed those bytes straight into AudioSource.
+    // Queue 30s — Gemini emits replies in fast bursts and the default ~1s queue
+    // overflows immediately, leaving every captureFrame to fail with InvalidState.
+    // Phase A: publish the empty track now so the room is ready the instant the
+    // visitor clicks. Gemini-bound audio frames are pushed once Phase B opens.
+    const audioSource = new AudioSource(24_000, 1, 30_000);
+    const botTrack = LocalAudioTrack.createAudioTrack('sage', audioSource);
+    const publishTrackP = job.room.localParticipant?.publishTrack(
+      botTrack,
+      new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
+    );
+    await publishTrackP;
+    const tWarmed = Date.now();
+
+    // Phase A done: signal the widget that the room is ready (LK + track up).
+    // Widget can fade pre-click UI, but the call still waits for agent_ready
+    // (Phase B = Gemini WS open) before flipping to 'listening'.
+    dataChannel.publish({ type: 'agent_warmed' });
+    log.info(
+      {
+        sessionId,
+        ms_warm_total: tWarmed - tEntry,
+        ms_connect: tConnected - tEntry,
+        ms_db_setup: tWarmed - tConnected,
+      },
+      'agent_warmed published',
+    );
+
+    // Single DataReceived handler for the room. Dispatches by message type:
+    // - start_voice (Phase A→B trigger): resolves the gate promise once.
+    // - host_action_result: routes to the bridge (only valid after Phase B).
+    // We use mutable refs because the bridge is created in Phase B, but the
+    // listener must be installed early to avoid missing start_voice events.
+    let bridgeRef: import('./bridge.js').Bridge | null = null;
+    let resolveStartVoice: (() => void) | null = null;
+    const startVoiceP = new Promise<void>((resolve) => {
+      resolveStartVoice = resolve;
+    });
+    job.room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+      let raw: string;
+      try {
+        raw = new TextDecoder().decode(payload);
+      } catch {
+        return;
+      }
+      const msg = decodeWidgetMessage(raw);
+      if (!msg) return;
+      if (msg.type === 'start_voice') {
+        resolveStartVoice?.();
+        resolveStartVoice = null;
+        return;
+      }
+      if (msg.type === 'host_action_result' && bridgeRef) {
+        bridgeRef.deliverHostActionResult?.({ callId: msg.callId, result: msg.result });
+      }
+    });
+
+    // Phase B: wait for the widget's `start_voice` message before opening the
+    // Gemini Live WS. This prevents burning Gemini $$ on visitors who land on
+    // the page but never click the call button. Gemini WS handshake (~100-300ms)
+    // is the only remaining cost on the click → listening path.
+    // Watchdog: if no click within 5 min, close the room to free the worker.
+    const startVoiceTimeout = new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error('start_voice timeout (300s)')), 300_000),
+    );
+    try {
+      await Promise.race([startVoiceP, startVoiceTimeout]);
+    } catch (err) {
+      log.warn({ sessionId, err: (err as Error).message }, 'no start_voice received — closing');
+      clearInterval(tickInterval);
+      await job.room.disconnect();
+      return;
+    }
+    const tStartVoice = Date.now();
+
+    const transport = createGeminiSdkTransport();
+    const gemini = createGeminiSession({
+      transport,
+      voiceId: voice.voiceId,
+      systemInstruction: voice.systemInstruction,
+    });
+    await gemini.open();
+    const tReady = Date.now();
 
     // Side-channel runtime: while Gemini Live owns the conversation audio,
     // we run the chat tool-loop in parallel on every visitor utterance so
@@ -240,55 +316,20 @@ const agentDefinition = defineAgent({
       interrupt: () => gemini.interrupt(),
       caps: { recordTurn: () => caps.recordTurn() },
     });
-
-    // Visitor's widget posts host_action_result over the LiveKit data channel
-    // (see widget.ts handleLiveKitData + publishWidgetMessage). Decode and
-    // hand to the bridge so its pending-call promise resolves.
-    job.room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
-      let raw: string;
-      try {
-        raw = new TextDecoder().decode(payload);
-      } catch {
-        return;
-      }
-      const msg = decodeWidgetMessage(raw);
-      if (!msg) return;
-      if (msg.type === 'host_action_result') {
-        bridge.deliverHostActionResult?.({ callId: msg.callId, result: msg.result });
-      }
-    });
-
-    // Publish a local audio track so visitors hear Sage. Gemini Live native-audio
-    // returns 24 kHz mono PCM16; we feed those bytes straight into AudioSource.
-    // Queue 30s — Gemini emits replies in fast bursts and the default ~1s queue
-    // overflows immediately, leaving every captureFrame to fail with InvalidState.
-    const audioSource = new AudioSource(24_000, 1, 30_000);
-    const botTrack = LocalAudioTrack.createAudioTrack('sage', audioSource);
-    const publishTrackP = job.room.localParticipant?.publishTrack(
-      botTrack,
-      new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
-    );
-
-    // Wait for both the Gemini WS and the audio track publish before signalling
-    // ready. Either alone is insufficient: no WS = Sage can't hear; no track =
-    // Sage can't be heard. Running them concurrently saves ~500ms vs sequential.
-    const tBeforeReady = Date.now();
-    await Promise.all([geminiOpen, publishTrackP]);
-    const tReady = Date.now();
+    bridgeRef = bridge;
 
     // Tell the widget Sage is online. The widget flips its tray from
     // CONNECTING → listening immediately on this signal instead of waiting
     // for Sage's first audio frame — and we no longer inject a kickoff
-    // greeting, so the visitor speaks first. That removes 2-4s of perceived
-    // cold-start: greeting generation + the time Sage takes to say it.
+    // greeting, so the visitor speaks first.
     dataChannel.publish({ type: 'agent_ready' });
     log.info(
       {
         sessionId,
         ms_total: tReady - tEntry,
-        ms_connect: tConnected - tEntry,
-        ms_db_setup: tBeforeReady - tConnected,
-        ms_gemini_track: tReady - tBeforeReady,
+        ms_warm: tWarmed - tEntry,
+        ms_idle: tStartVoice - tWarmed,
+        ms_gemini_open: tReady - tStartVoice,
       },
       'agent_ready published',
     );

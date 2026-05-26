@@ -21,6 +21,10 @@ export type VoiceMode = {
   // waiting for Sage's first audio frame (we no longer inject a spoken
   // greeting). Web-speech mode no-ops; it goes 'listening' from start().
   signalAgentReady?: () => void;
+  // LiveKit mode: pre-connect the room at page-load (no mic) so the LiveKit
+  // handshake + agent dispatch happen BEFORE the visitor clicks. Idempotent.
+  // Web-speech mode no-ops.
+  warm?: () => void;
 };
 
 export function createVoiceMode(stt: STT | null, tts: TTS): VoiceMode {

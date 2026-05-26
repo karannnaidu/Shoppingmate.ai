@@ -27,6 +27,7 @@ export type WidgetMessage =
   | { type: 'session_end'; sessionId: string }
   | { type: 'host_action_result'; callId: string; result: HostActionResult }
   | { type: 'tour_request' }
+  | { type: 'start_voice'; sessionId: string }
   | { type: 'visitor_action';
       sessionId: string;
       action: 'click' | 'route_change' | 'dwell' | 'cart_add' | 'form_focus' | 'outbound_click';
@@ -54,6 +55,7 @@ export type AgentEvent =
   | { type: 'session_closed'; reason: 'user' | 'cap' | 'error' }
   | { type: 'host_action_request'; callId: string; action: HostAction }
   | { type: 'persona_swap'; personaId: string }
+  | { type: 'agent_warmed' }
   | { type: 'agent_ready' };
 
 export type HostAction =
@@ -139,6 +141,8 @@ export function decodeAgentEvent(raw: string): AgentEvent | null {
     }
     case 'persona_swap':
       return typeof o.personaId === 'string' ? { type: 'persona_swap', personaId: o.personaId } : null;
+    case 'agent_warmed':
+      return { type: 'agent_warmed' };
     case 'agent_ready':
       return { type: 'agent_ready' };
     default:

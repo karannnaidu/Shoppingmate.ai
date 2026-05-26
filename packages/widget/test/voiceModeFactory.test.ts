@@ -22,6 +22,7 @@ describe('createVoiceModeFactory', () => {
     const vm = createVoiceModeFactory({
       stack: 'live-kit',
       livekit: {
+        sessionId: 'sid',
         wsUrl: 'wss://x',
         token: 't',
         roomName: 'r',

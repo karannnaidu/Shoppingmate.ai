@@ -23,6 +23,7 @@ export type DataChannelMessage =
   | { type: 'session_closed'; reason: string }
   | { type: 'host_action_request'; callId: string; action: HostAction }
   | { type: 'persona_swap'; personaId: string }
+  | { type: 'agent_warmed' }
   | { type: 'agent_ready' };
 
 export type BridgeDeps = {
