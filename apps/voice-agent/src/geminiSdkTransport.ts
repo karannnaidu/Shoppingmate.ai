@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality } from '@google/genai';
+import { EndSensitivity, GoogleGenAI, Modality, StartSensitivity } from '@google/genai';
 import { childLogger } from '@shoppingmate/shared';
 import { voiceEnv } from './env.js';
 import type { GeminiTransport, GeminiTransportEvent } from './geminiSession.js';
@@ -37,6 +37,21 @@ export function createGeminiSdkTransport(): GeminiTransport {
           // empty configs and let the server auto-detect.
           inputAudioTranscription: {},
           outputAudioTranscription: {},
+          // Tighten VAD so Sage replies the instant the visitor stops talking.
+          // Defaults are LOW/LOW with silenceDurationMs ~1000ms, which produces
+          // a noticeable 3–5s gap after greetings (visitor stops, server waits
+          // a full second to commit end-of-speech, then first-token latency on
+          // top). HIGH sensitivity + 350ms silence shaves ~700ms off turns and
+          // still doesn't trigger on natural mid-sentence pauses.
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              disabled: false,
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
+              endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
+              prefixPaddingMs: 20,
+              silenceDurationMs: 350,
+            },
+          },
         },
         callbacks: {
           onmessage: (msg) => {
