@@ -109,10 +109,15 @@ async function publishShowcaseCards(
 
 const agentDefinition = defineAgent({
   entry: async (job: JobContext) => {
+    const tEntry = Date.now();
     await job.connect();
+    const tConnected = Date.now();
     const roomName = job.room.name ?? '';
     const sessionId = roomName.replace(/^sm_/, '');
-    log.info({ sessionId, roomName }, 'voice-agent job started');
+    log.info(
+      { sessionId, roomName, ms_connect: tConnected - tEntry },
+      'voice-agent job started',
+    );
 
     const session = await loadSession(redis(), sessionId);
     if (!session) {
@@ -267,7 +272,9 @@ const agentDefinition = defineAgent({
     // Wait for both the Gemini WS and the audio track publish before signalling
     // ready. Either alone is insufficient: no WS = Sage can't hear; no track =
     // Sage can't be heard. Running them concurrently saves ~500ms vs sequential.
+    const tBeforeReady = Date.now();
     await Promise.all([geminiOpen, publishTrackP]);
+    const tReady = Date.now();
 
     // Tell the widget Sage is online. The widget flips its tray from
     // CONNECTING → listening immediately on this signal instead of waiting
@@ -275,6 +282,16 @@ const agentDefinition = defineAgent({
     // greeting, so the visitor speaks first. That removes 2-4s of perceived
     // cold-start: greeting generation + the time Sage takes to say it.
     dataChannel.publish({ type: 'agent_ready' });
+    log.info(
+      {
+        sessionId,
+        ms_total: tReady - tEntry,
+        ms_connect: tConnected - tEntry,
+        ms_db_setup: tBeforeReady - tConnected,
+        ms_gemini_track: tReady - tBeforeReady,
+      },
+      'agent_ready published',
+    );
 
     // captureFrame returns a promise that resolves when the frame is buffered.
     // Awaiting it serializes producer→queue and prevents the burst-overflow that

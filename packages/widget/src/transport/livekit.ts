@@ -30,14 +30,33 @@ type RoomShape = {
   disconnect: () => Promise<void>;
 };
 
-async function loadLiveKit(): Promise<{ Room: new () => RoomShape }> {
+// Cache the dynamic import promise so subsequent callers share the network
+// request. Without this, calling preloadLiveKit() at widget init then again
+// at start() would either race or re-fetch. The promise itself is the cache.
+let _livekitImport: Promise<{ Room: new () => RoomShape }> | null = null;
+
+function loadLiveKit(): Promise<{ Room: new () => RoomShape }> {
+  if (_livekitImport) return _livekitImport;
   if (typeof globalThis.__SHOPPINGMATE_LIVEKIT_LOADER__ === 'function') {
-    return (await globalThis.__SHOPPINGMATE_LIVEKIT_LOADER__()) as {
+    _livekitImport = globalThis.__SHOPPINGMATE_LIVEKIT_LOADER__() as Promise<{
       Room: new () => RoomShape;
-    };
+    }>;
+    return _livekitImport;
   }
   const url = `${DEFAULT_CDN_BASE}/livekit-client@${DEFAULT_VERSION}/dist/livekit-client.esm.mjs`;
-  return (await import(/* @vite-ignore */ url)) as { Room: new () => RoomShape };
+  _livekitImport = import(/* @vite-ignore */ url) as Promise<{
+    Room: new () => RoomShape;
+  }>;
+  return _livekitImport;
+}
+
+// Kick off the livekit-client CDN fetch as soon as the widget mounts so the
+// ~500-1500ms ESM import doesn't happen on the click→CONNECTING path. Idempotent.
+export function preloadLiveKit(): void {
+  void loadLiveKit().catch(() => {
+    // Network might be flaky; we'll just re-attempt at start() time.
+    _livekitImport = null;
+  });
 }
 
 export async function connectToRoom(opts: {

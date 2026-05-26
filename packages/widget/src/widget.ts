@@ -9,6 +9,7 @@ import { type PersonaDisplay, getPersonaDisplay, getPersonaPlaceholder } from '.
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
 import { decodeAgentEvent, encodeWidgetMessage } from './transport/codec.js';
+import { preloadLiveKit } from './transport/livekit.js';
 import { type AgentSocket, connectAgentWs } from './transport/ws.js';
 import { renderCall } from './ui/call.js';
 import { renderChat } from './ui/chat.js';
@@ -62,6 +63,12 @@ class WidgetElement extends HTMLElement {
     root.appendChild(this.pillHost);
     this.store.subscribe(() => this.render());
     this.render();
+    // Warm the livekit-client ESM import now (it's ~120KB lazy-loaded from a
+    // CDN). If we wait until the visitor clicks voice, the click→listening
+    // path eats the full fetch + parse latency (~500-1500ms first visit). This
+    // is fire-and-forget; preloadLiveKit caches the import promise so the
+    // actual connect at click time just awaits the already-resolved module.
+    if (resolveVoiceStack() === 'live-kit') preloadLiveKit();
     void this.start();
   }
 
