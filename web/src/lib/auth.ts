@@ -10,6 +10,8 @@ let _auth: AuthInstance | null = null;
 
 function getAuth(): AuthInstance {
   if (_auth) return _auth;
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
   _auth = betterAuth({
     database: drizzleAdapter(db, {
       provider: 'pg',
@@ -17,11 +19,21 @@ function getAuth(): AuthInstance {
         user: schema.users,
         session: schema.sessions,
         verification: schema.verifications,
+        account: schema.accounts,
       },
     }),
     baseURL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
     secret: process.env.BETTER_AUTH_SECRET,
     emailAndPassword: { enabled: false },
+    socialProviders:
+      googleClientId && googleClientSecret
+        ? {
+            google: {
+              clientId: googleClientId,
+              clientSecret: googleClientSecret,
+            },
+          }
+        : undefined,
     plugins: [
       magicLink({
         sendMagicLink: async ({ email, url }) => {

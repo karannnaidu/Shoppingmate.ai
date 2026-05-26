@@ -9,7 +9,12 @@ describe('SignupPage', () => {
     render(<SignupPage />);
     // placeholder is "you@brand.com" — match on the brand part
     expect(screen.getByPlaceholderText(/you@brand/i)).toBeTruthy();
-    expect(screen.getByRole('button', { name: /sign up|continue/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^sign up$/i })).toBeTruthy();
+  });
+
+  it('renders Continue with Google button', () => {
+    render(<SignupPage />);
+    expect(screen.getByRole('button', { name: /continue with google/i })).toBeTruthy();
   });
 
   it('shows shoppingmate brand mark', () => {

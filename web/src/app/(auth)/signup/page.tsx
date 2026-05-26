@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -44,26 +45,34 @@ export default function SignupPage() {
             <strong className="text-text-primary">{email}</strong> for a sign-in link.
           </p>
         ) : (
-          <form onSubmit={onSubmit} className="flex flex-col gap-3">
-            <Input
-              type="email"
-              placeholder="you@brand.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            {error && (
-              <p className="text-sm text-rose-500" role="alert" aria-live="polite">
-                {error}
+          <div className="flex flex-col gap-4">
+            <GoogleSignInButton callbackURL="/app/onboarding" label="Continue with Google" />
+            <div className="flex items-center gap-3 text-xs text-text-muted">
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <form onSubmit={onSubmit} className="flex flex-col gap-3">
+              <Input
+                type="email"
+                placeholder="you@brand.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              {error && (
+                <p className="text-sm text-rose-500" role="alert" aria-live="polite">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Sending…' : 'Sign up'}
+              </Button>
+              <p className="text-xs text-text-muted">
+                By continuing you agree to our Terms.
               </p>
-            )}
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Sending…' : 'Sign up'}
-            </Button>
-            <p className="text-xs text-text-muted">
-              By continuing you agree to our Terms.
-            </p>
-          </form>
+            </form>
+          </div>
         )}
       </CardContent>
     </Card>
