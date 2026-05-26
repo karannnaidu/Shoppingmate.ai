@@ -4,7 +4,7 @@ import { ICON_MIC, ICON_MIC_OFF, ICON_PHONE_OFF } from './icons.js';
 export type TrayProps = {
   mode: 'pill' | 'expanded' | 'call' | 'chat';
   callable: boolean;
-  voiceState: 'idle' | 'listening' | 'speaking' | 'muted';
+  voiceState: 'idle' | 'connecting' | 'listening' | 'speaking' | 'muted';
   personaName: string;
   personaInitial: string;
   personaAvatarUrl: string;
@@ -39,12 +39,21 @@ export function renderPill(host: HTMLElement, props: TrayProps): void {
   const inCall = props.mode === 'call' || props.voiceState !== 'idle';
   const muted = props.voiceState === 'muted';
   const speaking = props.voiceState === 'speaking';
-  const connected = props.voiceState !== 'idle';
+  const connecting = props.voiceState === 'connecting';
+  const connected = props.voiceState !== 'idle' && !connecting;
   const waveformActive = connected && !muted;
   const panelOpen = props.mode === 'chat' || props.mode === 'call' || props.mode === 'expanded';
 
-  const statusLabel = connected ? STRINGS.trayConnected : STRINGS.trayOffline;
-  const statusClass = connected ? 'tray-status connected' : 'tray-status idle';
+  const statusLabel = connecting
+    ? STRINGS.trayConnecting
+    : connected
+      ? STRINGS.trayConnected
+      : STRINGS.trayOffline;
+  const statusClass = connecting
+    ? 'tray-status connecting'
+    : connected
+      ? 'tray-status connected'
+      : 'tray-status idle';
 
   const waveformHtml = `
     <div class="tray-waveform ${waveformActive ? 'active' : ''} ${speaking ? 'speaking' : ''}" aria-hidden="true">
@@ -70,7 +79,7 @@ export function renderPill(host: HTMLElement, props: TrayProps): void {
       <button class="tray-avatar" data-action="toggle" aria-expanded="${panelOpen}" aria-label="${STRINGS.openAria}">
         <img src="${props.personaAvatarUrl}" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" />
         <span class="tray-avatar-fallback" aria-hidden="true">${props.personaInitial}</span>
-        <span class="tray-presence ${connected ? 'connected' : 'idle'}"></span>
+        <span class="tray-presence ${connecting ? 'connecting' : connected ? 'connected' : 'idle'}"></span>
       </button>
       <div class="tray-meta">
         <div class="tray-name">${props.personaName}</div>

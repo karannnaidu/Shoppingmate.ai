@@ -1,5 +1,6 @@
 export const STRINGS = {
   trayConnected: 'CONNECTED',
+  trayConnecting: 'CONNECTING…',
   trayOffline: 'OFFLINE',
   micStart: 'Start voice call',
   micMute: 'Mute mic',

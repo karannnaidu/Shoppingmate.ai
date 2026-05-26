@@ -1,7 +1,7 @@
 import type { STT } from './stt.js';
 import type { TTS } from './tts.js';
 
-export type VoiceModeState = 'idle' | 'listening' | 'speaking' | 'muted';
+export type VoiceModeState = 'idle' | 'connecting' | 'listening' | 'speaking' | 'muted';
 
 export type VoiceMode = {
   start: () => void;

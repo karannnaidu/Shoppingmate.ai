@@ -19,6 +19,10 @@ export function createVoiceModeLiveKit(opts: {
   return {
     start: () => {
       if (state !== 'idle') return;
+      // Show 'connecting' until LiveKit + mic are actually ready. Without this
+      // the tray flips to "CONNECTED" / "listening" the instant the visitor
+      // clicks call, but Sage can't hear them yet — confusing.
+      set('connecting');
       (async () => {
         try {
           handle = await connectToRoom({

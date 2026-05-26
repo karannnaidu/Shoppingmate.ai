@@ -4,7 +4,7 @@ import { ICON_X } from './icons.js';
 import { renderTranscript } from './transcript.js';
 
 export type CallProps = {
-  voiceState: 'idle' | 'listening' | 'speaking' | 'muted';
+  voiceState: 'idle' | 'connecting' | 'listening' | 'speaking' | 'muted';
   muted: boolean;
   transcript: TranscriptItem[];
   checkoutUrl: string | null;
@@ -16,6 +16,7 @@ export type CallProps = {
 
 function statusText(props: CallProps): string {
   if (props.muted) return "you're muted";
+  if (props.voiceState === 'connecting') return `connecting to ${props.personaName}…`;
   if (props.voiceState === 'speaking') return `${props.personaName} is speaking…`;
   return `${props.personaName} is listening…`;
 }

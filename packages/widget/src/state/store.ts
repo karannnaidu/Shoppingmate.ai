@@ -10,7 +10,7 @@ export type TranscriptItem =
 export type WidgetState = {
   sessionId: string;
   mode: 'pill' | 'expanded' | 'call' | 'chat';
-  voiceState: 'idle' | 'listening' | 'speaking' | 'muted';
+  voiceState: 'idle' | 'connecting' | 'listening' | 'speaking' | 'muted';
   transcript: TranscriptItem[];
   thinking: boolean;
   closed: boolean;
