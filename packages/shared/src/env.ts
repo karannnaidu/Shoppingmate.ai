@@ -8,11 +8,16 @@ export const env = cleanEnv(process.env, {
   }),
   DATABASE_URL: str(),
   REDIS_URL: str(),
-  S3_ENDPOINT: str(),
+  // S3 is only consumed by the api+worker (R2 brand assets). The web app
+  // pulls @shoppingmate/shared transitively via @shoppingmate/jobs but
+  // never touches S3, so failing the build on missing S3 vars is wrong.
+  // Processes that genuinely need them will throw at runtime when they
+  // construct the S3 client with empty creds — much clearer locality.
+  S3_ENDPOINT: str({ default: '' }),
   S3_REGION: str({ default: 'auto' }),
-  S3_ACCESS_KEY_ID: str(),
-  S3_SECRET_ACCESS_KEY: str(),
-  S3_BUCKET: str(),
+  S3_ACCESS_KEY_ID: str({ default: '' }),
+  S3_SECRET_ACCESS_KEY: str({ default: '' }),
+  S3_BUCKET: str({ default: '' }),
   API_PORT: port({ default: 3000 }),
   PUBLIC_API_BASE_URL: str({ default: '' }),
   OPENROUTER_API_KEY: str({ default: '' }),
