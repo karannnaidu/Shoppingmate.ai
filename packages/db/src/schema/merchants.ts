@@ -30,6 +30,7 @@ export const merchants = pgTable('merchants', {
   id: text('id').primaryKey(),
   domain: text('domain').notNull().unique(),
   name: text('name'),
+  scriptSecret: text('script_secret'),
   allowedDomains: text('allowed_domains').array().notNull().default([]),
   platform: text('platform').$type<PlatformValue>(),
   platformConfidence: numeric('platform_confidence'),
