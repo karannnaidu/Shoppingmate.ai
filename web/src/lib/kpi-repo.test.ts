@@ -12,20 +12,26 @@ const conversionRows = [
   { kind: 'influenced', totalCents: 5000, orderId: 'o3' },
 ];
 
-vi.mock('./db', () => {
-  let call = 0;
+vi.mock('./db', async () => {
+  const { metricEvents, conversionEvents } = await import('@shoppingmate/db/schema');
   return {
     db: {
       select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => {
-            call += 1;
-            if (call === 1) {
-              return { groupBy: vi.fn(() => Promise.resolve(metricRows)) };
-            }
-            return Promise.resolve(conversionRows);
-          }),
-        })),
+        from: vi.fn((table: unknown) => {
+          if (table === metricEvents) {
+            return {
+              where: vi.fn(() => ({
+                groupBy: vi.fn(() => Promise.resolve(metricRows)),
+              })),
+            };
+          }
+          if (table === conversionEvents) {
+            return {
+              where: vi.fn(() => Promise.resolve(conversionRows)),
+            };
+          }
+          throw new Error('unexpected table in test mock');
+        }),
       })),
     },
   };

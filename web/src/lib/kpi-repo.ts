@@ -15,27 +15,28 @@ export type Kpis = {
 export async function computeKpis(args: { merchantId: string; days: number }): Promise<Kpis> {
   const since = new Date(Date.now() - args.days * 24 * 3600 * 1000);
 
-  const metricRows = await db
-    .select({
-      name: metricEvents.metricName,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(metricEvents)
-    .where(and(eq(metricEvents.merchantId, args.merchantId), gte(metricEvents.ts, since)))
-    .groupBy(metricEvents.metricName);
+  const [metricRows, conversionRows] = await Promise.all([
+    db
+      .select({
+        name: metricEvents.metricName,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(metricEvents)
+      .where(and(eq(metricEvents.merchantId, args.merchantId), gte(metricEvents.ts, since)))
+      .groupBy(metricEvents.metricName),
+    db
+      .select({
+        kind: conversionEvents.attributionKind,
+        totalCents: conversionEvents.totalCents,
+        orderId: conversionEvents.orderId,
+      })
+      .from(conversionEvents)
+      .where(and(eq(conversionEvents.merchantId, args.merchantId), gte(conversionEvents.occurredAt, since))),
+  ]);
 
   const byName = new Map(metricRows.map((r) => [r.name, r]));
   const conversations = byName.get('conversationCompleted')?.count ?? 0;
   const voiceConversations = byName.get('voiceConversation')?.count ?? 0;
-
-  const conversionRows = await db
-    .select({
-      kind: conversionEvents.attributionKind,
-      totalCents: conversionEvents.totalCents,
-      orderId: conversionEvents.orderId,
-    })
-    .from(conversionEvents)
-    .where(and(eq(conversionEvents.merchantId, args.merchantId), gte(conversionEvents.occurredAt, since)));
 
   const assistedRows = conversionRows.filter((r) => r.kind === 'assisted');
   const influencedRows = conversionRows.filter((r) => r.kind === 'influenced');
