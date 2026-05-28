@@ -116,5 +116,5 @@ export async function attributeOrder(
   }
 
   const missReason = hasAssistedMatch ? null : ('no_recommendation_match' as const);
-  return { wrote, skipped, missReason: wrote.length === 0 ? 'no_visitor_in_window' : missReason };
+  return { wrote, skipped, missReason };
 }

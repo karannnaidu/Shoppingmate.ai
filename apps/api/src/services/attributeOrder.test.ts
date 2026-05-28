@@ -95,4 +95,17 @@ describe('attributeOrder', () => {
     const [row] = (deps.insertConversion as any).mock.calls[0];
     expect(row.sessionId).toBe('sess-new');
   });
+
+  it('reports no_recommendation_match (not no_visitor_in_window) when idempotent-skipping with sessions present', async () => {
+    const deps = makeDeps({
+      findRecentSessionsForVisitor: vi.fn().mockResolvedValue([
+        { id: 'sess-1', endedAt: new Date('2026-05-26T10:00:00Z') },
+      ]),
+      insertConversion: vi.fn().mockResolvedValue({ inserted: false }),
+    });
+    const result = await attributeOrder(baseOrder(), deps);
+    expect(result.wrote).toEqual([]);
+    expect(result.skipped).toEqual(['influenced']);
+    expect(result.missReason).toBe('no_recommendation_match');
+  });
 });
