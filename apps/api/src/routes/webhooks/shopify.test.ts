@@ -77,7 +77,7 @@ describe('Shopify orders/create webhook', () => {
     expect(out.status).toBe(401);
   });
 
-  it('returns 400 visitor_required when sm_visitor_id missing', async () => {
+  it('returns 200 with no_visitor_id when sm_visitor_id missing', async () => {
     const body = JSON.stringify({ id: 1, total_price: '5.00', currency: 'USD', created_at: '2026-05-27T10:00:00Z', line_items: [] });
     const attribute = vi.fn();
     const out = await handleShopifyOrderWebhook({
@@ -86,8 +86,13 @@ describe('Shopify orders/create webhook', () => {
       verifyHmac: () => true,
       attribute,
     });
-    expect(out.status).toBe(400);
-    expect(out.body?.error).toBe('visitor_required');
+    expect(out.status).toBe(200);
+    expect(out.body).toEqual({
+      ok: true,
+      wrote: [],
+      skipped: ['no_visitor_id'],
+      missReason: null,
+    });
     expect(attribute).not.toHaveBeenCalled();
   });
 
@@ -206,8 +211,13 @@ describe('Shopify orders/create webhook', () => {
       verifyHmac: () => true,
       attribute,
     });
-    expect(out.status).toBe(400);
-    expect(out.body?.error).toBe('visitor_required');
+    expect(out.status).toBe(200);
+    expect(out.body).toEqual({
+      ok: true,
+      wrote: [],
+      skipped: ['no_visitor_id'],
+      missReason: null,
+    });
     expect(attribute).not.toHaveBeenCalled();
   });
 
@@ -227,8 +237,13 @@ describe('Shopify orders/create webhook', () => {
       verifyHmac: () => true,
       attribute,
     });
-    expect(out.status).toBe(400);
-    expect(out.body?.error).toBe('visitor_required');
+    expect(out.status).toBe(200);
+    expect(out.body).toEqual({
+      ok: true,
+      wrote: [],
+      skipped: ['no_visitor_id'],
+      missReason: null,
+    });
     expect(attribute).not.toHaveBeenCalled();
   });
 

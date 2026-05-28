@@ -97,7 +97,15 @@ export async function handleShopifyOrderWebhook(
     }
   }
   if (!visitorId) {
-    return { status: 400, body: { error: 'visitor_required' } };
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        wrote: [],
+        skipped: ['no_visitor_id'],
+        missReason: null,
+      },
+    };
   }
 
   const totalCents = dollarsToCents(payload.total_price ?? '0');
