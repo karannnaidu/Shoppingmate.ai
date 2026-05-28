@@ -1,3 +1,5 @@
+import { getOrCreateVisitorId } from './identity.js';
+
 export type BootstrapInput = {
   apiBase: string;
   merchantId: string;
@@ -19,11 +21,13 @@ export type BootstrapResult =
       merchantStatus: string;
       personaId: string | null;
       voice: VoiceBootstrap | null;
+      visitorId: string;
     }
   | { kind: 'err'; reason: string };
 
 export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult> {
   try {
+    const visitorId = getOrCreateVisitorId();
     const installRes = await fetch(`${input.apiBase}/v1/install`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -53,6 +57,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
         body: JSON.stringify({
           sessionId: sessionBody.sessionId,
           merchantId: input.merchantId,
+          visitorId,
         }),
       });
       if (vRes.ok) {
@@ -71,6 +76,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       merchantStatus: installBody.status,
       personaId: installBody.personaId ?? voice?.personaId ?? null,
       voice,
+      visitorId,
     };
   } catch (err) {
     return { kind: 'err', reason: err instanceof Error ? err.message : 'network' };
