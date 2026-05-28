@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { siteGraphCrawlQueue, siteGraphExtractQueue } from '@shoppingmate/jobs';
-import { db, schema } from '@shoppingmate/db';
+import { db, schema, metricNames } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
-import { defaultAttribute } from '../conversion.js';
+import { defaultAttribute, defaultRecordMetric, type RecordMetricFn } from '../conversion.js';
 import type { OrderPayload, AttributeResult } from '../../services/attributeOrder.js';
 
 export type ShopifyWebhookArgs = {
@@ -43,6 +43,7 @@ export type ShopifyOrderWebhookArgs = {
   lookupMerchantId: (domain: string) => Promise<string | null>;
   verifyHmac: (rawBody: string, hmacHeader: string) => boolean;
   attribute: (order: OrderPayload) => Promise<AttributeResult>;
+  recordMetric: RecordMetricFn;
 };
 
 export type ShopifyOrderWebhookResponse = {
@@ -97,6 +98,13 @@ export async function handleShopifyOrderWebhook(
     }
   }
   if (!visitorId) {
+    // merchantId is known here; emit no_visitor miss counter.
+    // Auth-failed / merchant-unknown branches don't emit because FK requires a valid merchantId we don't have there.
+    await args.recordMetric({
+      merchantId,
+      metricName: metricNames.conversionMissNoVisitor,
+      tags: { source: 'shopify_webhook' },
+    });
     return {
       status: 200,
       body: {
@@ -152,6 +160,39 @@ export async function handleShopifyOrderWebhook(
     console.error('[shopify-order] attribute failed', { merchantId, orderId: order.orderId, err });
     return { status: 500, body: { error: 'internal' } };
   }
+
+  // Emit telemetry counters. Auth-failed / merchant-unknown branches don't emit
+  // because the DB FK on metric_events requires a valid merchantId we don't have there.
+  for (const kind of result.wrote) {
+    await args.recordMetric({
+      merchantId,
+      metricName: metricNames.conversionIngested,
+      tags: { source: 'shopify_webhook', kind },
+    });
+  }
+  for (const kind of result.skipped) {
+    if (kind === 'no_visitor_id') {
+      await args.recordMetric({
+        merchantId,
+        metricName: metricNames.conversionMissNoVisitor,
+        tags: { source: 'shopify_webhook' },
+      });
+    } else {
+      await args.recordMetric({
+        merchantId,
+        metricName: metricNames.conversionMissDuplicate,
+        tags: { source: 'shopify_webhook', kind },
+      });
+    }
+  }
+  if (result.missReason === 'no_recommendation_match') {
+    await args.recordMetric({
+      merchantId,
+      metricName: metricNames.conversionMissNoRecommendation,
+      tags: { source: 'shopify_webhook' },
+    });
+  }
+
   return {
     status: 200,
     body: {
@@ -198,6 +239,7 @@ shopifyWebhookRoute.post('/orders/create', async (c) => {
     },
     verifyHmac: defaultVerifyHmac,
     attribute: defaultAttribute,
+    recordMetric: defaultRecordMetric,
   });
   return c.json(out.body ?? {}, out.status as 200 | 400 | 401 | 404 | 500);
 });

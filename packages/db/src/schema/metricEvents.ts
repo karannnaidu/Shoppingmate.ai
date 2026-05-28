@@ -82,4 +82,10 @@ export const metricNames = {
   agentCapHit: 'agent.cap.hit',
   agentSessionClosed: 'agent.session.closed',
   agentSonnetError: 'agent.sonnet.error',
+  conversionIngested: 'conversion.ingested',
+  conversionMissNoVisitor: 'conversion.miss.no_visitor_in_window',
+  conversionMissNoRecommendation: 'conversion.miss.no_recommendation_match',
+  conversionMissMerchantUnknown: 'conversion.miss.merchant_unknown',
+  conversionMissAuthFailed: 'conversion.miss.auth_failed',
+  conversionMissDuplicate: 'conversion.miss.duplicate',
 } as const;

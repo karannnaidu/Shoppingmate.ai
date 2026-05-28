@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@shoppingmate/db', () => ({ db: {}, schema: {} }));
+vi.mock('@shoppingmate/db', () => ({
+  db: {},
+  schema: {},
+  metricNames: {
+    conversionIngested: 'conversion.ingested',
+    conversionMissNoVisitor: 'conversion.miss.no_visitor_in_window',
+    conversionMissNoRecommendation: 'conversion.miss.no_recommendation_match',
+    conversionMissMerchantUnknown: 'conversion.miss.merchant_unknown',
+    conversionMissAuthFailed: 'conversion.miss.auth_failed',
+    conversionMissDuplicate: 'conversion.miss.duplicate',
+  },
+}));
 vi.mock('@shoppingmate/jobs', () => ({ siteGraphCrawlQueue: { add: vi.fn() }, siteGraphExtractQueue: {} }));
 
 import { handleShopifyProductWebhook, handleShopifyOrderWebhook } from './shopify.js';
@@ -55,6 +66,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn().mockResolvedValue(undefined),
     });
     expect(out.status).toBe(200);
     expect(attribute).toHaveBeenCalledOnce();
@@ -73,6 +85,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => false,
       attribute: vi.fn(),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(401);
   });
@@ -85,6 +98,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn().mockResolvedValue(undefined),
     });
     expect(out.status).toBe(200);
     expect(out.body).toEqual({
@@ -104,6 +118,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute: vi.fn().mockRejectedValue(new Error('db down')),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(500);
     expect(out.body?.error).toBe('internal');
@@ -122,6 +137,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn().mockResolvedValue(undefined),
     });
     expect(out.status).toBe(200);
     expect(out.body).toEqual({
@@ -147,6 +163,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(400);
     expect(out.body?.error).toBe('invalid_amount');
@@ -168,6 +185,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(400);
     expect(out.body?.error).toBe('invalid_amount');
@@ -189,6 +207,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(400);
     expect(out.body?.error).toBe('invalid_occurred_at');
@@ -210,6 +229,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn().mockResolvedValue(undefined),
     });
     expect(out.status).toBe(200);
     expect(out.body).toEqual({
@@ -236,6 +256,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn().mockResolvedValue(undefined),
     });
     expect(out.status).toBe(200);
     expect(out.body).toEqual({
@@ -256,6 +277,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(400);
     expect(out.body?.error).toBe('invalid_json');
@@ -271,6 +293,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => null,
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(404);
     expect(out.body?.error).toBe('merchant_unknown');
@@ -286,6 +309,7 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => { throw new Error('db down'); },
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(500);
     expect(out.body?.error).toBe('internal');
@@ -307,9 +331,52 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => true,
       attribute,
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(400);
     expect(out.body?.error).toBe('invalid_amount');
     expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('emits conversionIngested per wrote[] entry on success', async () => {
+    const recordMetric = vi.fn().mockResolvedValue(undefined);
+    const attribute = vi.fn().mockResolvedValue({ wrote: ['influenced'], skipped: [], missReason: null });
+    const out = await handleShopifyOrderWebhook({
+      rawBody: validBody,
+      hmacHeader: 'abc',
+      shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+      recordMetric,
+    });
+    expect(out.status).toBe(200);
+    expect(recordMetric).toHaveBeenCalledOnce();
+    expect(recordMetric).toHaveBeenCalledWith({
+      merchantId: 'm1',
+      metricName: 'conversion.ingested',
+      tags: { source: 'shopify_webhook', kind: 'influenced' },
+    });
+  });
+
+  it('emits conversionMissNoVisitor when sm_visitor_id is absent', async () => {
+    const recordMetric = vi.fn().mockResolvedValue(undefined);
+    const body = JSON.stringify({ id: 1, total_price: '5.00', currency: 'USD', created_at: '2026-05-27T10:00:00Z', line_items: [] });
+    const out = await handleShopifyOrderWebhook({
+      rawBody: body,
+      hmacHeader: 'abc',
+      shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute: vi.fn(),
+      recordMetric,
+    });
+    expect(out.status).toBe(200);
+    expect(recordMetric).toHaveBeenCalledOnce();
+    expect(recordMetric).toHaveBeenCalledWith({
+      merchantId: 'm1',
+      metricName: 'conversion.miss.no_visitor_in_window',
+      tags: { source: 'shopify_webhook' },
+    });
   });
 });

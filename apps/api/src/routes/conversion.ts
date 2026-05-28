@@ -19,11 +19,18 @@ function safeEqual(a: string, b: string): boolean {
   }
 }
 
+export type RecordMetricFn = (args: {
+  merchantId: string;
+  metricName: string;
+  tags?: Record<string, string | number | boolean>;
+}) => Promise<void>;
+
 export type ConversionIngestArgs = {
   rawBody: string;
   hmacHeader: string;
   lookupMerchantSecret: (merchantId: string) => Promise<string | null>;
   attribute: (order: OrderPayload) => Promise<AttributeResult>;
+  recordMetric: RecordMetricFn;
 };
 
 export type ConversionIngestResponse = {
@@ -95,10 +102,41 @@ export async function handleConversionIngest(
     console.error('[conversion] attribute failed', { merchantId: payload.merchantId, err });
     return { status: 500, body: { error: 'internal' } };
   }
+
+  // Emit telemetry counters. Auth-failed / merchant-unknown branches don't emit
+  // because the DB FK on metric_events requires a valid merchantId we don't have there.
+  for (const kind of result.wrote) {
+    await args.recordMetric({
+      merchantId: payload.merchantId,
+      metricName: schema.metricNames.conversionIngested,
+      tags: { source: 'gtag', kind },
+    });
+  }
+  for (const kind of result.skipped) {
+    await args.recordMetric({
+      merchantId: payload.merchantId,
+      metricName: schema.metricNames.conversionMissDuplicate,
+      tags: { source: 'gtag', kind },
+    });
+  }
+
   return { status: 200, body: { ok: true, wrote: result.wrote, missReason: result.missReason } };
 }
 
 // Default repo wiring for production use; the handler above stays pure for tests.
+export async function defaultRecordMetric(args: {
+  merchantId: string;
+  metricName: string;
+  tags?: Record<string, string | number | boolean>;
+}): Promise<void> {
+  await db.insert(schema.metricEvents).values({
+    merchantId: args.merchantId,
+    metricName: args.metricName,
+    value: '1',
+    tags: args.tags,
+  });
+}
+
 export async function defaultLookupMerchantSecret(merchantId: string): Promise<string | null> {
   const row = await db.query.merchants.findFirst({
     where: eq(schema.merchants.id, merchantId),
@@ -169,6 +207,7 @@ conversionRoute.post('/', async (c) => {
     hmacHeader,
     lookupMerchantSecret: defaultLookupMerchantSecret,
     attribute: defaultAttribute,
+    recordMetric: defaultRecordMetric,
   });
   return c.json(out.body, out.status as 200 | 400 | 401 | 404 | 500);
 });

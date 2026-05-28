@@ -19,6 +19,7 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: '',
       lookupMerchantSecret: async () => secret,
       attribute: vi.fn(),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(401);
     expect(out.body.error).toBe('auth_failed');
@@ -30,6 +31,7 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: 'definitely-wrong',
       lookupMerchantSecret: async () => secret,
       attribute: vi.fn(),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(401);
   });
@@ -40,6 +42,7 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: computeHmac(validBody, 'whatever'),
       lookupMerchantSecret: async () => null,
       attribute: vi.fn(),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(404);
     expect(out.body.error).toBe('merchant_unknown');
@@ -52,6 +55,7 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: computeHmac(validBody, secret),
       lookupMerchantSecret: async () => secret,
       attribute,
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(200);
     expect(out.body.wrote).toEqual(['influenced']);
@@ -68,6 +72,7 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: computeHmac(bad, secret),
       lookupMerchantSecret: async () => secret,
       attribute: vi.fn(),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(400);
   });
@@ -87,6 +92,7 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: computeHmac(body, secret),
       lookupMerchantSecret: async () => secret,
       attribute: vi.fn(),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(400);
     expect(out.body.error).toBe('invalid_amount');
@@ -107,6 +113,7 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: computeHmac(body, secret),
       lookupMerchantSecret: async () => secret,
       attribute: vi.fn(),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(400);
     expect(out.body.error).toBe('invalid_occurred_at');
@@ -118,6 +125,7 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: computeHmac(validBody, secret),
       lookupMerchantSecret: async () => secret,
       attribute: vi.fn().mockRejectedValue(new Error('db down')),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(500);
     expect(out.body.error).toBe('internal');
@@ -129,8 +137,47 @@ describe('POST /v1/conversion handler', () => {
       hmacHeader: 'whatever',
       lookupMerchantSecret: async () => { throw new Error('db down'); },
       attribute: vi.fn(),
+      recordMetric: vi.fn(),
     });
     expect(out.status).toBe(500);
     expect(out.body.error).toBe('internal');
+  });
+
+  it('emits conversionIngested per wrote[] entry on success', async () => {
+    const recordMetric = vi.fn().mockResolvedValue(undefined);
+    const attribute = vi.fn().mockResolvedValue({ wrote: ['influenced'], skipped: [], missReason: null });
+    const out = await handleConversionIngest({
+      rawBody: validBody,
+      hmacHeader: computeHmac(validBody, secret),
+      lookupMerchantSecret: async () => secret,
+      attribute,
+      recordMetric,
+    });
+    expect(out.status).toBe(200);
+    expect(recordMetric).toHaveBeenCalledOnce();
+    expect(recordMetric).toHaveBeenCalledWith({
+      merchantId: 'm1',
+      metricName: 'conversion.ingested',
+      tags: { source: 'gtag', kind: 'influenced' },
+    });
+  });
+
+  it('emits conversionMissDuplicate per skipped[] entry', async () => {
+    const recordMetric = vi.fn().mockResolvedValue(undefined);
+    const attribute = vi.fn().mockResolvedValue({ wrote: [], skipped: ['influenced'], missReason: null });
+    const out = await handleConversionIngest({
+      rawBody: validBody,
+      hmacHeader: computeHmac(validBody, secret),
+      lookupMerchantSecret: async () => secret,
+      attribute,
+      recordMetric,
+    });
+    expect(out.status).toBe(200);
+    expect(recordMetric).toHaveBeenCalledOnce();
+    expect(recordMetric).toHaveBeenCalledWith({
+      merchantId: 'm1',
+      metricName: 'conversion.miss.duplicate',
+      tags: { source: 'gtag', kind: 'influenced' },
+    });
   });
 });
