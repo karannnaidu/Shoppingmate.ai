@@ -1,7 +1,12 @@
 // Plan 4 runtime — extracted from apps/api/src/agent/ in Plan 6 Phase A.
 // Public surface used by apps/api (chat WS) and apps/voice-agent (voice bridge).
 
-export { runTurn, type RunTurnDeps } from './runtime.js';
+export {
+  runTurn,
+  type RunTurnDeps,
+  type SessionStore,
+  type RecommendationStore,
+} from './runtime.js';
 export {
   createSession,
   loadSession,

@@ -19,6 +19,7 @@ import {
   loadSession,
   runTurn,
   saveSession as saveSessionAgent,
+  type SessionStore,
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import { db, schema } from '@shoppingmate/db';
@@ -41,6 +42,26 @@ function redis(): Redis {
   }
   return _redis;
 }
+
+// Default Postgres binding for the SessionStore boundary declared in
+// @shoppingmate/agent. Used by the voice worker to write conversation_sessions
+// rows on job start (openSession) and Disconnected (closeSession). Attribution
+// (apps/api/src/services/attributeOrder.ts) joins these rows by visitor_id +
+// merchant_id when a Shopify order webhook lands.
+const sessionStore: SessionStore = {
+  openSession: async ({ sessionId, merchantId, visitorId }) => {
+    await db
+      .insert(schema.conversationSessions)
+      .values({ id: sessionId, merchantId, visitorId })
+      .onConflictDoNothing();
+  },
+  closeSession: async ({ sessionId }) => {
+    await db
+      .update(schema.conversationSessions)
+      .set({ endedAt: new Date() })
+      .where(eq(schema.conversationSessions.id, sessionId));
+  },
+};
 
 // Mirrors TOUR_VERTICAL_KEYWORDS in packages/agent/src/runtime.ts. Duplicated
 // here because voice-agent doesn't go through the chat tool-loop, so when the
@@ -145,6 +166,18 @@ const agentDefinition = defineAgent({
       await job.room.disconnect();
       return;
     }
+
+    // Write the conversation_sessions row that attribution joins against on
+    // Shopify order webhooks. Fire-and-forget: a DB hiccup must not kill the
+    // worker — at worst we lose one row of attribution coverage. anon_<sid>
+    // visitor id is intentional; it never matches a real Shopify cart
+    // attribute, so attribution naturally skips these sessions until
+    // Task 13 wires the widget→token→session visitor id path end-to-end.
+    const visitorId = session.visitorId ?? `anon_${sessionId}`;
+    sessionStore
+      .openSession({ sessionId, merchantId: merchant.id, visitorId })
+      .catch((err) => log.warn({ err, sessionId }, 'openSession failed'));
+
     const kbText = kbChunks.length > 0 ? kbChunks.map((c) => c.text).join('\n\n') : undefined;
     const demoMode = merchant.id === sharedEnv.SHOPPINGMATE_DEMO_MERCHANT_ID;
 
@@ -448,6 +481,13 @@ const agentDefinition = defineAgent({
       clearInterval(tickInterval);
       metrics.flush();
       gemini.close().catch(() => {});
+      // Fire-and-forget: a DB hiccup must not surface as an unhandled
+      // rejection in the worker. Closing the row is best-effort — the
+      // attribution path treats a null ended_at as "still active" and
+      // sorts those ahead of ended rows when ranking sessions by recency.
+      sessionStore
+        .closeSession({ sessionId })
+        .catch((err) => log.warn({ err, sessionId }, 'closeSession failed'));
       log.info({ sessionId }, 'voice-agent job ended');
     });
   },

@@ -67,4 +67,10 @@ export type SessionState = {
   lastTurnAt: number;
   mode: Mode;
   allowedSpeechTokens: string[];
+  // Stable per-visitor id sourced from the widget's localStorage
+  // (`sm_visitor_id`). Optional because Task 13 wires the widget→token →
+  // session path; until then voice sessions fall back to `anon_<sessionId>`
+  // at the openSession call-site, which never matches a real Shopify cart
+  // attribute so attribution naturally skips these sessions.
+  visitorId?: string;
 };

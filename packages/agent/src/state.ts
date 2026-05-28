@@ -10,6 +10,7 @@ export function createSession(opts: {
   merchantId: string;
   mode: Mode;
   nowMs: number;
+  visitorId?: string;
 }): SessionState {
   return {
     sessionId: opts.sessionId,
@@ -23,6 +24,7 @@ export function createSession(opts: {
     lastTurnAt: opts.nowMs,
     mode: opts.mode,
     allowedSpeechTokens: [],
+    ...(opts.visitorId ? { visitorId: opts.visitorId } : {}),
   };
 }
 

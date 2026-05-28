@@ -18,6 +18,34 @@ const SONNET_MODEL = 'anthropic/claude-sonnet-4.6';
 const MAX_TOOL_LOOP_ITERATIONS = 8;
 const RETRY_LIMIT_PER_TOOL = 3;
 
+/**
+ * Persistence boundary for conversation_sessions rows. The default Postgres
+ * binding lives in apps/voice-agent/src/agentWorker.ts (Plan 7 Task 11). Kept
+ * out of runTurn — runtime is per-message; session lifecycle is per-job in the
+ * voice worker (and per-WS in the chat path, see apps/api).
+ */
+export type SessionStore = {
+  openSession: (args: {
+    sessionId: string;
+    merchantId: string;
+    visitorId: string;
+  }) => Promise<void>;
+  closeSession: (args: { sessionId: string }) => Promise<void>;
+};
+
+/**
+ * Persistence boundary for recommendation_events rows. Wired in Task 12 from
+ * the voice/chat surfaces that emit cards (`mentioned` | `highlighted`) and
+ * card_tap (`clicked`). Exported here so call-sites import a single shape.
+ */
+export type RecommendationStore = {
+  recordRecommendation: (args: {
+    sessionId: string;
+    sku: string;
+    kind: 'mentioned' | 'highlighted' | 'clicked';
+  }) => Promise<void>;
+};
+
 export type RunTurnDeps = {
   loadAdapter: (merchant: Merchant, sessionId: string) => Adapter;
   saveSession: (s: SessionState) => Promise<void>;

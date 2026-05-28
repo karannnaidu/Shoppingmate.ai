@@ -52,6 +52,20 @@ describe('session repo', () => {
     });
   });
 
+  it('round-trips visitorId through createSession + save/load', async () => {
+    const s = createSession({
+      sessionId: 'test-visitor',
+      merchantId: 'm',
+      mode: 'voice',
+      nowMs: 100,
+      visitorId: 'v_abc123',
+    });
+    expect(s.visitorId).toBe('v_abc123');
+    await saveSession(redis, s);
+    const loaded = await loadSession(redis, 'test-visitor');
+    expect(loaded?.visitorId).toBe('v_abc123');
+  });
+
   it('saves and loads a session', async () => {
     await saveSession(redis, baseSession);
     const loaded = await loadSession(redis, 'test-1');

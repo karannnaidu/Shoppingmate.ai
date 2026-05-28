@@ -13,6 +13,10 @@ const log = childLogger({ route: 'voice-token' });
 const Body = z.object({
   sessionId: z.string().regex(/^ws_[a-z0-9]+$/),
   merchantId: z.string().regex(/^SM-[A-Z0-9]{6}$/),
+  // Optional until Task 13 wires the widget to send sm_visitor_id from
+  // localStorage. When present, threaded into the session so the voice
+  // worker can write a conversation_sessions row with the real id.
+  visitorId: z.string().min(1).max(100).optional(),
 });
 
 const TOKEN_TTL_SECONDS = 24 * 60 * 60;
@@ -36,7 +40,7 @@ voiceTokenRoute.post('/', async (c) => {
   if (!parsed.success) {
     return c.json({ error: 'invalid_body', message: 'invalid request body' }, 400);
   }
-  const { sessionId, merchantId } = parsed.data;
+  const { sessionId, merchantId, visitorId } = parsed.data;
 
   const [merchant] = await db
     .select()
@@ -75,8 +79,13 @@ voiceTokenRoute.post('/', async (c) => {
   if (!existing) {
     await saveSession(
       redis(),
-      createSession({ sessionId, merchantId, mode: 'voice', nowMs: Date.now() }),
+      createSession({ sessionId, merchantId, mode: 'voice', nowMs: Date.now(), visitorId }),
     );
+  } else if (visitorId && !existing.visitorId) {
+    // Caller has a visitor id (e.g. chat-first then voice). Backfill it so
+    // the voice worker can write a conversation_sessions row with the real
+    // id instead of falling back to anon_<sessionId>.
+    await saveSession(redis(), { ...existing, visitorId });
   }
 
   const roomName = `sm_${sessionId}`;
