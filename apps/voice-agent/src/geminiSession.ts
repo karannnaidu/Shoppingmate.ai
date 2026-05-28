@@ -10,6 +10,10 @@ export type GeminiTransportEvent =
   | { type: 'audio_out'; bytes: Uint8Array }
   | { type: 'speech_started' }
   | { type: 'speech_ended' }
+  // Gemini Live tells us the visitor barged in (server-side VAD detected speech
+  // during model output). The model stops generating but anything already
+  // buffered in our local AudioSource will keep playing unless we drop it.
+  | { type: 'interrupted' }
   | { type: 'error'; error: Error };
 
 export type GeminiTransport = {

@@ -165,6 +165,36 @@ const DEMO_TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
+      name: 'site.point_at',
+      description:
+        'Glide the visible Sage cursor over an element so the visitor sees what you are talking about. Use this BEFORE you start describing anything on screen — point first, then narrate. Does NOT click; pairs with scroll_to / highlight / demo_click.',
+      parameters: {
+        type: 'object',
+        properties: {
+          intent: { type: 'string', description: 'e.g. "pricing nav link", "starter plan card", "install snippet"' },
+        },
+        required: ['intent'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'site.demo_click',
+      description:
+        'Glide the cursor to an element, pulse, and click it for real (navigates if it is a link). Use for walkthrough actions — opening a page, expanding a section, etc. Narrate aloud while calling this so the visitor follows your hands.',
+      parameters: {
+        type: 'object',
+        properties: {
+          intent: { type: 'string', description: 'e.g. "pricing nav link", "features card", "sign up button"' },
+        },
+        required: ['intent'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'pricing.quote',
       description:
         "Get the canonical, server-formatted speech string for a plan. ALWAYS use this when voicing a price. Returns { planId, speech, card }. Speak the `speech` field verbatim — do not paraphrase or rewrite the numbers.",
@@ -261,7 +291,9 @@ export async function dispatchTool(
     case 'site.navigate':
     case 'site.scroll_to':
     case 'site.highlight':
-    case 'site.click': {
+    case 'site.click':
+    case 'site.point_at':
+    case 'site.demo_click': {
       return { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
     }
     default:

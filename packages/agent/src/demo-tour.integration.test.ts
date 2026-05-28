@@ -132,7 +132,10 @@ describe('Bucket B integration — pricing tour end-to-end', () => {
     // Pulse ring was mounted by executeHostAction site.highlight (durationMs = 2000,
     // still alive at the time of assertion because no real time has elapsed).
     expect(document.querySelector('[data-shoppingmate-pulse-ring]')).not.toBeNull();
-    // Navigate was attempted with the resolved /pricing path
+    // Navigate was attempted with the resolved /pricing path. The fallback path
+    // wraps the call in setTimeout(0) so the host_action_result can return over
+    // LiveKit before the browser tears down; wait one macrotask for it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(assign).toHaveBeenCalledWith('/pricing');
   });
 });

@@ -6,7 +6,9 @@ export type HostAction =
   | { type: 'navigate'; path: string }
   | { type: 'scroll_to'; intent: string }
   | { type: 'highlight'; intent: string; durationMs?: number }
-  | { type: 'click'; intent: string };
+  | { type: 'click'; intent: string }
+  | { type: 'point_at'; intent: string }
+  | { type: 'demo_click'; intent: string };
 
 export type HostActionResult =
   | { ok: true }
@@ -22,6 +24,10 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return highlight(action.intent, action.durationMs ?? 2000);
     case 'click':
       return click(action.intent);
+    case 'point_at':
+      return pointAt(action.intent);
+    case 'demo_click':
+      return demoClick(action.intent);
   }
 }
 
@@ -43,6 +49,7 @@ function clientRouterNavigate(path: string): boolean {
   }
   return false;
 }
+
 
 async function navigate(path: string): Promise<HostActionResult> {
   try {
@@ -102,6 +109,43 @@ async function click(intent: string): Promise<HostActionResult> {
   if (!el.isConnected) return { ok: false, reason: 'stale_target' };
   await moveCursorTo(el, 420);
   await pulseCursorClick();
+  if (!el.isConnected) return { ok: false, reason: 'stale_target' };
+  el.click();
+  hideCursor(800);
+  return { ok: true };
+}
+
+// Scroll the target into view if it's outside the viewport, then wait briefly
+// for the scroll to settle before measuring its position. Without this, the
+// cursor lands at the pre-scroll coordinates and the visitor never sees it.
+async function ensureInViewport(el: HTMLElement): Promise<void> {
+  const rect = el.getBoundingClientRect();
+  const vh = window.innerHeight;
+  const offscreen = rect.bottom < 80 || rect.top > vh - 80;
+  if (!offscreen) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  await new Promise<void>((resolve) => setTimeout(resolve, 350));
+}
+
+async function pointAt(intent: string): Promise<HostActionResult> {
+  const el = resolveIntent(intent);
+  if (!el) return { ok: false, reason: 'not_found' };
+  if (!el.isConnected) return { ok: false, reason: 'stale_target' };
+  await ensureInViewport(el);
+  await moveCursorTo(el, 480);
+  return { ok: true };
+}
+
+async function demoClick(intent: string): Promise<HostActionResult> {
+  const el = resolveIntent(intent);
+  if (!el) return { ok: false, reason: 'not_found' };
+  if (!el.isConnected) return { ok: false, reason: 'stale_target' };
+  await ensureInViewport(el);
+  await moveCursorTo(el, 420);
+  await pulseCursorClick();
+  // Brief settle before the real click so the visitor's eye registers the
+  // pulse-then-action sequence; without it the page changes too fast.
+  await new Promise<void>((resolve) => setTimeout(resolve, 120));
   if (!el.isConnected) return { ok: false, reason: 'stale_target' };
   el.click();
   hideCursor(800);

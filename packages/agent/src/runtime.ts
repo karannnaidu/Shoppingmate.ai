@@ -316,7 +316,9 @@ export async function* runTurn(
           call.name === 'site.navigate' ||
           call.name === 'site.scroll_to' ||
           call.name === 'site.highlight' ||
-          call.name === 'site.click'
+          call.name === 'site.click' ||
+          call.name === 'site.point_at' ||
+          call.name === 'site.demo_click'
         ) {
           if (!deps.dispatchHostAction) {
             envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
@@ -529,6 +531,10 @@ function toHostAction(name: string, args: Record<string, unknown>): HostAction {
       };
     case 'site.click':
       return { type: 'click', intent: String(args.intent ?? '') };
+    case 'site.point_at':
+      return { type: 'point_at', intent: String(args.intent ?? '') };
+    case 'site.demo_click':
+      return { type: 'demo_click', intent: String(args.intent ?? '') };
     default:
       throw new Error(`toHostAction: unknown site tool ${name}`);
   }

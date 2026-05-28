@@ -53,7 +53,7 @@ export function Cta() {
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
                 <Link
-                  href="#demo"
+                  href="/demo"
                   className="inline-flex items-center gap-2 rounded-full border border-background/25 px-6 py-3.5 text-[15px] font-medium text-background transition-colors hover:bg-background/5"
                 >
                   Hear it talk

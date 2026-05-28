@@ -109,7 +109,7 @@ export function Hero() {
                 <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-violet via-fuchsia to-cyan opacity-0 transition-all duration-500 group-hover:translate-x-0 group-hover:opacity-100" />
               </Link>
               <Link
-                href="#demo"
+                href="/demo"
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-elevated px-6 py-3.5 text-[15px] font-medium text-text-primary transition-colors hover:border-border-strong"
               >
                 <Mic className="h-4 w-4" />

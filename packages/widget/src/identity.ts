@@ -24,7 +24,7 @@ function readStored(): Stored | null {
   // Cookie fallback when localStorage is denied/cleared (Safari ITP, quota, private mode)
   const match = document.cookie.match(new RegExp(`(?:^|; )${VISITOR_ID_KEY}=([^;]+)`));
   if (match) {
-    return { id: decodeURIComponent(match[1]), expiresAt: Date.now() + 1 };
+    return { id: decodeURIComponent(match[1] ?? ''), expiresAt: Date.now() + 1 };
   }
   return null;
 }

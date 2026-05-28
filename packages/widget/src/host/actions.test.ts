@@ -8,15 +8,32 @@ beforeEach(() => {
 });
 
 describe('executeHostAction()', () => {
-  it('navigates to a same-origin path via window.location.href', async () => {
+  it('navigates to a same-origin path via window.location.assign when no soft-nav hook', async () => {
     const assignSpy = vi.fn();
     Object.defineProperty(window, 'location', {
       value: { href: 'https://shoppingmate.ai/', assign: assignSpy, origin: 'https://shoppingmate.ai', pathname: '/' },
       writable: true,
     });
+    delete (window as unknown as { __shoppingmateSoftNav?: unknown }).__shoppingmateSoftNav;
     const r = await executeHostAction({ type: 'navigate', path: '/pricing' });
     expect(r).toEqual({ ok: true });
+    await new Promise((res) => setTimeout(res, 5));
     expect(assignSpy).toHaveBeenCalledWith('/pricing');
+  });
+
+  it('uses window.__shoppingmateNavigate__ when host page provides one', async () => {
+    const assignSpy = vi.fn();
+    Object.defineProperty(window, 'location', {
+      value: { href: 'https://shoppingmate.ai/', assign: assignSpy, origin: 'https://shoppingmate.ai', pathname: '/' },
+      writable: true,
+    });
+    const navSpy = vi.fn();
+    (window as unknown as { __shoppingmateNavigate__: (p: string) => void }).__shoppingmateNavigate__ = navSpy;
+    const r = await executeHostAction({ type: 'navigate', path: '/pricing' });
+    expect(r).toEqual({ ok: true });
+    expect(navSpy).toHaveBeenCalledWith('/pricing');
+    expect(assignSpy).not.toHaveBeenCalled();
+    delete (window as unknown as { __shoppingmateNavigate__?: unknown }).__shoppingmateNavigate__;
   });
 
   it('returns not_found when AX-tree resolver finds no element', async () => {

@@ -9,6 +9,7 @@ describe('injectShopifyCartAttribute', () => {
       '/cart/update.js',
       expect.objectContaining({
         method: 'POST',
+        credentials: 'same-origin',
         headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ attributes: { sm_visitor_id: 'v_abc' } }),
       }),

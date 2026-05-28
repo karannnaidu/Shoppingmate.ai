@@ -8,10 +8,11 @@ import { useEffect, useState } from "react";
 import { Menu, X, ArrowUpRight } from "lucide-react";
 
 const links = [
-  { href: "#features", label: "Features" },
-  { href: "#platforms", label: "Platforms" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/features", label: "Features" },
+  { href: "/platforms", label: "Platforms" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/install", label: "Install" },
+  { href: "/faq", label: "FAQ" },
 ];
 
 export function Nav() {

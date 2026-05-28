@@ -2,7 +2,9 @@ export type HostAction =
   | { type: 'navigate'; path: string }
   | { type: 'scroll_to'; intent: string }
   | { type: 'highlight'; intent: string; durationMs?: number }
-  | { type: 'click'; intent: string };
+  | { type: 'click'; intent: string }
+  | { type: 'point_at'; intent: string }
+  | { type: 'demo_click'; intent: string };
 
 export type HostActionResult =
   | { ok: true }

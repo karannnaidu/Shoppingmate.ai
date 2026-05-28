@@ -8,6 +8,7 @@ export async function injectShopifyCartAttribute(args: {
   try {
     await fetchFn('/cart/update.js', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ attributes: { sm_visitor_id: args.visitorId } }),
     });

@@ -10,12 +10,22 @@ function init(): void {
     console.warn('[shoppingmate] data-id missing on script tag');
     return;
   }
-  if (document.querySelector('shoppingmate-widget')) return;
+  const apiOverride = script?.dataset.api;
+  const apiBase = apiOverride ?? process.env.SHOPPINGMATE_API_BASE;
+  // If the host React tree pre-rendered the element (so it survives soft-nav
+  // reconciliation), back-fill the data-api attribute from the script-tag
+  // build-time default before upgrading. Otherwise bootstrap would hit an
+  // empty apiBase, fail silently, and fall back to the default persona.
+  const existing = document.querySelector('shoppingmate-widget');
+  if (existing) {
+    if (!existing.getAttribute('data-api')) existing.setAttribute('data-api', apiBase);
+    if (!existing.getAttribute('data-id')) existing.setAttribute('data-id', merchantId);
+  }
   defineWidget();
+  if (existing) return;
   const el = document.createElement('shoppingmate-widget');
   el.setAttribute('data-id', merchantId);
-  const apiOverride = script?.dataset.api;
-  el.setAttribute('data-api', apiOverride ?? process.env.SHOPPINGMATE_API_BASE);
+  el.setAttribute('data-api', apiBase);
   if (document.body) document.body.appendChild(el);
   else
     document.addEventListener('DOMContentLoaded', () => document.body.appendChild(el), {

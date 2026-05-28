@@ -78,6 +78,10 @@ export function createBridge(deps: BridgeDeps): Bridge {
       deps.caps?.recordTurn();
       deps.publishData({ type: 'user_text', text });
 
+      log.info(
+        { sessionId: deps.sessionId, merchantId: deps.merchantId, demoTourEnabled: DEMO_TOUR_ENABLED },
+        'bridge: handleUserText start',
+      );
       const merchant = await deps.loadMerchant(deps.merchantId);
       const session = await deps.loadSession(deps.sessionId);
       const widgetMsg: WidgetMessage = {
@@ -97,8 +101,15 @@ export function createBridge(deps: BridgeDeps): Bridge {
         recommendationStore: deps.recommendationStore,
       };
 
+      log.info({ sessionId: deps.sessionId }, 'bridge: starting runTurn');
+      let eventCount = 0;
       try {
         for await (const event of deps.runTurn(runDeps, merchant, session, widgetMsg)) {
+          eventCount++;
+          log.info(
+            { sessionId: deps.sessionId, eventType: event.type, idx: eventCount },
+            'bridge: runTurn event',
+          );
           if (aborted) {
             log.info(
               { sessionId: deps.sessionId },
@@ -108,6 +119,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
           }
           await routeEvent(event, deps);
         }
+        log.info({ sessionId: deps.sessionId, totalEvents: eventCount }, 'bridge: runTurn complete');
       } catch (err) {
         log.error({ err, sessionId: deps.sessionId }, 'runTurn failed in bridge');
         deps.publishData({ type: 'session_closed', reason: 'error' });
@@ -124,8 +136,13 @@ export function createBridge(deps: BridgeDeps): Bridge {
     dispatchHostAction(action) {
       return new Promise<HostActionResult>((resolve) => {
         const callId = `ha_${++hostActionCounter}_${Date.now()}`;
+        log.info(
+          { sessionId: deps.sessionId, callId, actionType: action.type },
+          'bridge: dispatchHostAction publish',
+        );
         const timer = setTimeout(() => {
           pending.delete(callId);
+          log.warn({ sessionId: deps.sessionId, callId }, 'bridge: host action timed out');
           resolve({ ok: false, reason: 'timeout' });
         }, HOST_ACTION_TIMEOUT_MS);
         pending.set(callId, { resolve, timer });
