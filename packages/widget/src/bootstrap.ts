@@ -1,4 +1,5 @@
 import { getOrCreateVisitorId } from './identity.js';
+import { injectShopifyCartAttribute } from './shopifyCart.js';
 
 export type BootstrapInput = {
   apiBase: string;
@@ -39,7 +40,15 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       }),
     });
     if (!installRes.ok) return { kind: 'err', reason: `install_${installRes.status}` };
-    const installBody = (await installRes.json()) as { status: string; personaId?: string | null };
+    const installBody = (await installRes.json()) as {
+      status: string;
+      personaId?: string | null;
+      platform?: string | null;
+    };
+
+    // Fire-and-forget: stamp visitor id onto Shopify cart attributes so the
+    // orders/create webhook can attribute the conversion. No-op on other platforms.
+    void injectShopifyCartAttribute({ visitorId, platform: installBody.platform ?? 'custom' });
 
     const sessionRes = await fetch(`${input.apiBase}/v1/session`, {
       method: 'POST',

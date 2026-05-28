@@ -144,7 +144,11 @@ installRoute.post('/', async (c) => {
   }
 
   const [fresh] = await db
-    .select({ status: schema.merchants.status, personaId: schema.merchants.personaId })
+    .select({
+      status: schema.merchants.status,
+      personaId: schema.merchants.personaId,
+      platform: schema.merchants.platform,
+    })
     .from(schema.merchants)
     .where(eq(schema.merchants.id, body.merchantId))
     .limit(1);
@@ -153,6 +157,7 @@ installRoute.post('/', async (c) => {
     {
       status: fresh?.status ?? merchant.status,
       personaId: fresh?.personaId ?? merchant.personaId,
+      platform: fresh?.platform ?? merchant.platform ?? null,
     },
     200,
   );
