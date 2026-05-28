@@ -20,6 +20,7 @@ import {
 } from '@shoppingmate/agent';
 import type { HostAction, HostActionResult } from '@shoppingmate/agent';
 import { conversionRoute } from './routes/conversion.js';
+import { dashboardAttributionRoute } from './routes/dashboard-attribution.js';
 import { healthRoute } from './routes/health.js';
 import { installRoute } from './routes/install.js';
 import { sessionRoute } from './routes/session.js';
@@ -46,6 +47,7 @@ app.use(
 
 app.route('/health', healthRoute);
 app.route('/v1/conversion', conversionRoute);
+app.route('/v1/dashboard/attribution', dashboardAttributionRoute);
 app.route('/v1/install', installRoute);
 app.route('/v1/session', sessionRoute);
 app.route('/v1/site-graph', siteGraphRoute);
