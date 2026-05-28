@@ -80,14 +80,16 @@ describe('Shopify orders/create webhook', () => {
   });
 
   it('rejects bad signature with 401', async () => {
+    const recordMetric = vi.fn();
     const out = await handleShopifyOrderWebhook({
       rawBody: validBody, hmacHeader: 'bad', shopDomain: 'x.myshopify.com',
       lookupMerchantId: async () => 'm1',
       verifyHmac: () => false,
       attribute: vi.fn(),
-      recordMetric: vi.fn(),
+      recordMetric,
     });
     expect(out.status).toBe(401);
+    expect(recordMetric).not.toHaveBeenCalled();
   });
 
   it('returns 200 with no_visitor_id when sm_visitor_id missing', async () => {
@@ -285,6 +287,7 @@ describe('Shopify orders/create webhook', () => {
   });
 
   it('returns 404 merchant_unknown when lookupMerchantId returns null', async () => {
+    const recordMetric = vi.fn();
     const attribute = vi.fn();
     const out = await handleShopifyOrderWebhook({
       rawBody: validBody,
@@ -293,11 +296,12 @@ describe('Shopify orders/create webhook', () => {
       lookupMerchantId: async () => null,
       verifyHmac: () => true,
       attribute,
-      recordMetric: vi.fn(),
+      recordMetric,
     });
     expect(out.status).toBe(404);
     expect(out.body?.error).toBe('merchant_unknown');
     expect(attribute).not.toHaveBeenCalled();
+    expect(recordMetric).not.toHaveBeenCalled();
   });
 
   it('returns 500 internal when lookupMerchantId throws', async () => {

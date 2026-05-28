@@ -105,19 +105,25 @@ export async function handleConversionIngest(
 
   // Emit telemetry counters. Auth-failed / merchant-unknown branches don't emit
   // because the DB FK on metric_events requires a valid merchantId we don't have there.
-  for (const kind of result.wrote) {
-    await args.recordMetric({
-      merchantId: payload.merchantId,
-      metricName: schema.metricNames.conversionIngested,
-      tags: { source: 'gtag', kind },
-    });
-  }
-  for (const kind of result.skipped) {
-    await args.recordMetric({
-      merchantId: payload.merchantId,
-      metricName: schema.metricNames.conversionMissDuplicate,
-      tags: { source: 'gtag', kind },
-    });
+  try {
+    await Promise.all([
+      ...result.wrote.map((kind) =>
+        args.recordMetric({
+          merchantId: payload.merchantId,
+          metricName: schema.metricNames.conversionIngested,
+          tags: { source: 'gtag', kind },
+        }),
+      ),
+      ...result.skipped.map((kind) =>
+        args.recordMetric({
+          merchantId: payload.merchantId,
+          metricName: schema.metricNames.conversionMissDuplicate,
+          tags: { source: 'gtag', kind },
+        }),
+      ),
+    ]);
+  } catch (err) {
+    console.error('[conversion] recordMetric failed', { merchantId: payload.merchantId, err });
   }
 
   return { status: 200, body: { ok: true, wrote: result.wrote, missReason: result.missReason } };

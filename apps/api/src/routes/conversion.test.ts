@@ -14,38 +14,44 @@ describe('POST /v1/conversion handler', () => {
   });
 
   it('rejects missing HMAC header', async () => {
+    const recordMetric = vi.fn();
     const out = await handleConversionIngest({
       rawBody: validBody,
       hmacHeader: '',
       lookupMerchantSecret: async () => secret,
       attribute: vi.fn(),
-      recordMetric: vi.fn(),
+      recordMetric,
     });
     expect(out.status).toBe(401);
     expect(out.body.error).toBe('auth_failed');
+    expect(recordMetric).not.toHaveBeenCalled();
   });
 
   it('rejects bad HMAC', async () => {
+    const recordMetric = vi.fn();
     const out = await handleConversionIngest({
       rawBody: validBody,
       hmacHeader: 'definitely-wrong',
       lookupMerchantSecret: async () => secret,
       attribute: vi.fn(),
-      recordMetric: vi.fn(),
+      recordMetric,
     });
     expect(out.status).toBe(401);
+    expect(recordMetric).not.toHaveBeenCalled();
   });
 
   it('rejects unknown merchant', async () => {
+    const recordMetric = vi.fn();
     const out = await handleConversionIngest({
       rawBody: validBody,
       hmacHeader: computeHmac(validBody, 'whatever'),
       lookupMerchantSecret: async () => null,
       attribute: vi.fn(),
-      recordMetric: vi.fn(),
+      recordMetric,
     });
     expect(out.status).toBe(404);
     expect(out.body.error).toBe('merchant_unknown');
+    expect(recordMetric).not.toHaveBeenCalled();
   });
 
   it('accepts valid HMAC and invokes attribute()', async () => {

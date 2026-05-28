@@ -99,12 +99,15 @@ export async function handleShopifyOrderWebhook(
   }
   if (!visitorId) {
     // merchantId is known here; emit no_visitor miss counter.
-    // Auth-failed / merchant-unknown branches don't emit because FK requires a valid merchantId we don't have there.
-    await args.recordMetric({
-      merchantId,
-      metricName: metricNames.conversionMissNoVisitor,
-      tags: { source: 'shopify_webhook' },
-    });
+    try {
+      await args.recordMetric({
+        merchantId,
+        metricName: metricNames.conversionMissNoVisitor,
+        tags: { source: 'shopify_webhook' },
+      });
+    } catch (err) {
+      console.error('[shopify-order] recordMetric failed', { shopDomain: args.shopDomain, merchantId, err });
+    }
     return {
       status: 200,
       body: {
@@ -163,34 +166,36 @@ export async function handleShopifyOrderWebhook(
 
   // Emit telemetry counters. Auth-failed / merchant-unknown branches don't emit
   // because the DB FK on metric_events requires a valid merchantId we don't have there.
-  for (const kind of result.wrote) {
-    await args.recordMetric({
-      merchantId,
-      metricName: metricNames.conversionIngested,
-      tags: { source: 'shopify_webhook', kind },
-    });
-  }
-  for (const kind of result.skipped) {
-    if (kind === 'no_visitor_id') {
-      await args.recordMetric({
-        merchantId,
-        metricName: metricNames.conversionMissNoVisitor,
-        tags: { source: 'shopify_webhook' },
-      });
-    } else {
-      await args.recordMetric({
-        merchantId,
-        metricName: metricNames.conversionMissDuplicate,
-        tags: { source: 'shopify_webhook', kind },
-      });
-    }
-  }
-  if (result.missReason === 'no_recommendation_match') {
-    await args.recordMetric({
-      merchantId,
-      metricName: metricNames.conversionMissNoRecommendation,
-      tags: { source: 'shopify_webhook' },
-    });
+  // AttributeResult.skipped is typed Array<'assisted'|'influenced'> — no 'no_visitor_id'
+  // reaches this path; that case is handled by the early-return branch above.
+  try {
+    await Promise.all([
+      ...result.wrote.map((kind) =>
+        args.recordMetric({
+          merchantId,
+          metricName: metricNames.conversionIngested,
+          tags: { source: 'shopify_webhook', kind },
+        }),
+      ),
+      ...result.skipped.map((kind) =>
+        args.recordMetric({
+          merchantId,
+          metricName: metricNames.conversionMissDuplicate,
+          tags: { source: 'shopify_webhook', kind },
+        }),
+      ),
+      ...(result.missReason === 'no_recommendation_match'
+        ? [
+            args.recordMetric({
+              merchantId,
+              metricName: metricNames.conversionMissNoRecommendation,
+              tags: { source: 'shopify_webhook' },
+            }),
+          ]
+        : []),
+    ]);
+  } catch (err) {
+    console.error('[shopify-order] recordMetric failed', { merchantId, err });
   }
 
   return {
