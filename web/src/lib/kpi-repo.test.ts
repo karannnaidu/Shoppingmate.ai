@@ -1,28 +1,45 @@
 import { describe, expect, it, vi } from 'vitest';
 import { computeKpis } from './kpi-repo';
 
-vi.mock('./db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          groupBy: vi.fn(() => Promise.resolve([
-            { name: 'conversationCompleted', count: 100, sumCents: 0 },
-            { name: 'conversionAttributed', count: 18, sumCents: 540000 },
-            { name: 'voiceConversation', count: 22, sumCents: 0 },
-          ])),
+const metricRows = [
+  { name: 'conversationCompleted', count: 100 },
+  { name: 'voiceConversation', count: 22 },
+];
+
+const conversionRows = [
+  { kind: 'assisted', totalCents: 1500, orderId: 'o1' },
+  { kind: 'assisted', totalCents: 1500, orderId: 'o2' },
+  { kind: 'influenced', totalCents: 5000, orderId: 'o3' },
+];
+
+vi.mock('./db', () => {
+  let call = 0;
+  return {
+    db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => {
+            call += 1;
+            if (call === 1) {
+              return { groupBy: vi.fn(() => Promise.resolve(metricRows)) };
+            }
+            return Promise.resolve(conversionRows);
+          }),
         })),
       })),
-    })),
-  },
-}));
+    },
+  };
+});
 
 describe('computeKpis', () => {
-  it('computes conversations, conversion rate, revenue, voice ratio', async () => {
+  it('computes conversations + voice ratio from metric_events and revenue split from conversion_events', async () => {
     const kpis = await computeKpis({ merchantId: 'SM-TEST01', days: 7 });
     expect(kpis.conversations).toBe(100);
-    expect(kpis.conversionRate).toBeCloseTo(0.18);
-    expect(kpis.revenueCents).toBe(540000);
+    expect(kpis.voiceConversations).toBe(22);
     expect(kpis.voiceRatio).toBeCloseTo(0.22);
+    expect(kpis.assistedRevenueCents).toBe(3000);
+    expect(kpis.assistedOrderCount).toBe(2);
+    expect(kpis.influencedRevenueCents).toBe(5000);
+    expect(kpis.influencedOrderCount).toBe(1);
   });
 });

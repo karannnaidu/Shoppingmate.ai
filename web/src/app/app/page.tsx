@@ -34,8 +34,16 @@ export default async function HomePage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiTile label="Conversations" value={String(kpis.conversations)} />
-        <KpiTile label="Conversion rate" value={`${(kpis.conversionRate * 100).toFixed(1)}%`} />
-        <KpiTile label="Attributed revenue" value={usd(kpis.revenueCents)} />
+        <KpiTile
+          label="Assisted revenue · 7d"
+          value={usd(kpis.assistedRevenueCents)}
+          hint={`${kpis.assistedOrderCount} orders Sage recommended`}
+        />
+        <KpiTile
+          label="Influenced revenue · 7d"
+          value={usd(kpis.influencedRevenueCents)}
+          hint={`${kpis.influencedOrderCount} orders after a Sage conversation`}
+        />
         <KpiTile
           label="Voice ratio"
           value={`${(kpis.voiceRatio * 100).toFixed(0)}%`}
