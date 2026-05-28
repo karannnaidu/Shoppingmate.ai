@@ -9,6 +9,7 @@ import { eq, sql } from 'drizzle-orm';
 import { KpiTile } from '@/components/dashboard/KpiTile';
 import { ConversationsTable } from '@/components/dashboard/ConversationsTable';
 import { CatalogChip } from '@/components/dashboard/CatalogChip';
+import Link from 'next/link';
 
 export default async function HomePage() {
   const hdrs = await headers();
@@ -34,16 +35,20 @@ export default async function HomePage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiTile label="Conversations" value={String(kpis.conversations)} />
-        <KpiTile
-          label="Assisted revenue · 7d"
-          value={usd(kpis.assistedRevenueCents)}
-          hint={`${kpis.assistedOrderCount} orders Sage recommended`}
-        />
-        <KpiTile
-          label="Influenced revenue · 7d"
-          value={usd(kpis.influencedRevenueCents)}
-          hint={`${kpis.influencedOrderCount} orders after a Sage conversation`}
-        />
+        <Link href="/app/revenue" className="block">
+          <KpiTile
+            label="Assisted revenue · 7d"
+            value={usd(kpis.assistedRevenueCents)}
+            hint={`${kpis.assistedOrderCount} orders Sage recommended`}
+          />
+        </Link>
+        <Link href="/app/revenue" className="block">
+          <KpiTile
+            label="Influenced revenue · 7d"
+            value={usd(kpis.influencedRevenueCents)}
+            hint={`${kpis.influencedOrderCount} orders after a Sage conversation`}
+          />
+        </Link>
         <KpiTile
           label="Voice ratio"
           value={`${(kpis.voiceRatio * 100).toFixed(0)}%`}
