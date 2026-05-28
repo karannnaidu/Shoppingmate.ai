@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { db, schema } from '@shoppingmate/db';
-import { and, eq, gte, inArray } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
 import { attributeOrder, type OrderPayload, type AttributeResult } from '../services/attributeOrder.js';
 
 export function computeHmac(rawBody: string, secret: string): string {
@@ -46,7 +46,24 @@ export async function handleConversionIngest(
     return { status: 400, body: { error: 'missing_fields' } };
   }
 
-  const secret = await args.lookupMerchantSecret(payload.merchantId);
+  const totalCents = Number(payload.totalCents);
+  if (!Number.isFinite(totalCents) || totalCents < 0) {
+    return { status: 400, body: { error: 'invalid_amount' } };
+  }
+
+  const occurredAtRaw = payload.occurredAt ?? Date.now();
+  const occurredAt = new Date(occurredAtRaw);
+  if (Number.isNaN(occurredAt.getTime())) {
+    return { status: 400, body: { error: 'invalid_occurred_at' } };
+  }
+
+  let secret: string | null;
+  try {
+    secret = await args.lookupMerchantSecret(payload.merchantId);
+  } catch (err) {
+    console.error('[conversion] lookupMerchantSecret failed', { merchantId: payload.merchantId, err });
+    return { status: 500, body: { error: 'internal' } };
+  }
   if (!secret) return { status: 404, body: { error: 'merchant_unknown' } };
 
   const expected = computeHmac(args.rawBody, secret);
@@ -57,10 +74,10 @@ export async function handleConversionIngest(
   const order: OrderPayload = {
     merchantId: payload.merchantId,
     orderId: String(payload.orderId),
-    totalCents: Number(payload.totalCents),
+    totalCents,
     currency: String(payload.currency ?? 'USD'),
     visitorId: payload.visitorId,
-    occurredAt: new Date(payload.occurredAt ?? Date.now()),
+    occurredAt,
     lineItems: Array.isArray(payload.lineItems)
       ? payload.lineItems.map((li: any) => ({
           sku: String(li.sku),
@@ -71,7 +88,13 @@ export async function handleConversionIngest(
     matchSource: 'gtag',
   };
 
-  const result = await args.attribute(order);
+  let result: AttributeResult;
+  try {
+    result = await args.attribute(order);
+  } catch (err) {
+    console.error('[conversion] attribute failed', { merchantId: payload.merchantId, err });
+    return { status: 500, body: { error: 'internal' } };
+  }
   return { status: 200, body: { ok: true, wrote: result.wrote, missReason: result.missReason } };
 }
 
@@ -94,12 +117,14 @@ export async function defaultAttribute(order: OrderPayload): Promise<AttributeRe
           and(
             eq(schema.conversationSessions.merchantId, merchantId),
             eq(schema.conversationSessions.visitorId, visitorId),
-            gte(schema.conversationSessions.startedAt, windowStart),
+            lte(schema.conversationSessions.startedAt, windowEnd),
+            or(
+              isNull(schema.conversationSessions.endedAt),
+              gte(schema.conversationSessions.endedAt, windowStart),
+            ),
           ),
         );
-      return rows.filter(
-        (r) => (r.endedAt === null && true) || (r.endedAt !== null && r.endedAt <= windowEnd),
-      );
+      return rows;
     },
     findRecommendationsForSessionAndSkus: async ({ sessionIds, skus }) => {
       if (sessionIds.length === 0 || skus.length === 0) return [];
@@ -145,5 +170,5 @@ conversionRoute.post('/', async (c) => {
     lookupMerchantSecret: defaultLookupMerchantSecret,
     attribute: defaultAttribute,
   });
-  return c.json(out.body, out.status as 200 | 400 | 401 | 404);
+  return c.json(out.body, out.status as 200 | 400 | 401 | 404 | 500);
 });

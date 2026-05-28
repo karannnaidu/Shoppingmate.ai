@@ -71,4 +71,66 @@ describe('POST /v1/conversion handler', () => {
     });
     expect(out.status).toBe(400);
   });
+
+  it('returns 400 on invalid totalCents', async () => {
+    const body = JSON.stringify({
+      merchantId: 'm1',
+      orderId: 'ord-1',
+      totalCents: 'abc',
+      currency: 'USD',
+      visitorId: 'v1',
+      occurredAt: '2026-05-27T10:00:00Z',
+      lineItems: [],
+    });
+    const out = await handleConversionIngest({
+      rawBody: body,
+      hmacHeader: computeHmac(body, secret),
+      lookupMerchantSecret: async () => secret,
+      attribute: vi.fn(),
+    });
+    expect(out.status).toBe(400);
+    expect(out.body.error).toBe('invalid_amount');
+  });
+
+  it('returns 400 on invalid occurredAt', async () => {
+    const body = JSON.stringify({
+      merchantId: 'm1',
+      orderId: 'ord-1',
+      totalCents: 5000,
+      currency: 'USD',
+      visitorId: 'v1',
+      occurredAt: 'not-a-date',
+      lineItems: [],
+    });
+    const out = await handleConversionIngest({
+      rawBody: body,
+      hmacHeader: computeHmac(body, secret),
+      lookupMerchantSecret: async () => secret,
+      attribute: vi.fn(),
+    });
+    expect(out.status).toBe(400);
+    expect(out.body.error).toBe('invalid_occurred_at');
+  });
+
+  it('returns 500 when attribute() throws', async () => {
+    const out = await handleConversionIngest({
+      rawBody: validBody,
+      hmacHeader: computeHmac(validBody, secret),
+      lookupMerchantSecret: async () => secret,
+      attribute: vi.fn().mockRejectedValue(new Error('db down')),
+    });
+    expect(out.status).toBe(500);
+    expect(out.body.error).toBe('internal');
+  });
+
+  it('returns 500 when lookupMerchantSecret throws', async () => {
+    const out = await handleConversionIngest({
+      rawBody: validBody,
+      hmacHeader: 'whatever',
+      lookupMerchantSecret: async () => { throw new Error('db down'); },
+      attribute: vi.fn(),
+    });
+    expect(out.status).toBe(500);
+    expect(out.body.error).toBe('internal');
+  });
 });
