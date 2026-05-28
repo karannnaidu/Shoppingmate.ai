@@ -77,7 +77,7 @@ describe('Shopify orders/create webhook', () => {
     expect(out.status).toBe(401);
   });
 
-  it('returns 200 with no_visitor when sm_visitor_id missing', async () => {
+  it('returns 400 visitor_required when sm_visitor_id missing', async () => {
     const body = JSON.stringify({ id: 1, total_price: '5.00', currency: 'USD', created_at: '2026-05-27T10:00:00Z', line_items: [] });
     const attribute = vi.fn();
     const out = await handleShopifyOrderWebhook({
@@ -86,8 +86,8 @@ describe('Shopify orders/create webhook', () => {
       verifyHmac: () => true,
       attribute,
     });
-    expect(out.status).toBe(200);
-    expect(out.body?.skipped).toBe('no_visitor_id');
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toBe('visitor_required');
     expect(attribute).not.toHaveBeenCalled();
   });
 
@@ -102,5 +102,199 @@ describe('Shopify orders/create webhook', () => {
     });
     expect(out.status).toBe(500);
     expect(out.body?.error).toBe('internal');
+  });
+
+  it('returns idempotent 200 with skipped[] when attribute reports duplicate', async () => {
+    const attribute = vi.fn().mockResolvedValue({
+      wrote: [],
+      skipped: ['influenced', 'assisted'],
+      missReason: null,
+    });
+    const out = await handleShopifyOrderWebhook({
+      rawBody: validBody,
+      hmacHeader: 'abc',
+      shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(200);
+    expect(out.body).toEqual({
+      ok: true,
+      wrote: [],
+      skipped: ['influenced', 'assisted'],
+      missReason: null,
+    });
+  });
+
+  it('returns 400 invalid_amount when total_price is malformed', async () => {
+    const body = JSON.stringify({
+      id: 1,
+      total_price: 'abc',
+      currency: 'USD',
+      created_at: '2026-05-27T10:00:00Z',
+      line_items: [{ sku: 'SKU-A', quantity: 1, price: '50.00' }],
+      note_attributes: [{ name: 'sm_visitor_id', value: 'v1' }],
+    });
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: body, hmacHeader: 'abc', shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toBe('invalid_amount');
+    expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 invalid_amount when total_price is negative', async () => {
+    const body = JSON.stringify({
+      id: 1,
+      total_price: '-10.00',
+      currency: 'USD',
+      created_at: '2026-05-27T10:00:00Z',
+      line_items: [{ sku: 'SKU-A', quantity: 1, price: '50.00' }],
+      note_attributes: [{ name: 'sm_visitor_id', value: 'v1' }],
+    });
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: body, hmacHeader: 'abc', shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toBe('invalid_amount');
+    expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 invalid_occurred_at when created_at is unparseable', async () => {
+    const body = JSON.stringify({
+      id: 1,
+      total_price: '50.00',
+      currency: 'USD',
+      created_at: 'not-a-date',
+      line_items: [{ sku: 'SKU-A', quantity: 1, price: '50.00' }],
+      note_attributes: [{ name: 'sm_visitor_id', value: 'v1' }],
+    });
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: body, hmacHeader: 'abc', shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toBe('invalid_occurred_at');
+    expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('does not crash when note_attributes is an object instead of array', async () => {
+    const body = JSON.stringify({
+      id: 1,
+      total_price: '50.00',
+      currency: 'USD',
+      created_at: '2026-05-27T10:00:00Z',
+      line_items: [{ sku: 'SKU-A', quantity: 1, price: '50.00' }],
+      note_attributes: { sm_visitor_id: 'v1' },
+    });
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: body, hmacHeader: 'abc', shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toBe('visitor_required');
+    expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('treats non-string sm_visitor_id value as missing', async () => {
+    const body = JSON.stringify({
+      id: 1,
+      total_price: '50.00',
+      currency: 'USD',
+      created_at: '2026-05-27T10:00:00Z',
+      line_items: [{ sku: 'SKU-A', quantity: 1, price: '50.00' }],
+      note_attributes: [{ name: 'sm_visitor_id', value: 12345 }],
+    });
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: body, hmacHeader: 'abc', shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toBe('visitor_required');
+    expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 invalid_json when body is not valid JSON', async () => {
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: '{not json',
+      hmacHeader: 'abc',
+      shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toBe('invalid_json');
+    expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 merchant_unknown when lookupMerchantId returns null', async () => {
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: validBody,
+      hmacHeader: 'abc',
+      shopDomain: 'unknown.myshopify.com',
+      lookupMerchantId: async () => null,
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(404);
+    expect(out.body?.error).toBe('merchant_unknown');
+    expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 internal when lookupMerchantId throws', async () => {
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: validBody,
+      hmacHeader: 'abc',
+      shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => { throw new Error('db down'); },
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(500);
+    expect(out.body?.error).toBe('internal');
+    expect(attribute).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 invalid_amount when a line item price is malformed', async () => {
+    const body = JSON.stringify({
+      id: 1,
+      total_price: '50.00',
+      currency: 'USD',
+      created_at: '2026-05-27T10:00:00Z',
+      line_items: [{ sku: 'SKU-A', quantity: 1, price: 'abc' }],
+      note_attributes: [{ name: 'sm_visitor_id', value: 'v1' }],
+    });
+    const attribute = vi.fn();
+    const out = await handleShopifyOrderWebhook({
+      rawBody: body, hmacHeader: 'abc', shopDomain: 'x.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      attribute,
+    });
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toBe('invalid_amount');
+    expect(attribute).not.toHaveBeenCalled();
   });
 });

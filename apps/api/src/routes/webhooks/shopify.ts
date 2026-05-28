@@ -47,7 +47,13 @@ export type ShopifyOrderWebhookArgs = {
 
 export type ShopifyOrderWebhookResponse = {
   status: number;
-  body?: { ok?: true; wrote?: string[]; skipped?: string; error?: string };
+  body?: {
+    ok?: true;
+    wrote?: AttributeResult['wrote'];
+    skipped?: string[];
+    missReason?: string | null;
+    error?: string;
+  };
 };
 
 function dollarsToCents(amount: string | number): number {
@@ -78,15 +84,46 @@ export async function handleShopifyOrderWebhook(
     return { status: 400, body: { error: 'invalid_json' } };
   }
 
-  const attrs: Array<{ name: string; value: string }> = payload.note_attributes ?? [];
-  const visitorId = attrs.find((a) => a.name === 'sm_visitor_id')?.value;
+  const attrs = Array.isArray(payload.note_attributes) ? payload.note_attributes : [];
+  let visitorId: string | undefined;
+  for (const entry of attrs) {
+    if (
+      typeof entry?.name === 'string' &&
+      typeof entry?.value === 'string' &&
+      entry.name === 'sm_visitor_id'
+    ) {
+      visitorId = entry.value;
+      break;
+    }
+  }
   if (!visitorId) {
-    return { status: 200, body: { ok: true, skipped: 'no_visitor_id' } };
+    return { status: 400, body: { error: 'visitor_required' } };
   }
 
   const totalCents = dollarsToCents(payload.total_price ?? '0');
-  if (!Number.isFinite(totalCents)) {
+  if (!Number.isFinite(totalCents) || totalCents < 0) {
     return { status: 400, body: { error: 'invalid_amount' } };
+  }
+
+  const occurredAtRaw = payload.created_at ?? Date.now();
+  const occurredAt = new Date(occurredAtRaw);
+  if (Number.isNaN(occurredAt.getTime())) {
+    return { status: 400, body: { error: 'invalid_occurred_at' } };
+  }
+
+  const rawLineItems: any[] = Array.isArray(payload.line_items) ? payload.line_items : [];
+  const lineItems: OrderPayload['lineItems'] = [];
+  for (const li of rawLineItems) {
+    const priceCents = dollarsToCents(li?.price ?? '0');
+    const quantity = Number(li?.quantity ?? 1);
+    if (!Number.isFinite(priceCents) || !Number.isFinite(quantity)) {
+      return { status: 400, body: { error: 'invalid_amount' } };
+    }
+    lineItems.push({
+      sku: String(li?.sku ?? ''),
+      quantity,
+      priceCents,
+    });
   }
 
   const order: OrderPayload = {
@@ -95,12 +132,8 @@ export async function handleShopifyOrderWebhook(
     totalCents,
     currency: String(payload.currency ?? 'USD'),
     visitorId,
-    occurredAt: new Date(payload.created_at ?? Date.now()),
-    lineItems: (payload.line_items ?? []).map((li: any) => ({
-      sku: String(li.sku ?? ''),
-      quantity: Number(li.quantity ?? 1),
-      priceCents: dollarsToCents(li.price ?? '0'),
-    })),
+    occurredAt,
+    lineItems,
     matchSource: 'shopify_webhook',
   };
 
@@ -111,7 +144,15 @@ export async function handleShopifyOrderWebhook(
     console.error('[shopify-order] attribute failed', { merchantId, orderId: order.orderId, err });
     return { status: 500, body: { error: 'internal' } };
   }
-  return { status: 200, body: { ok: true, wrote: result.wrote } };
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      wrote: result.wrote,
+      skipped: result.skipped,
+      missReason: result.missReason,
+    },
+  };
 }
 
 export const shopifyWebhookRoute = new Hono();
