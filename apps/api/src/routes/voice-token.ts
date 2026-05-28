@@ -85,6 +85,11 @@ voiceTokenRoute.post('/', async (c) => {
     // Caller has a visitor id (e.g. chat-first then voice). Backfill it so
     // the voice worker can write a conversation_sessions row with the real
     // id instead of falling back to anon_<sessionId>.
+    // Trade-off: this is a non-atomic read-modify-write. If a concurrent
+    // chat turn writes to the same session key between loadSession and
+    // saveSession (~5-10ms), we clobber it. Accepted because the window is
+    // small and losing one chat turn from rolling history is preferable to
+    // losing the visitorId for attribution.
     await saveSession(redis(), { ...existing, visitorId });
   }
 

@@ -11,7 +11,7 @@ import {
   TrackPublishOptions,
   TrackSource,
 } from '@livekit/rtc-node';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import {
   NoOpWSTransport,
@@ -56,10 +56,18 @@ const sessionStore: SessionStore = {
       .onConflictDoNothing();
   },
   closeSession: async ({ sessionId }) => {
+    // Guard against LiveKit redelivering Disconnected: a second update would
+    // shift ended_at later, breaking the attribution index ordering
+    // (merchant_id, visitor_id, ended_at DESC NULLS LAST).
     await db
       .update(schema.conversationSessions)
       .set({ endedAt: new Date() })
-      .where(eq(schema.conversationSessions.id, sessionId));
+      .where(
+        and(
+          eq(schema.conversationSessions.id, sessionId),
+          isNull(schema.conversationSessions.endedAt),
+        ),
+      );
   },
 };
 
