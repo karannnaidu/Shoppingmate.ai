@@ -19,6 +19,7 @@ import {
   loadSession,
   runTurn,
   saveSession as saveSessionAgent,
+  type RecommendationStore,
   type SessionStore,
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
@@ -68,6 +69,18 @@ const sessionStore: SessionStore = {
           isNull(schema.conversationSessions.endedAt),
         ),
       );
+  },
+};
+
+// Default Postgres binding for the RecommendationStore boundary declared in
+// @shoppingmate/agent. Used by the tool-loop side-channel in voice mode to log
+// recommendation_events rows when the model names a SKU (today: pricing.quote
+// plan ids). attributeOrder joins these rows by session_id when a Shopify
+// webhook lands. FK is to conversation_sessions(id) ON DELETE CASCADE, so a
+// row inserted before openSession commits will fail — see Task 12 concern.
+const recommendationStore: RecommendationStore = {
+  recordRecommendation: async ({ sessionId, sku, kind }) => {
+    await db.insert(schema.recommendationEvents).values({ sessionId, sku, kind });
   },
 };
 
@@ -356,6 +369,7 @@ const agentDefinition = defineAgent({
       },
       interrupt: () => gemini.interrupt(),
       caps: { recordTurn: () => caps.recordTurn() },
+      recommendationStore,
     });
     bridgeRef = bridge;
 

@@ -46,6 +46,30 @@ export type RecommendationStore = {
   }) => Promise<void>;
 };
 
+/**
+ * Map a tool name + args to a recommendation row. Returns null when the tool
+ * call does not name a SKU we should attribute against (e.g. products.search
+ * is the model exploring, not recommending). Currently only pricing.quote
+ * carries a SKU-shaped arg in its schema — site.highlight and site.click take
+ * `intent`, not `sku`. Kept file-private; the tool→SKU mapping is a runtime
+ * concern, not a public API.
+ */
+function extractSkuFromToolCall(
+  toolName: string,
+  args: Record<string, unknown>,
+): { sku: string; kind: 'mentioned' | 'highlighted' | 'clicked' } | null {
+  if (toolName === 'pricing.quote' && typeof args.plan_id === 'string' && args.plan_id.length > 0) {
+    return { sku: args.plan_id, kind: 'mentioned' };
+  }
+  if (toolName === 'site.highlight' && typeof args.sku === 'string' && args.sku.length > 0) {
+    return { sku: args.sku, kind: 'highlighted' };
+  }
+  if (toolName === 'site.click' && typeof args.sku === 'string' && args.sku.length > 0) {
+    return { sku: args.sku, kind: 'clicked' };
+  }
+  return null;
+}
+
 export type RunTurnDeps = {
   loadAdapter: (merchant: Merchant, sessionId: string) => Adapter;
   saveSession: (s: SessionState) => Promise<void>;
@@ -66,6 +90,11 @@ export type RunTurnDeps = {
   // Optional dispatcher for site.* host actions (navigations, scrolls, etc.).
   // When omitted, site.* calls return an unsupported envelope.
   dispatchHostAction?: (action: HostAction) => Promise<HostActionResult>;
+  // Optional sink for recommendation_events. When the model invokes a tool
+  // that names a SKU (pricing.quote plan id today; site.highlight / site.click
+  // when they grow `sku` args), runTurn fire-and-forgets a row through here
+  // so attributeOrder can join assisted attribution on Shopify webhooks.
+  recommendationStore?: RecommendationStore;
 };
 
 export async function* runTurn(
@@ -313,6 +342,16 @@ export async function* runTurn(
             sessionId: session.sessionId,
             planId: String(args.plan_id ?? 'unknown'),
           });
+        }
+        // Log recommendation_events on intent (not outcome): the model named
+        // a SKU to the visitor whether or not the envelope succeeded. Fire-
+        // and-forget so a DB hiccup never blocks the tool loop — observability
+        // for these losses lands in Task 18.
+        const rec = extractSkuFromToolCall(call.name, args);
+        if (rec && deps.recommendationStore) {
+          void deps.recommendationStore
+            .recordRecommendation({ sessionId: session.sessionId, sku: rec.sku, kind: rec.kind })
+            .catch(() => {});
         }
         await deps.recordMetric('agent.tool.invoked', {
           merchantId: merchant.id,

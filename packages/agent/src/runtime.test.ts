@@ -459,6 +459,47 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
     );
   });
 
+  it('logs a recommendation_events row when pricing.quote names a plan id', async () => {
+    const fakeChatTools = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'tc1',
+            name: 'pricing.quote',
+            argumentsJson: JSON.stringify({ plan_id: 'growth' }),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        text: 'Growth gives you more conversations.',
+        toolCalls: [],
+      });
+    const recordRecommendation = vi.fn(async () => undefined);
+    const session = makeBaseSession({ sessionId: 's-rec-1', merchantId: 'SM-XPK2EN' });
+    const merchant2 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as any;
+    for await (const _ev of runTurn(
+      {
+        loadAdapter: () => fakeAdapter(),
+        saveSession: async () => {},
+        recordMetric: async () => {},
+        chatToolsImpl: fakeChatTools as any,
+        recommendationStore: { recordRecommendation },
+      } as any,
+      merchant2,
+      session,
+      { type: 'user_text', sessionId: 's-rec-1', text: 'pricing for growth', mode: 'voice' },
+    )) { /* drain */ }
+    // Flush microtasks so the fire-and-forget .catch chain resolves before assert.
+    await Promise.resolve();
+    expect(recordRecommendation).toHaveBeenCalledWith({
+      sessionId: 's-rec-1',
+      sku: 'growth',
+      kind: 'mentioned',
+    });
+  });
+
   it('routes site.* tool calls through dispatchHostAction', async () => {
     const dispatched: any[] = [];
     const fakeChatTools = vi

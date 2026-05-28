@@ -2,6 +2,7 @@ import type {
   AgentEvent,
   HostAction,
   HostActionResult,
+  RecommendationStore,
   RunTurnDeps,
   SessionState,
   WidgetMessage,
@@ -49,6 +50,9 @@ export type BridgeDeps = {
   closeRoom: () => void;
   interrupt: () => void;
   caps?: { recordTurn: () => void };
+  // Optional sink for recommendation_events. Threaded into RunTurnDeps so the
+  // chat tool-loop can fire-and-forget rows when the model names a SKU.
+  recommendationStore?: RecommendationStore;
 };
 
 export type Bridge = {
@@ -90,6 +94,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
         dispatchHostAction: DEMO_TOUR_ENABLED
           ? (action) => api.dispatchHostAction!(action)
           : undefined,
+        recommendationStore: deps.recommendationStore,
       };
 
       try {
