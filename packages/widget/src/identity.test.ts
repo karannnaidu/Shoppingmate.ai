@@ -30,6 +30,12 @@ describe('getOrCreateVisitorId', () => {
     expect(id).not.toBe('v_old');
   });
 
+  it('falls back to cookie when localStorage is empty (Safari ITP)', () => {
+    // Simulate localStorage cleared but cookie preserved (e.g., third-party storage blocked)
+    document.cookie = `${VISITOR_ID_KEY}=v_fallback123; path=/`;
+    expect(getOrCreateVisitorId()).toBe('v_fallback123');
+  });
+
   it('refreshes the TTL on every read (rolling)', () => {
     localStorage.setItem(
       VISITOR_ID_KEY,
