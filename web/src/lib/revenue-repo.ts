@@ -34,5 +34,16 @@ async function defaultQuery(args: { merchantId: string; days: number }): Promise
     .from(conversionEvents)
     .where(and(eq(conversionEvents.merchantId, args.merchantId), gte(conversionEvents.occurredAt, since)))
     .orderBy(desc(conversionEvents.occurredAt));
-  return rows.map((r) => ({ ...r, kind: r.kind as 'assisted' | 'influenced' }));
+  return rows.flatMap((r) =>
+    r.kind === 'assisted' || r.kind === 'influenced'
+      ? [{
+          orderId: r.orderId,
+          kind: r.kind,
+          totalCents: r.totalCents,
+          currency: r.currency,
+          occurredAt: r.occurredAt,
+          lineItems: r.lineItems,
+        }]
+      : [],
+  );
 }

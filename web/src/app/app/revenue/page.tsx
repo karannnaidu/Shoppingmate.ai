@@ -9,7 +9,8 @@ export default async function RevenuePage({ searchParams }: { searchParams: Prom
   if (!session?.merchant) redirect('/app/onboarding?step=2');
 
   const { days: daysParam } = await searchParams;
-  const days = Number(daysParam ?? '7');
+  const parsed = Number(daysParam ?? '7');
+  const days = Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), 90) : 7;
   const rows = await listRevenueRows({ merchantId: session.merchant.id, days });
 
   const usd = (cents: number, ccy: string) => `${ccy === 'USD' ? '$' : ccy + ' '}${(cents / 100).toFixed(2)}`;
