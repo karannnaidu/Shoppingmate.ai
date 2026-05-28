@@ -27,4 +27,17 @@ describe('computeAttributionSummary', () => {
     expect(out.assisted.revenueCents).toBe(0);
     expect(out.influenced.revenueCents).toBe(0);
   });
+
+  it('passes the days window into queryConversions as a since date', async () => {
+    const queryConversions = vi.fn().mockResolvedValue([]);
+    const before = Date.now();
+    await computeAttributionSummary({ merchantId: 'm1', days: 7, queryConversions });
+    const after = Date.now();
+    const call = queryConversions.mock.calls[0][0];
+    const expectedMin = before - 7 * 24 * 3600 * 1000;
+    const expectedMax = after - 7 * 24 * 3600 * 1000;
+    expect(call.since.getTime()).toBeGreaterThanOrEqual(expectedMin);
+    expect(call.since.getTime()).toBeLessThanOrEqual(expectedMax);
+    expect(call.merchantId).toBe('m1');
+  });
 });

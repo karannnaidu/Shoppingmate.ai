@@ -52,17 +52,18 @@ export async function defaultQueryConversions(args: { merchantId: string; since:
         gte(schema.conversionEvents.occurredAt, args.since),
       ),
     );
-  return rows.map((r) => ({
-    kind: r.kind as 'assisted' | 'influenced',
-    totalCents: r.totalCents,
-    orderId: r.orderId,
-  }));
+  return rows.flatMap((r) =>
+    r.kind === 'assisted' || r.kind === 'influenced'
+      ? [{ kind: r.kind, totalCents: r.totalCents, orderId: r.orderId }]
+      : [],
+  );
 }
 
 export const dashboardAttributionRoute = new Hono();
 dashboardAttributionRoute.get('/:merchantId', async (c) => {
   const merchantId = c.req.param('merchantId');
-  const days = Number(c.req.query('days') ?? '7');
+  const raw = Number(c.req.query('days') ?? '7');
+  const days = Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 90) : 7;
   const out = await computeAttributionSummary({
     merchantId,
     days,
