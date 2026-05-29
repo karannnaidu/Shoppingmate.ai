@@ -230,12 +230,8 @@ export async function* runTurn(
   }
 
   const userText = redactPii(message.text);
-  const systemPrompt = buildSystemPrompt(merchant, promptOpts);
-  if (process.env.DEBUG_PROMPT === '1') {
-    process.stdout.write(`[INFO] DEBUG_PROMPT merchantId=${merchant.id} brandSummaryLen=${merchant.brandSummary?.length ?? 0} categoriesLen=${merchant.brandCategories?.length ?? 0} systemHead=${systemPrompt.slice(0, 400).replace(/\n/g, ' | ')}\n`);
-  }
   const history: AnthropicMessage[] = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: buildSystemPrompt(merchant, promptOpts) },
     ...session.history,
     { role: 'user', content: userText },
   ];

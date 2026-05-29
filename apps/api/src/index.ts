@@ -13,7 +13,6 @@ import {
   createSession,
   decodeWidgetMessage,
   encodeAgentEvent,
-  buildSystemPrompt,
   loadSession,
   replaySession,
   runTurn,
@@ -45,25 +44,6 @@ app.use(
     credentials: false,
   }),
 );
-
-app.get('/v1/debug/prompt/:merchantId', async (c) => {
-  if (process.env.DEBUG_PROMPT !== '1') return c.json({ error: 'disabled' }, 404);
-  const merchantId = c.req.param('merchantId');
-  const [m] = await db.select().from(schema.merchants).where(eq(schema.merchants.id, merchantId)).limit(1);
-  if (!m) return c.json({ error: 'not_found' }, 404);
-  const opts = await loadPromptOpts(merchantId);
-  const prompt = buildSystemPrompt(m, opts);
-  return c.json({
-    merchantId: m.id,
-    name: m.name,
-    brandSummaryLen: m.brandSummary?.length ?? 0,
-    brandSummaryHead: (m.brandSummary ?? '').slice(0, 200),
-    categories: m.brandCategories,
-    promptLen: prompt.length,
-    promptHead: prompt.slice(0, 1500),
-    kbTextLen: opts.kbText?.length ?? 0,
-  });
-});
 
 app.route('/health', healthRoute);
 app.route('/v1/conversion', conversionRoute);
