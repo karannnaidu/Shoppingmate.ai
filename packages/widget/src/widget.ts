@@ -18,6 +18,15 @@ import { mountSoftPrompt } from './ui/soft-prompt.js';
 
 const TAG = 'shoppingmate-widget';
 
+const POSITION_CLASSES = new Set([
+  'bottom-right',
+  'bottom-left',
+  'bottom-center',
+  'center',
+  'top-right',
+  'top-left',
+]);
+
 function resolveVoiceStack(): 'live-kit' | 'web-speech' {
   // Build-time replaced via esbuild `define`. Default ships as 'live-kit'.
   const stack = (globalThis as unknown as { __SHOPPINGMATE_VOICE_STACK__?: string })
@@ -54,7 +63,13 @@ class WidgetElement extends HTMLElement {
     style.textContent = SHADOW_CSS;
     sr.appendChild(style);
     const root = document.createElement('div');
-    root.className = 'root';
+    // Placement override (stop-gap until Task 8 wires it through the
+    // dashboard). Reads `data-position` from the host element: bottom-right
+    // (default), bottom-left, bottom-center, center, top-right, top-left.
+    // Invalid values fall back to bottom-right silently.
+    const position = (this.getAttribute('data-position') ?? 'bottom-right').toLowerCase();
+    const positionClass = POSITION_CLASSES.has(position) ? `pos-${position}` : 'pos-bottom-right';
+    root.className = `root ${positionClass}`;
     sr.appendChild(root);
     this.rootEl = root;
     this.panelHost = document.createElement('div');

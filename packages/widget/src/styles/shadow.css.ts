@@ -18,6 +18,15 @@ export const SHADOW_CSS = `
 }
 .root > * { pointer-events: auto; }
 
+/* Placement overrides — host sets data-position on <shoppingmate-widget>.
+   Default is bottom-right. Center pins the tray to viewport middle. */
+.root.pos-bottom-right { bottom: 20px; right: 20px; align-items: flex-end; }
+.root.pos-bottom-left  { bottom: 20px; left: 20px; right: auto; align-items: flex-start; }
+.root.pos-bottom-center{ bottom: 20px; left: 50%; right: auto; transform: translateX(-50%); align-items: center; }
+.root.pos-center       { top: 50%; left: 50%; right: auto; bottom: auto; transform: translate(-50%, -50%); align-items: center; }
+.root.pos-top-right    { top: 20px; right: 20px; bottom: auto; align-items: flex-end; }
+.root.pos-top-left     { top: 20px; left: 20px; bottom: auto; right: auto; align-items: flex-start; }
+
 /* ---- Tray (always-visible launcher) ---- */
 .tray {
   display: inline-flex;
