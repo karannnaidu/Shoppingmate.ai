@@ -22,7 +22,7 @@ Every brand we onboard — Shopify storefront or arbitrary custom website, retai
 
 3. **No brand goes live with an empty KB.** The onboarding wizard refuses to issue a snippet until brand summary + FAQs + catalog items are populated and merchant-approved. This is the durable guardrail.
 
-## The Four Problem Areas
+## The Five Problem Areas
 
 ### Problem 1 — Brand context injection (root cause of "skincare" hallucination)
 
@@ -166,6 +166,94 @@ Originally proposed a regulated-category policy layer. **Dropped.** Hand-coding 
 - Mount form in `web/src/app/app/settings/page.tsx`
 - Vitest for the action; Playwright that loads each placement and asserts rect position
 
+### Problem 5 — Brand analytics dashboard
+
+**Today:** Conversion attribution shipped in Phase 1 Task 19 (`/app/revenue` page, attribution tiles). What's missing: the funnel above conversion — how many people see the pill, how many open it, how many engage, what they ask, where the bot fails. Without this the brand can't answer "is the bot working?" beyond revenue.
+
+#### 5.1 Event taxonomy
+
+Track these events from widget + agent, all keyed to `merchant_id` + `sm_visitor_id` (already persisted in localStorage, Phase 1 Task 13):
+
+- `widget_loaded` — widget script booted on a page (denominator for funnel)
+- `pill_impression` — pill rendered into viewport
+- `pill_opened` — user clicked pill / opened bot
+- `first_message_sent` — user sent first message or first voice utterance
+- `session_engaged` — session reached ≥3 turns (configurable threshold)
+- `tool_called` — agent invoked `search_catalog | get_item | compare_items` (capture which item/query)
+- `item_recommended` — bot surfaced a `catalog_items` row (capture item id)
+- `item_clicked` — user clicked a recommended item's URL
+- `add_to_cart` — bot-driven cart add (already exists via Shopify cart attribute, Phase 1 Task 14)
+- `unanswered` — bot fell back to "I don't know" / hallucination heuristic tripped
+- `session_ended` — session closed (capture duration, turn count, voice/text split)
+- Conversion events (`order_placed`) already exist via Phase 1.
+
+All events flow into existing `conversion_events` infrastructure or a new `widget_events` table if the volume warrants a split.
+
+#### 5.2 Funnel view (the headline answer)
+
+Brand dashboard `/app/analytics` shows:
+
+- **Loads → Pill impressions → Opens → First message → Engaged → Converted**
+- Conversion rate at each step
+- 7d / 30d / 90d windows
+- Per-page breakdown (which pages drive opens — homepage vs product page vs checkout)
+
+This is the direct answer to "how many people interacted vs total load sessions."
+
+#### 5.3 Conversation analytics
+
+- **Top queries** — clustered (LLM-embed + group) so "what's the price" and "how much does it cost" collapse to one row
+- **Top items asked about** — from `tool_called` + `get_item` invocations
+- **Top items recommended** — from `item_recommended`
+- **Top items converted** — bot recommended → add_to_cart → order placed
+- **Unanswered rate** — percent of sessions with at least one `unanswered` event
+- **Top unanswered queries** — what the bot couldn't answer (this is the content-gap signal for the merchant)
+
+#### 5.4 Quality + latency
+
+- **Eval pass-rate** — from per-brand eval harness (3.13)
+- **Median + p95 time-to-first-token** (voice and text)
+- **Voice vs text split** — sessions, engagement, conversion by modality
+- **Session duration distribution** — median, p75, p95
+
+#### 5.5 Bot-vs-non-bot comparison
+
+- Bot-touched sessions vs all sessions: AOV, conversion rate, items per order, time to purchase
+- This is the "did the bot move the needle" question. Falls out of Phase 1 attribution tables + new funnel data.
+
+#### 5.6 Operational (internal-only for ops, but expose summary to brand)
+
+- Cost per session ($) — LLM tokens + voice minutes + crawl reruns
+- Error rate (tool failures, model timeouts)
+- Crawl freshness (last successful crawl per brand)
+
+#### 5.7 Data plumbing
+
+- Widget emits events via existing telemetry pipe (Phase 1 Task 18 added metric counters; extend with these event names)
+- Agent emits `tool_called`, `item_recommended`, `unanswered` from inside its runtime
+- New `widget_events` table (denormalized for cheap aggregation) — `id, merchant_id, sm_visitor_id, session_id?, event_name, event_props JSONB, occurred_at`
+- Materialized views or scheduled rollups for the funnel — don't compute from raw events on every dashboard load
+- Retention: 90d raw events, indefinite rolled-up daily aggregates
+
+#### 5.8 Dashboard UI
+
+- `/app/analytics` page in `web/src/app/app/` — three sections: Funnel, Conversation, Quality
+- Reuse the dashboard primitives from Phase 1 attribution tiles
+- Date range selector (7d / 30d / 90d / custom)
+- Per-page filter
+- Export CSV for raw events
+
+#### 5.9 What this gives every brand
+
+- **"Are people seeing my bot?"** → impression rate
+- **"Are people engaging?"** → open rate + engaged-session rate
+- **"What do customers want?"** → top queries + top items
+- **"Where is the bot failing?"** → unanswered queries + eval drops
+- **"Is the bot making money?"** → bot-vs-non-bot conversion + attributed revenue
+- **"Should I add content for X?"** → top unanswered queries point directly at content gaps
+
+Same dashboard. Same code. Industry-agnostic.
+
 ## Implementation Ordering
 
 1. **Problem 1** — brand context baseline (unblocks Calmosis dignity, smallest blast radius)
@@ -176,9 +264,23 @@ Originally proposed a regulated-category policy layer. **Dropped.** Hand-coding 
 6. **3.5** — onboarding wizard (productionizes the durable guardrail)
 7. **Problem 2** — status split (dashboard clarity)
 8. **Problem 4** — widget placement (merchant control)
-9. **3.1 + 3.2 + 3.3** — fingerprint + custom adapter + headless infra (long-tail quality)
-10. **3.6 + 3.7** — status semantics + CI fixtures
-11. **3.13** — per-brand eval harness
+9. **5.1 + 5.7** — event taxonomy + plumbing (unblocks analytics)
+10. **5.2 + 5.3 + 5.5 + 5.8** — funnel, conversation, comparison, dashboard UI
+11. **3.1 + 3.2 + 3.3** — fingerprint + custom adapter + headless infra (long-tail quality)
+12. **3.6 + 3.7** — status semantics + CI fixtures
+13. **3.13 + 5.4** — per-brand eval harness + quality/latency analytics
+
+## Acceptance — Prove It Works on Calmosis Live
+
+Implementation is not "done" until Calmosis (SM-2SCCLZ) on the live site demonstrably handles their requirements. Capture runtime evidence (not just passing tests):
+
+- Live voice session transcript showing the bot correctly answering: "what's the difference between Peace and Sleep," "what dosage should I take," "can I talk to a doctor," and a brand-positioning question — with no hallucinations
+- Probe log showing brand_summary loaded, RAG chunks retrieved, catalog tools invoked with the right item names
+- Analytics dashboard screenshot for SM-2SCCLZ showing funnel populated with real events
+- Onboarding pipeline log for a re-run on calmosis.com showing `bot_status=live, kb_status=populated, catalog_status=crawled`
+- Widget placement change applied via dashboard + verified live with a probe screenshot at the new position
+
+Until those artifacts exist, ship is incomplete.
 
 ## What This Architecture Promises
 
