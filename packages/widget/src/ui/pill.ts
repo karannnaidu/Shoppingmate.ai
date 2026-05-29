@@ -38,7 +38,12 @@ export function renderPill(host: HTMLElement, props: TrayProps): void {
   const key = trayKey(props);
   if (host.dataset.trayKey === key) return;
 
-  const inCall = props.mode === 'call' || props.voiceState !== 'idle';
+  // `inCall` reflects whether voice is actually live — not whether the call
+  // panel is open. If voice failed (e.g. mic denied, LiveKit handshake error)
+  // it resets to 'idle' while mode stays 'call'. We want the mic tap in that
+  // broken-call state to re-attempt the call, matching the panel's prompt
+  // ("voice paused — tap mic to resume").
+  const inCall = props.voiceState !== 'idle';
   const muted = props.voiceState === 'muted';
   const speaking = props.voiceState === 'speaking';
   const voiceConnecting = props.voiceState === 'connecting';

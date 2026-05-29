@@ -126,6 +126,18 @@ describe('renderPill', () => {
     expect(onChat).toHaveBeenCalledOnce();
   });
 
+  it('mic click retries call when voice failed mid-call (mode=call, voiceState=idle)', () => {
+    const root = document.createElement('div');
+    const onCall = vi.fn();
+    const onMute = vi.fn();
+    renderPill(root, { ...baseProps, mode: 'call', voiceState: 'idle', onCall, onMute });
+    const mic = root.querySelector('[data-action="mic"]');
+    if (!(mic instanceof HTMLButtonElement)) throw new Error('expected mic button');
+    mic.click();
+    expect(onCall).toHaveBeenCalledOnce();
+    expect(onMute).not.toHaveBeenCalled();
+  });
+
   it('avatar click closes panel when expanded', () => {
     const root = document.createElement('div');
     const onClose = vi.fn();
