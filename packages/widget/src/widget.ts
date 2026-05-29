@@ -249,6 +249,7 @@ class WidgetElement extends HTMLElement {
       mode: s.mode,
       callable,
       voiceState: s.voiceState,
+      connection: s.connection,
       personaName: this.persona.name,
       personaInitial: this.persona.initial,
       personaAvatarUrl: this.persona.avatarUrl,

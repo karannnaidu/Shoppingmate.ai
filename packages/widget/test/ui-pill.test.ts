@@ -3,6 +3,7 @@ import { renderPill } from '../src/ui/pill.js';
 
 const baseProps = {
   callable: true,
+  connection: 'connected' as const,
   personaName: 'Sage',
   personaInitial: 'S',
   personaAvatarUrl: 'https://cdn.example/personas/calm-clinician.png',
@@ -20,16 +21,45 @@ describe('renderPill', () => {
     expect(root.textContent).toContain('Sage');
   });
 
-  it('shows OFFLINE status when voiceState idle', () => {
+  it('shows CONNECTED status when WS is up even if voice is idle', () => {
     const root = document.createElement('div');
     renderPill(root, { ...baseProps, mode: 'pill', voiceState: 'idle' });
+    expect(root.textContent).toContain('CONNECTED');
+  });
+
+  it('shows OFFLINE only when WS connection is disconnected', () => {
+    const root = document.createElement('div');
+    renderPill(root, {
+      ...baseProps,
+      mode: 'pill',
+      voiceState: 'idle',
+      connection: 'disconnected',
+    });
     expect(root.textContent).toContain('OFFLINE');
+  });
+
+  it('shows CONNECTING when WS is reconnecting', () => {
+    const root = document.createElement('div');
+    renderPill(root, {
+      ...baseProps,
+      mode: 'pill',
+      voiceState: 'idle',
+      connection: 'reconnecting',
+    });
+    expect(root.textContent).toContain('CONNECTING');
   });
 
   it('shows CONNECTED status when voice is active', () => {
     const root = document.createElement('div');
     renderPill(root, { ...baseProps, mode: 'call', voiceState: 'listening' });
     expect(root.textContent).toContain('CONNECTED');
+  });
+
+  it('stays CONNECTED when voice is muted (regression: mute should not show OFFLINE)', () => {
+    const root = document.createElement('div');
+    renderPill(root, { ...baseProps, mode: 'call', voiceState: 'muted' });
+    expect(root.textContent).toContain('CONNECTED');
+    expect(root.textContent).not.toContain('OFFLINE');
   });
 
   it('renders mic and end controls', () => {

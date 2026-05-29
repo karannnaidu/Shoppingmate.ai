@@ -5,6 +5,7 @@ export type TrayProps = {
   mode: 'pill' | 'expanded' | 'call' | 'chat';
   callable: boolean;
   voiceState: 'idle' | 'connecting' | 'listening' | 'speaking' | 'muted';
+  connection: 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
   personaName: string;
   personaInitial: string;
   personaAvatarUrl: string;
@@ -26,6 +27,7 @@ function trayKey(props: TrayProps): string {
     props.mode,
     props.callable ? '1' : '0',
     props.voiceState,
+    props.connection,
     props.personaName,
     props.personaInitial,
     props.personaAvatarUrl,
@@ -39,21 +41,30 @@ export function renderPill(host: HTMLElement, props: TrayProps): void {
   const inCall = props.mode === 'call' || props.voiceState !== 'idle';
   const muted = props.voiceState === 'muted';
   const speaking = props.voiceState === 'speaking';
-  const connecting = props.voiceState === 'connecting';
-  const connected = props.voiceState !== 'idle' && !connecting;
-  const waveformActive = connected && !muted;
+  const voiceConnecting = props.voiceState === 'connecting';
+  const voiceActive = props.voiceState !== 'idle' && !voiceConnecting;
+  const waveformActive = voiceActive && !muted;
   const panelOpen = props.mode === 'chat' || props.mode === 'call' || props.mode === 'expanded';
 
-  const statusLabel = connecting
-    ? STRINGS.trayConnecting
-    : connected
-      ? STRINGS.trayConnected
-      : STRINGS.trayOffline;
-  const statusClass = connecting
-    ? 'tray-status connecting'
-    : connected
-      ? 'tray-status connected'
-      : 'tray-status idle';
+  // Pill status reflects assistant availability — the WS chat link, not the
+  // voice substate. Text-only brands sit at voiceState='idle' the whole
+  // session; binding the label to voiceState would scream OFFLINE at visitors
+  // even though Sage is fully reachable. Voice-connecting overrides only
+  // during the brief click→listening window so the visitor sees feedback.
+  const wsConnecting = props.connection === 'connecting' || props.connection === 'reconnecting';
+  const wsOffline = props.connection === 'disconnected';
+  const showConnecting = wsConnecting || voiceConnecting;
+  const statusLabel = wsOffline
+    ? STRINGS.trayOffline
+    : showConnecting
+      ? STRINGS.trayConnecting
+      : STRINGS.trayConnected;
+  const statusClass = wsOffline
+    ? 'tray-status idle'
+    : showConnecting
+      ? 'tray-status connecting'
+      : 'tray-status connected';
+  const presenceClass = wsOffline ? 'idle' : showConnecting ? 'connecting' : 'connected';
 
   const waveformHtml = `
     <div class="tray-waveform ${waveformActive ? 'active' : ''} ${speaking ? 'speaking' : ''}" aria-hidden="true">
@@ -79,7 +90,7 @@ export function renderPill(host: HTMLElement, props: TrayProps): void {
       <button class="tray-avatar" data-action="toggle" aria-expanded="${panelOpen}" aria-label="${STRINGS.openAria}">
         <img src="${props.personaAvatarUrl}" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" />
         <span class="tray-avatar-fallback" aria-hidden="true">${props.personaInitial}</span>
-        <span class="tray-presence ${connecting ? 'connecting' : connected ? 'connected' : 'idle'}"></span>
+        <span class="tray-presence ${presenceClass}"></span>
       </button>
       <div class="tray-meta">
         <div class="tray-name">${props.personaName}</div>

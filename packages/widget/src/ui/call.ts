@@ -18,7 +18,10 @@ function statusText(props: CallProps): string {
   if (props.muted) return "you're muted";
   if (props.voiceState === 'connecting') return `connecting to ${props.personaName}…`;
   if (props.voiceState === 'speaking') return `${props.personaName} is speaking…`;
-  return `${props.personaName} is listening…`;
+  if (props.voiceState === 'listening') return `${props.personaName} is listening…`;
+  // voiceState === 'idle': voice never connected or got reset. Don't lie
+  // about Sage listening — the LiveKit room is down. Visitor can re-tap mic.
+  return 'voice paused — tap mic to resume';
 }
 
 // Chrome key excludes voiceState — it changes during streaming and we update

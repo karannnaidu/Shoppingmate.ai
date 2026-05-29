@@ -32,6 +32,14 @@ describe('renderCall', () => {
     expect(root.querySelector('.status-line')?.textContent).toContain("you're muted");
   });
 
+  it('does not claim Sage is listening when voiceState is idle', () => {
+    const root = document.createElement('div');
+    renderCall(root, { ...baseProps, voiceState: 'idle' });
+    const status = root.querySelector('.status-line')?.textContent ?? '';
+    expect(status).not.toContain('is listening');
+    expect(status).toContain('voice paused');
+  });
+
   it('shows checkout CTA when checkoutUrl is set', () => {
     const root = document.createElement('div');
     renderCall(root, { ...baseProps, checkoutUrl: 'https://shop/checkout' });
