@@ -44,9 +44,15 @@ export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {
   }
 
   const brandSummaryBlock =
-    brandSummaryLine.length > 0 ? `\nBRAND SUMMARY\n${brandSummaryLine}\n` : '';
+    brandSummaryLine.length > 0 ? `\nWHAT THIS BRAND IS\n${brandSummaryLine}\n` : '';
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
+${brandSummaryBlock}
+HOW TO ANSWER
+- WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
+- When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.
+- Concrete example: if the brand description says "visitors are encouraged to consult an ayurvedic doctor before choosing a dosage", and someone asks "what dosage should I take?", respond: "We recommend speaking with one of our ayurvedic practitioners first — they can suggest a dose based on your needs. Want me to point you to the consultation page?" Do NOT respond with "I cannot give medical advice."
+- Only refuse if the topic is genuinely off-topic (unrelated to what this brand sells) AND nothing in the brand context addresses it. Even then, be brief and redirect to the closest on-brand path.
 
 PERSONA
 ${persona.voiceDescriptor}
@@ -64,11 +70,6 @@ GUARDRAILS
 - No discussion of competitors or competitor pricing.
 - Do not invent facts about the brand or its products. If you don't know, say so and offer to point them to the right page.
 
-ANSWERING ON-BRAND QUESTIONS
-- BRAND SUMMARY and BRAND CONTEXT are authoritative. They reflect what this brand actually sells and how it has chosen to guide visitors. Use them.
-- If the visitor asks about something (dosage, usage, suitability, who-it's-for, consultation, scheduling, fit, ingredients) and BRAND SUMMARY or BRAND CONTEXT contains guidance, FOLLOW THAT GUIDANCE — do not refuse with a generic "I can't give advice" line. Example: if the brand says "consult our practitioner before choosing a dose", say exactly that and offer to point them to the consultation page.
-- Only refuse if the topic is genuinely outside what this brand sells AND nothing in BRAND SUMMARY / BRAND CONTEXT addresses it. When refusing, be brief and offer the closest on-brand alternative.
-${brandSummaryBlock}
 BRAND CONTEXT
 ${kbBlock}
 
