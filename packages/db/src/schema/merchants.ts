@@ -42,6 +42,8 @@ export const merchants = pgTable('merchants', {
   couponFieldSelector: text('coupon_field_selector'),
   policyUrls: jsonb('policy_urls'),
   personaId: text('persona_id').default('concierge').notNull(),
+  brandSummary: text('brand_summary'),
+  brandCategories: text('brand_categories').array(),
   installedAt: timestamp('installed_at', { withTimezone: true }).notNull().defaultNow(),
   lastInstallAt: timestamp('last_install_at', { withTimezone: true }),
   lastFingerprintedAt: timestamp('last_fingerprinted_at', { withTimezone: true }),
@@ -54,7 +56,11 @@ export const merchants = pgTable('merchants', {
   stripeSubscriptionId: text('stripe_subscription_id').unique(),
   plan: text('plan').notNull().default('starter'),
   billingStatus: text('billing_status').notNull().default('pending'),
-  persona: jsonb('persona').$type<{ voiceDescriptorId: string; brandVoiceNotes: string; toneValue: number } | null>(),
+  persona: jsonb('persona').$type<{
+    voiceDescriptorId: string;
+    brandVoiceNotes: string;
+    toneValue: number;
+  } | null>(),
   leadWebhookUrl: text('lead_webhook_url'),
   knowledgeBaseStatus: text('knowledge_base_status').notNull().default('empty'),
   lastWidgetPing: timestamp('last_widget_ping', { withTimezone: true }),

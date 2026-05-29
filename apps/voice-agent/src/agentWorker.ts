@@ -156,10 +156,7 @@ const agentDefinition = defineAgent({
     const tConnected = Date.now();
     const roomName = job.room.name ?? '';
     const sessionId = roomName.replace(/^sm_/, '');
-    log.info(
-      { sessionId, roomName, ms_connect: tConnected - tEntry },
-      'voice-agent job started',
-    );
+    log.info({ sessionId, roomName, ms_connect: tConnected - tEntry }, 'voice-agent job started');
 
     const session = await loadSession(redis(), sessionId);
     if (!session) {
@@ -205,7 +202,12 @@ const agentDefinition = defineAgent({
     const voice = resolveVoiceContext(
       merchant.personaId,
       { name: merchant.name, domain: merchant.domain },
-      { kbText, demoMode },
+      {
+        kbText,
+        demoMode,
+        brandSummary: merchant.brandSummary ?? undefined,
+        brandCategories: merchant.brandCategories ?? undefined,
+      },
     );
 
     const dataChannel = createDataChannel({
@@ -330,7 +332,11 @@ const agentDefinition = defineAgent({
       merchantId: merchant.id,
       runTurn,
       loadMerchant: async (id) => {
-        const rows = await db.select().from(schema.merchants).where(eq(schema.merchants.id, id)).limit(1);
+        const rows = await db
+          .select()
+          .from(schema.merchants)
+          .where(eq(schema.merchants.id, id))
+          .limit(1);
         if (!rows[0]) throw new Error(`merchant not found: ${id}`);
         return rows[0];
       },
@@ -441,11 +447,7 @@ const agentDefinition = defineAgent({
         const seconds = samples / 24_000;
         caps.recordVoiceSeconds(seconds);
         metrics.add('gemini_audio_output_seconds', seconds);
-        const view = new Int16Array(
-          e.bytes.buffer,
-          e.bytes.byteOffset,
-          e.bytes.byteLength / 2,
-        );
+        const view = new Int16Array(e.bytes.buffer, e.bytes.byteOffset, e.bytes.byteLength / 2);
         // Copy: AudioFrame keeps the buffer; the underlying Buffer may be reused.
         const pcm = new Int16Array(view);
         const frame = new AudioFrame(pcm, 24_000, 1, samples);

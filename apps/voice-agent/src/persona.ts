@@ -14,6 +14,8 @@ export type VoiceBrandContext = {
 export type VoiceContextOpts = {
   kbText?: string;
   demoMode?: boolean;
+  brandSummary?: string;
+  brandCategories?: string[];
 };
 
 export function resolveVoiceContext(

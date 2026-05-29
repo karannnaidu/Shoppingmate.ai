@@ -17,11 +17,23 @@ export type SystemPromptOpts = {
   siteGraphText?: string;
 };
 
+function buildBrandSummaryLine(merchant: Merchant): string {
+  const parts: string[] = [];
+  if (merchant.brandSummary && merchant.brandSummary.trim().length > 0) {
+    parts.push(merchant.brandSummary.trim());
+  }
+  const cats = merchant.brandCategories?.filter((c) => c && c.trim().length > 0) ?? [];
+  if (cats.length > 0) {
+    parts.push(`Categories: ${cats.join(', ')}.`);
+  }
+  return parts.join(' ');
+}
+
 export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {}): string {
   const persona = lookupPersona(merchant.personaId);
   const brandName = merchant.name ?? merchant.domain;
-  const kbBlock =
-    opts.kbText && opts.kbText.trim().length > 0 ? opts.kbText.trim() : BRAND_KB_SLOT;
+  const brandSummaryLine = buildBrandSummaryLine(merchant);
+  const kbBlock = opts.kbText && opts.kbText.trim().length > 0 ? opts.kbText.trim() : BRAND_KB_SLOT;
   const siteGraphBlock =
     opts.siteGraphText && opts.siteGraphText.trim().length > 0
       ? opts.siteGraphText.trim()
@@ -30,6 +42,9 @@ export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {
   if (opts.demoMode) {
     return demoSystemPrompt(persona.name, kbBlock, siteGraphBlock);
   }
+
+  const brandSummaryBlock =
+    brandSummaryLine.length > 0 ? `\nBRAND SUMMARY\n${brandSummaryLine}\n` : '';
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
 
@@ -46,9 +61,9 @@ SPEAKING RULES
 - If a tool fails, apologize briefly and offer an alternative path.
 
 GUARDRAILS
-- No medical, legal, or financial advice.
 - No discussion of competitors or competitor pricing.
-
+- Do not invent facts about the brand or its products. If you don't know, say so and offer to point them to the right page.
+${brandSummaryBlock}
 BRAND CONTEXT
 ${kbBlock}
 

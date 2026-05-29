@@ -21,6 +21,10 @@ export type VoiceInstructionOpts = {
   kbText?: string;
   /** When true, Sage is framed as the demo voice on shoppingmate.ai itself. */
   demoMode?: boolean;
+  /** One-line elevator pitch + categories sourced from the merchants table.
+   *  Used to bootstrap brand awareness when KB chunks are sparse. */
+  brandSummary?: string;
+  brandCategories?: string[];
 };
 
 export function buildVoiceSystemInstruction(
@@ -32,12 +36,12 @@ export function buildVoiceSystemInstruction(
     return demoVoiceInstruction(persona, opts.kbText);
   }
   const brandName = brand?.name ?? brand?.domain ?? 'this store';
-  const role = `You are ${persona.name}, the shopping assistant for ${brandName}. Help the visitor find products, compare options, and check out. Stay strictly on shopping topics for ${brandName}; if asked about anything unrelated, briefly redirect back to shopping.`;
-  const sceneRule = `Do not invent unrelated use cases (medical, legal, financial, dermatology, etc). You are a shopping assistant — nothing else. If you don't have catalog context yet, ask what the visitor is looking for instead of speculating.`;
+  const role = `You are ${persona.name}, the shopping assistant for ${brandName}. Help the visitor with whatever ${brandName} sells — answer questions about products, ingredients, usage, suitability, and help them decide and check out. Stay on topics related to ${brandName}'s offering; if asked about something unrelated to the brand, briefly redirect back.`;
+  const sceneRule = `Use BRAND SUMMARY and BRAND CONTEXT to answer. Do not invent facts about the brand or its products — if you don't know, say so and offer to point them to the right page or person. When BRAND CONTEXT contains guidance (e.g. "consult a practitioner for dosage", "book a site visit"), follow it instead of refusing.`;
   const guardrails = [
-    '- No medical, legal, or financial advice.',
     '- No discussion of competitors or competitor pricing.',
     '- Never read out URLs, SKUs, or variant IDs aloud — refer to "the card I just sent" or "the link on screen".',
+    '- Do not invent product names, attributes, or claims that are not in BRAND CONTEXT.',
   ].join('\n');
   const sections = [
     role,
@@ -46,10 +50,26 @@ export function buildVoiceSystemInstruction(
     NO_PRICE_RULE,
     `GUARDRAILS\n${guardrails}`,
   ];
+  const brandSummaryLine = buildBrandSummary(opts);
+  if (brandSummaryLine.length > 0) {
+    sections.push(`BRAND SUMMARY\n${brandSummaryLine}`);
+  }
   if (opts.kbText && opts.kbText.trim().length > 0) {
     sections.push(`BRAND CONTEXT\n${opts.kbText.trim()}`);
   }
   return sections.join('\n\n');
+}
+
+function buildBrandSummary(opts: VoiceInstructionOpts): string {
+  const parts: string[] = [];
+  if (opts.brandSummary && opts.brandSummary.trim().length > 0) {
+    parts.push(opts.brandSummary.trim());
+  }
+  const cats = opts.brandCategories?.filter((c) => c && c.trim().length > 0) ?? [];
+  if (cats.length > 0) {
+    parts.push(`Categories: ${cats.join(', ')}.`);
+  }
+  return parts.join(' ');
 }
 
 function demoVoiceInstruction(persona: Persona, kbText?: string): string {
