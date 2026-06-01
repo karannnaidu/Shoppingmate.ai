@@ -146,6 +146,10 @@ class WidgetElement extends HTMLElement {
       });
     }
     this.voiceMode.onStateChange((s) => this.store.dispatch({ type: 'set_voice_state', state: s }));
+    this.voiceMode.onError?.((info) => {
+      console.warn('[shoppingmate] voice error', info);
+      this.store.dispatch({ type: 'set_voice_error', error: info });
+    });
     this.socket = connectAgentWs(result.wsUrl, {
       sessionId: result.sessionId,
       onEvent: (raw) => {
@@ -240,6 +244,7 @@ class WidgetElement extends HTMLElement {
         transcript: s.transcript,
         checkoutUrl: s.checkoutUrl,
         personaName: this.persona.name,
+        voiceError: s.voiceError,
         onClose: () => this.store.dispatch({ type: 'set_mode', mode: 'pill' }),
         onCardTap: (p) => this.cardTap(p),
         onCheckout: () => {},

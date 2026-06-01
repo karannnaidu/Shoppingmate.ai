@@ -15,10 +15,26 @@ export function createVoiceModeLiveKit(opts: {
   let muted = false;
   let sageHasJoined = false;
   const listeners: ((s: VoiceModeState) => void)[] = [];
+  const errorListeners: ((info: { code: string; message: string }) => void)[] = [];
   const set = (s: VoiceModeState) => {
     if (state === s) return;
     state = s;
     for (const cb of listeners) cb(s);
+  };
+  const emitError = (err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    const name = err instanceof Error ? err.name : '';
+    let code: string;
+    // Permissions-Policy header on the embedding page blocks microphone for
+    // the whole document. Visitor can't fix it from the browser — site owner
+    // has to update headers. Check this BEFORE generic /permission/ match.
+    if (/permissions? policy|feature policy/i.test(message)) code = 'mic_policy_blocked';
+    else if (name === 'NotAllowedError' || /denied|permission/i.test(message)) code = 'mic_denied';
+    else if (name === 'NotFoundError' || /no.*microphone|not.*found/i.test(message))
+      code = 'mic_unavailable';
+    else if (/connect|network|websocket|timeout|token/i.test(message)) code = 'connect_failed';
+    else code = 'unknown';
+    for (const cb of errorListeners) cb({ code, message });
   };
 
   // Pre-connect to the room without enabling the mic. Idempotent — repeated
@@ -74,6 +90,7 @@ export function createVoiceModeLiveKit(opts: {
           if (muted) set('muted');
         } catch (err) {
           set('idle');
+          emitError(err);
           throw err;
         }
       })().catch((err) => {
@@ -98,6 +115,9 @@ export function createVoiceModeLiveKit(opts: {
     getState: () => state,
     onStateChange: (cb) => {
       listeners.push(cb);
+    },
+    onError: (cb) => {
+      errorListeners.push(cb);
     },
     signalAgentReady: () => {
       // Phase B done: Gemini WS is open and Sage is online. Flip CONNECTING →

@@ -48,6 +48,18 @@ describe('renderCall', () => {
     expect(cta.getAttribute('href')).toBe('https://shop/checkout');
   });
 
+  it('shows mic-denied copy when voiceError.code is mic_denied', () => {
+    const root = document.createElement('div');
+    renderCall(root, {
+      ...baseProps,
+      voiceState: 'idle',
+      voiceError: { code: 'mic_denied', message: 'Permission denied' },
+    });
+    const status = root.querySelector('.status-line')?.textContent ?? '';
+    expect(status).toContain('mic blocked');
+    expect(status).not.toContain('voice paused');
+  });
+
   it('renders shoppingmate footer', () => {
     const root = document.createElement('div');
     renderCall(root, baseProps);
