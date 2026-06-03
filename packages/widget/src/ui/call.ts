@@ -9,16 +9,37 @@ export type CallProps = {
   transcript: TranscriptItem[];
   checkoutUrl: string | null;
   personaName: string;
+  voiceError?: { code: string; message: string } | null;
   onClose: () => void;
   onCardTap: (p: { sku: string; variantId: string | null }) => void;
   onCheckout: () => void;
 };
 
+function errorCopy(code: string): string {
+  switch (code) {
+    case 'mic_policy_blocked':
+      return 'voice disabled on this page — text chat still works';
+    case 'mic_denied':
+      return 'mic blocked — allow microphone in your browser';
+    case 'mic_unavailable':
+      return 'no microphone found — check your audio device';
+    case 'connect_failed':
+      return "couldn't reach voice — tap mic to retry";
+    default:
+      return 'voice failed — tap mic to retry';
+  }
+}
+
 function statusText(props: CallProps): string {
   if (props.muted) return "you're muted";
   if (props.voiceState === 'connecting') return `connecting to ${props.personaName}…`;
   if (props.voiceState === 'speaking') return `${props.personaName} is speaking…`;
-  return `${props.personaName} is listening…`;
+  if (props.voiceState === 'listening') return `${props.personaName} is listening…`;
+  // voiceState === 'idle': voice never connected or got reset. If we captured
+  // a failure reason (mic perms, etc.) show it so the visitor knows what to
+  // fix. Otherwise the generic "tap mic to resume" copy.
+  if (props.voiceError) return errorCopy(props.voiceError.code);
+  return 'voice paused — tap mic to resume';
 }
 
 // Chrome key excludes voiceState — it changes during streaming and we update

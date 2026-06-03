@@ -25,6 +25,11 @@ export type VoiceMode = {
   // handshake + agent dispatch happen BEFORE the visitor clicks. Idempotent.
   // Web-speech mode no-ops.
   warm?: () => void;
+  // Surface failure reasons (mic permission denied, LiveKit handshake error,
+  // etc.) so the panel can show actionable copy instead of the generic
+  // "voice paused" fallback. Codes: 'mic_denied' | 'mic_unavailable' |
+  // 'connect_failed' | 'unknown'. Web-speech mode no-ops.
+  onError?: (cb: (info: { code: string; message: string }) => void) => void;
 };
 
 export function createVoiceMode(stt: STT | null, tts: TTS): VoiceMode {

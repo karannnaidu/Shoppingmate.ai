@@ -18,12 +18,14 @@ export type WidgetState = {
   checkoutUrl: string | null;
   capWarning: { reason: 'turns' | 'voice_ms' | 'duration_ms'; remaining: number } | null;
   connection: 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+  voiceError: { code: string; message: string } | null;
 };
 
 export type Action =
   | { type: 'set_mode'; mode: WidgetState['mode'] }
   | { type: 'set_voice_state'; state: WidgetState['voiceState'] }
   | { type: 'set_connection'; status: WidgetState['connection'] }
+  | { type: 'set_voice_error'; error: WidgetState['voiceError'] }
   | { type: 'user_input'; text: string; mode: Mode }
   | { type: 'agent_event'; event: AgentEvent }
   | { type: 'reset' };
@@ -45,9 +47,15 @@ function reduce(state: WidgetState, a: Action): WidgetState {
     case 'set_mode':
       return { ...state, mode: a.mode };
     case 'set_voice_state':
-      return { ...state, voiceState: a.state };
+      // Successful voice transitions clear the last error so a retry doesn't
+      // keep showing the previous failure copy after recovery.
+      return a.state !== 'idle'
+        ? { ...state, voiceState: a.state, voiceError: null }
+        : { ...state, voiceState: a.state };
     case 'set_connection':
       return { ...state, connection: a.status };
+    case 'set_voice_error':
+      return { ...state, voiceError: a.error };
     case 'reset':
       return {
         ...state,
@@ -193,6 +201,7 @@ export function createStore(opts: { sessionId: string }): Store {
     checkoutUrl: null,
     capWarning: null,
     connection: 'connecting',
+    voiceError: null,
   };
   const subs: ((s: WidgetState) => void)[] = [];
   return {
