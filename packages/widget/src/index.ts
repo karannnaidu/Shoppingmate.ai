@@ -15,9 +15,21 @@ function init(): void {
   // from secret stores, which corrupts the API base used by bootstrap.
   const apiBase = (apiOverride ?? process.env.SHOPPINGMATE_API_BASE).trim();
 
-  // Register the element synchronously so any matching node already in the DOM
-  // upgrades immediately, and any node the HTML parser appends later upgrades
-  // as it's inserted.
+  // If a <shoppingmate-widget> is already in the DOM (host pre-rendered or
+  // server-rendered the element), patch data-id/data-api BEFORE defining the
+  // custom element. defineWidget() fires connectedCallback synchronously for
+  // any matching node, and connectedCallback reads data-api at that moment —
+  // so missing attributes here strand apiBase as '' and the widget posts to
+  // the relative '/v1/install' on the host origin.
+  const preExisting = document.querySelector('shoppingmate-widget');
+  if (preExisting) {
+    if (!preExisting.getAttribute('data-api')) preExisting.setAttribute('data-api', apiBase);
+    if (!preExisting.getAttribute('data-id')) preExisting.setAttribute('data-id', merchantId);
+  }
+
+  // Register the element so any matching node already in the DOM upgrades
+  // immediately, and any node the HTML parser appends later upgrades as it's
+  // inserted.
   defineWidget();
 
   const mount = () => {
