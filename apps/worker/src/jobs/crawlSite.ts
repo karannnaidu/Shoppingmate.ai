@@ -49,7 +49,7 @@ export async function runCrawlSite(args: CrawlSiteArgs): Promise<CrawlSiteResult
   try {
     const urls = await fetchSitemap(rootUrl, fetchFn);
     const seedUrls = urls.length > 0 ? urls : [rootUrl];
-    const toFetch = seedUrls.slice(0, maxPages);
+    const toFetch = Array.from(new Set(seedUrls)).slice(0, maxPages);
 
     const sitemapKey = siteGraphKey(args.merchantId, crawlId, 'sitemap.xml');
     await uploadObject(sitemapKey, toFetch.join('\n'), 'text/plain');
