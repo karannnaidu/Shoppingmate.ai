@@ -147,7 +147,7 @@ export function renderPill(host: HTMLElement, props: TrayProps): void {
     <div class="tray phase-${phase}" role="region" aria-label="shoppingmate">
       <button class="tray-avatar" data-action="toggle" aria-expanded="${panelOpen}" aria-label="${STRINGS.openAria}">
         <span class="tray-avatar-ring" aria-hidden="true"></span>
-        <img src="${props.personaAvatarUrl}" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" />
+        <img src="${props.personaAvatarUrl}" alt="" class="tray-avatar-img" draggable="false" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" />
         <span class="tray-avatar-fallback" aria-hidden="true">${props.personaInitial}</span>
         <span class="tray-presence ${chrome.presenceClass}"></span>
       </button>

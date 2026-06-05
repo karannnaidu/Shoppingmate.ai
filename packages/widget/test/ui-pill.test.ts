@@ -42,6 +42,13 @@ describe('renderPill — resting (idle launcher)', () => {
     expect(onCall).toHaveBeenCalledOnce();
   });
 
+  it('marks the avatar image non-draggable so a drag does not start a native image-drag', () => {
+    const root = document.createElement('div');
+    renderPill(root, { ...baseProps, mode: 'pill', voiceState: 'idle' });
+    const img = root.querySelector('.tray-avatar-img');
+    expect(img?.getAttribute('draggable')).toBe('false');
+  });
+
   it('shows OFFLINE caption only when WS is disconnected', () => {
     const root = document.createElement('div');
     renderPill(root, { ...baseProps, mode: 'pill', voiceState: 'idle', connection: 'disconnected' });

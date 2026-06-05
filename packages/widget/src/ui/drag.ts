@@ -137,6 +137,16 @@ export function makeDraggable(opts: {
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
     if (!dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    if (!dragging) {
+      // Engage drag: capture the pointer so we keep receiving moves even when
+      // the cursor outruns the small launcher. Done here (not on pointerdown)
+      // so taps on the Call/mic/end buttons never get captured.
+      try {
+        if (activeId != null) surface.setPointerCapture(activeId);
+      } catch {
+        /* capture unsupported / pointer already released — ignore */
+      }
+    }
     dragging = true;
     root.classList.add('dragging', 'dragged');
     root.style.transform = 'none';

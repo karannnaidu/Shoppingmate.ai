@@ -41,6 +41,12 @@ export const SHADOW_CSS = `
 .tray-meta { cursor: grab; }
 .root.dragging .tray,
 .root.dragging .tray * { cursor: grabbing !important; }
+/* Pointer-drag hygiene: without these the browser starts a native image drag
+   (the avatar <img>) or a text selection on first move, which cancels the
+   pointer stream and makes the launcher "jump 1px then stop". Disable native
+   drag + selection up front, and take over touch so the gesture isn't a scroll. */
+.tray { touch-action: none; user-select: none; -webkit-user-select: none; }
+.tray img { -webkit-user-drag: none; user-select: none; }
 
 /* ---- Tray (always-visible launcher) ---- */
 .tray {
