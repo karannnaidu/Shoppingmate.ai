@@ -18,6 +18,14 @@ export const PERSONAS: Record<string, Persona> = {
     fitNote: 'Skincare, wellness, supplements',
     geminiVoiceId: 'Aoede',
   },
+  'calmosis-clinician': {
+    id: 'calmosis-clinician',
+    name: 'Calmio',
+    voiceDescriptor:
+      'Calm, clinical tone. Short sentences. Empathetic but never gushing. Speaks like a trained Ayurvedic practitioner.',
+    fitNote: 'Calmosis-branded calm-clinician variant',
+    geminiVoiceId: 'Aoede',
+  },
   stylist: {
     id: 'stylist',
     name: 'Lumi',
