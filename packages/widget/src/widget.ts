@@ -11,6 +11,7 @@ import { SHADOW_CSS } from './styles/shadow.css.js';
 import { decodeAgentEvent, encodeWidgetMessage } from './transport/codec.js';
 import { preloadLiveKit } from './transport/livekit.js';
 import { type AgentSocket, connectAgentWs } from './transport/ws.js';
+import { makeDraggable } from './ui/drag.js';
 import { renderCall } from './ui/call.js';
 import { renderChat } from './ui/chat.js';
 import { renderPill } from './ui/pill.js';
@@ -47,6 +48,7 @@ class WidgetElement extends HTMLElement {
   private domain = window.location.host;
   private stopActivityTracker: (() => void) | null = null;
   private inviteTimer: ReturnType<typeof setTimeout> | null = null;
+  private stopDrag: (() => void) | null = null;
 
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -78,6 +80,14 @@ class WidgetElement extends HTMLElement {
     root.appendChild(this.pillHost);
     this.store.subscribe(() => this.render());
     this.render();
+    // Let the visitor drag the launcher anywhere so it never blocks the page.
+    // Position is anchored by quadrant (panel always opens on-screen) and saved
+    // per-merchant. Works on every brand site the widget ships to.
+    this.stopDrag = makeDraggable({
+      root,
+      surface: this.pillHost,
+      storageKey: `sm-widget-pos:${this.merchantId}`,
+    });
     // Warm the livekit-client ESM import now (it's ~120KB lazy-loaded from a
     // CDN). If we wait until the visitor clicks voice, the click→listening
     // path eats the full fetch + parse latency (~500-1500ms first visit). This
@@ -92,6 +102,7 @@ class WidgetElement extends HTMLElement {
     this.voiceMode.stop();
     this.stopActivityTracker?.();
     if (this.inviteTimer) clearTimeout(this.inviteTimer);
+    this.stopDrag?.();
   }
 
   private async start() {

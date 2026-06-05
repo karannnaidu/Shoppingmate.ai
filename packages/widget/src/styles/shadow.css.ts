@@ -27,6 +27,21 @@ export const SHADOW_CSS = `
 .root.pos-top-right    { top: 20px; right: 20px; bottom: auto; align-items: flex-end; }
 .root.pos-top-left     { top: 20px; left: 20px; bottom: auto; right: auto; align-items: flex-start; }
 
+/* ---- Visitor-dragged placement ---- */
+/* Once the visitor moves the launcher, inline left/top/right/bottom take over
+   and these classes decide which way the panel stacks + how the tray aligns so
+   the panel always opens toward screen-centre (never off-edge). */
+.root.dragged { transform: none !important; }
+.root.dragging { user-select: none; -webkit-user-select: none; }
+.root.dock-bottom { flex-direction: column; }
+.root.dock-top    { flex-direction: column-reverse; }
+.root.dock-left   { align-items: flex-start; }
+.root.dock-right  { align-items: flex-end; }
+/* Grab affordance on the non-button areas of the launcher. */
+.tray-meta { cursor: grab; }
+.root.dragging .tray,
+.root.dragging .tray * { cursor: grabbing !important; }
+
 /* ---- Tray (always-visible launcher) ---- */
 .tray {
   display: inline-flex;

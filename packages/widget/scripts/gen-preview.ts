@@ -31,6 +31,8 @@ const base = {
   onEnd: () => {},
   onChat: () => {},
   onClose: () => {},
+  onCardTap: () => {},
+  onCheckout: () => {},
 };
 
 function pill(props: Parameters<typeof renderPill>[1]): string {
