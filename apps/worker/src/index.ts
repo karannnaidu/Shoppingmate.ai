@@ -8,6 +8,7 @@ import { ingestKbDoc } from './jobs/ingestKbDoc.js';
 import { runCrawlSite } from './jobs/crawlSite.js';
 import { runExtractSiteGraph } from './jobs/extractSiteGraph.js';
 import { runDriftDetect } from './cron/driftDetect.js';
+import { downloadKbObject } from './r2-download.js';
 
 const worker = new Worker<OnboardingJobData>(
   'onboarding',
@@ -55,7 +56,11 @@ const siteGraphCrawlWorker = new Worker(
 
 const siteGraphExtractWorker = new Worker(
   'site-graph-extract',
-  async (job) => runExtractSiteGraph({ merchantId: job.data.merchantId as string, crawlId: job.data.crawlId as string }),
+  async (job) => runExtractSiteGraph({
+    merchantId: job.data.merchantId as string,
+    crawlId: job.data.crawlId as string,
+    downloadObject: downloadKbObject,
+  }),
   { connection: createRedisConnection(), concurrency: 2 },
 );
 
