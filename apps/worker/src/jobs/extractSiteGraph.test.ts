@@ -6,13 +6,14 @@ vi.mock('@shoppingmate/db', () => ({
   schema: {
     merchants: {},
     crawlArtifacts: {},
-    sitePages: {},
+    sitePages: { merchantId: 'merchant_id' },
     siteNavEdges: {},
     pageIntents: {},
-    faqEntries: {},
+    faqEntries: { merchantId: 'merchant_id' },
     policyDocuments: {},
     mediaIndex: {},
     projectionCache: {},
+    products: {},
   },
 }));
 
@@ -46,6 +47,7 @@ describe('runExtractSiteGraph', () => {
       },
       insert: () => { const b: any = { values: (v: any) => { inserts.push(v); return b; }, onConflictDoUpdate: () => Promise.resolve() }; return b; },
       update: () => ({ set: (v: any) => ({ where: () => { updates.push(v); return Promise.resolve(); } }) }),
+      delete: () => ({ where: () => Promise.resolve() }),
       transaction: async (fn: any) => fn({ insert: () => ({ values: (v: any) => { inserts.push(v); return Promise.resolve(); } }), update: () => ({ set: (v: any) => ({ where: () => { updates.push(v); return Promise.resolve(); } }) }) }),
     };
     const fakeExtract = vi.fn().mockResolvedValue({

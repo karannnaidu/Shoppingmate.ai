@@ -30,12 +30,18 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
   });
   if (!merchant) return { status: 'failed', error: 'merchant not found' };
 
+  // Clear prior extraction for this merchant so re-runs are idempotent.
+  // FK onDelete='cascade' on intents/policies/media handles those; faqs use 'set null', so clear explicitly.
+  await db.delete(schema.faqEntries).where(eq(schema.faqEntries.merchantId, args.merchantId));
+  await db.delete(schema.sitePages).where(eq(schema.sitePages.merchantId, args.merchantId));
+
   const artifacts = await db.query.crawlArtifacts.findMany({
     where: eq(schema.crawlArtifacts.crawlId, args.crawlId),
   });
 
   let visionCallsUsed = 0;
   const seenHashes = new Set<string>();
+  const seenSkus = new Set<string>();
 
   for (const art of artifacts) {
     if (!art.contentType.includes('html')) continue;
@@ -75,6 +81,46 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
         policyType: extracted.policy.policyType,
         summary: extracted.policy.summary,
         fullText: extracted.policy.fullText,
+      }).onConflictDoUpdate({
+        target: [schema.policyDocuments.merchantId, schema.policyDocuments.policyType],
+        set: {
+          pageId,
+          summary: extracted.policy.summary,
+          fullText: extracted.policy.fullText,
+        },
+      });
+    }
+
+    if (extracted.product && !seenSkus.has(extracted.product.sku)) {
+      seenSkus.add(extracted.product.sku);
+      const p = extracted.product;
+      await db.insert(schema.products).values({
+        merchantId: args.merchantId,
+        sku: p.sku,
+        title: p.title,
+        description: p.description,
+        imageUrl: p.imageUrl,
+        productUrl: art.url,
+        variants: null,
+        priceCents: p.priceCents,
+        currency: p.currency,
+        inStock: p.inStock,
+        source: 'site_graph',
+        sourceMeta: { brand: p.brand, jsonLd: p.raw },
+      }).onConflictDoUpdate({
+        target: [schema.products.merchantId, schema.products.sku],
+        set: {
+          title: p.title,
+          description: p.description,
+          imageUrl: p.imageUrl,
+          productUrl: art.url,
+          priceCents: p.priceCents,
+          currency: p.currency,
+          inStock: p.inStock,
+          source: 'site_graph',
+          sourceMeta: { brand: p.brand, jsonLd: p.raw },
+          indexedAt: new Date(),
+        },
       });
     }
 
