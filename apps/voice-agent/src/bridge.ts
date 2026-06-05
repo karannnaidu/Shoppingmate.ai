@@ -91,11 +91,12 @@ export function createBridge(deps: BridgeDeps): Bridge {
         mode: 'voice',
       };
 
+      const hostActionsEnabled = DEMO_TOUR_ENABLED || merchant.siteGraphEnabled;
       const runDeps: RunTurnDeps = {
         loadAdapter: deps.loadAdapter,
         saveSession: deps.saveSession,
         recordMetric: deps.recordMetric,
-        dispatchHostAction: DEMO_TOUR_ENABLED
+        dispatchHostAction: hostActionsEnabled
           ? (action) => api.dispatchHostAction!(action)
           : undefined,
         recommendationStore: deps.recommendationStore,
