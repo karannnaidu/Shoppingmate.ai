@@ -1,11 +1,13 @@
 import { STRINGS } from '../strings.js';
-import { ICON_MIC, ICON_MIC_OFF, ICON_PHONE_OFF } from './icons.js';
+import { ICON_MESSAGE, ICON_MIC, ICON_MIC_OFF, ICON_PHONE, ICON_PHONE_OFF } from './icons.js';
 
 export type TrayProps = {
   mode: 'pill' | 'expanded' | 'call' | 'chat';
   callable: boolean;
   voiceState: 'idle' | 'connecting' | 'listening' | 'speaking' | 'muted';
   connection: 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+  voiceError: { code: string; message: string } | null;
+  invited: boolean;
   personaName: string;
   personaInitial: string;
   personaAvatarUrl: string;
@@ -18,94 +20,142 @@ export type TrayProps = {
 
 export type PillProps = TrayProps;
 
+// The launcher has five visual phases driven by the live call lifecycle. They
+// map Karan's reference screenshots (landinghero.ai) 1:1:
+//   resting    → small "Talk to {P}" + AI ASSISTANT + green Call button
+//   incoming   → "{P}" + INCOMING CALL (magenta) + green Accept + chat
+//   connecting → "{P}" + THINKING + spinner + mic(disabled) + End
+//   connected  → "{P}" + CONNECTED + waveform + mic(mute) + End
+//   error      → "{P}" + TAP TO RETRY + Call(retry) + End  (panel shows why)
+type CallPhase = 'resting' | 'incoming' | 'connecting' | 'connected' | 'error';
+
+function derivePhase(props: TrayProps): CallPhase {
+  if (props.voiceState === 'connecting') return 'connecting';
+  if (props.voiceState !== 'idle') return 'connected';
+  // voiceState === 'idle' below — no live call.
+  if (props.voiceError) return 'error';
+  return props.invited ? 'incoming' : 'resting';
+}
+
 // Tray rebuild key — covers everything that affects rendered output. The
 // parent re-renders on every store dispatch (incl. streaming say_partial),
-// so without this guard the avatar image and 18-bar waveform get torn down
-// and recreated on every caption chunk, producing visible flicker.
-function trayKey(props: TrayProps): string {
+// so without this guard the avatar image and waveform get torn down and
+// recreated on every caption chunk, producing visible flicker.
+function trayKey(props: TrayProps, phase: CallPhase): string {
   return [
+    phase,
     props.mode,
     props.callable ? '1' : '0',
     props.voiceState,
     props.connection,
+    props.invited ? '1' : '0',
     props.personaName,
     props.personaInitial,
     props.personaAvatarUrl,
   ].join('|');
 }
 
-export function renderPill(host: HTMLElement, props: TrayProps): void {
-  const key = trayKey(props);
-  if (host.dataset.trayKey === key) return;
+type PhaseChrome = {
+  caption: string;
+  captionClass: string;
+  presenceClass: string;
+  nameText: string;
+  controls: string;
+};
 
-  // `inCall` reflects whether voice is actually live — not whether the call
-  // panel is open. If voice failed (e.g. mic denied, LiveKit handshake error)
-  // it resets to 'idle' while mode stays 'call'. We want the mic tap in that
-  // broken-call state to re-attempt the call, matching the panel's prompt
-  // ("voice paused — tap mic to resume").
-  const inCall = props.voiceState !== 'idle';
+function chromeFor(props: TrayProps, phase: CallPhase): PhaseChrome {
   const muted = props.voiceState === 'muted';
   const speaking = props.voiceState === 'speaking';
-  const voiceConnecting = props.voiceState === 'connecting';
-  const voiceActive = props.voiceState !== 'idle' && !voiceConnecting;
-  const waveformActive = voiceActive && !muted;
-  const panelOpen = props.mode === 'chat' || props.mode === 'call' || props.mode === 'expanded';
-
-  // Pill status reflects assistant availability — the WS chat link, not the
-  // voice substate. Text-only brands sit at voiceState='idle' the whole
-  // session; binding the label to voiceState would scream OFFLINE at visitors
-  // even though Sage is fully reachable. Voice-connecting overrides only
-  // during the brief click→listening window so the visitor sees feedback.
-  const wsConnecting = props.connection === 'connecting' || props.connection === 'reconnecting';
   const wsOffline = props.connection === 'disconnected';
-  const showConnecting = wsConnecting || voiceConnecting;
-  const statusLabel = wsOffline
-    ? STRINGS.trayOffline
-    : showConnecting
-      ? STRINGS.trayConnecting
-      : STRINGS.trayConnected;
-  const statusClass = wsOffline
-    ? 'tray-status idle'
-    : showConnecting
-      ? 'tray-status connecting'
-      : 'tray-status connected';
-  const presenceClass = wsOffline ? 'idle' : showConnecting ? 'connecting' : 'connected';
 
-  const waveformHtml = `
-    <div class="tray-waveform ${waveformActive ? 'active' : ''} ${speaking ? 'speaking' : ''}" aria-hidden="true">
-      ${Array.from({ length: 18 })
+  // Compact green Call button — the ONLY thing that starts a call.
+  const callBtn = (label: string, aria: string) => `
+    <button class="tray-call" data-action="call" aria-label="${aria}">
+      ${ICON_PHONE}<span class="tray-call-label">${label}</span>
+    </button>`;
+  const chatBtn = `
+    <button class="tray-btn ghost" data-action="chat" aria-label="${STRINGS.openAria}">${ICON_MESSAGE}</button>`;
+  const micBtn = (disabled: boolean) => `
+    <button class="tray-btn ${muted ? 'muted' : ''}" data-action="mic" ${disabled ? 'disabled' : ''}
+      aria-pressed="${muted}" aria-label="${muted ? STRINGS.micUnmute : STRINGS.micMute}">${muted ? ICON_MIC_OFF : ICON_MIC}</button>`;
+  const endBtn = `
+    <button class="tray-btn end" data-action="end" aria-label="${STRINGS.endCallAria}">${ICON_PHONE_OFF}</button>`;
+  const spinner = '<span class="tray-spinner" aria-hidden="true"></span>';
+  const waveform = `
+    <div class="tray-waveform active ${speaking ? 'speaking' : ''}" aria-hidden="true">
+      ${Array.from({ length: 14 })
         .map(() => '<span class="bar"></span>')
         .join('')}
-    </div>
-  `;
+    </div>`;
 
-  const micAriaLabel = !props.callable
-    ? STRINGS.micStart
-    : !inCall
-      ? STRINGS.micStart
-      : muted
-        ? STRINGS.micUnmute
-        : STRINGS.micMute;
+  const presence = wsOffline ? 'offline' : 'online';
 
-  const micIcon = muted ? ICON_MIC_OFF : ICON_MIC;
-  const endHidden = !inCall;
+  switch (phase) {
+    case 'incoming':
+      return {
+        caption: STRINGS.captionIncoming,
+        captionClass: 'incoming',
+        presenceClass: presence,
+        nameText: props.personaName,
+        controls: `${callBtn(STRINGS.acceptCta, STRINGS.acceptAria)}${chatBtn}`,
+      };
+    case 'connecting':
+      return {
+        caption: STRINGS.captionThinking,
+        captionClass: 'thinking',
+        presenceClass: 'online',
+        nameText: props.personaName,
+        controls: `${spinner}${micBtn(true)}${endBtn}`,
+      };
+    case 'connected':
+      return {
+        caption: STRINGS.captionConnected,
+        captionClass: 'connected',
+        presenceClass: 'online',
+        nameText: props.personaName,
+        controls: `${waveform}${micBtn(false)}${endBtn}`,
+      };
+    case 'error':
+      return {
+        caption: STRINGS.captionRetry,
+        captionClass: 'retry',
+        presenceClass: 'offline',
+        nameText: props.personaName,
+        controls: `${callBtn(STRINGS.callCta, STRINGS.retryAria)}${endBtn}`,
+      };
+    default:
+      // resting
+      return {
+        caption: wsOffline ? STRINGS.captionOffline : STRINGS.captionResting,
+        captionClass: wsOffline ? 'retry' : 'resting',
+        presenceClass: presence,
+        nameText: `${STRINGS.talkToPrefix} ${props.personaName}`,
+        controls: props.callable ? callBtn(STRINGS.callCta, STRINGS.callAria) : chatBtn,
+      };
+  }
+}
+
+export function renderPill(host: HTMLElement, props: TrayProps): void {
+  const phase = derivePhase(props);
+  const key = trayKey(props, phase);
+  if (host.dataset.trayKey === key) return;
+
+  const chrome = chromeFor(props, phase);
+  const panelOpen = props.mode === 'chat' || props.mode === 'call' || props.mode === 'expanded';
 
   host.innerHTML = `
-    <div class="tray" role="region" aria-label="shoppingmate">
+    <div class="tray phase-${phase}" role="region" aria-label="shoppingmate">
       <button class="tray-avatar" data-action="toggle" aria-expanded="${panelOpen}" aria-label="${STRINGS.openAria}">
+        <span class="tray-avatar-ring" aria-hidden="true"></span>
         <img src="${props.personaAvatarUrl}" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" />
         <span class="tray-avatar-fallback" aria-hidden="true">${props.personaInitial}</span>
-        <span class="tray-presence ${presenceClass}"></span>
+        <span class="tray-presence ${chrome.presenceClass}"></span>
       </button>
       <div class="tray-meta">
-        <div class="tray-name">${props.personaName}</div>
-        <div class="${statusClass}"><span class="tray-status-dot"></span>${statusLabel}</div>
+        <div class="tray-name">${chrome.nameText}</div>
+        <div class="tray-caption ${chrome.captionClass}">${chrome.caption}</div>
       </div>
-      ${waveformHtml}
-      <div class="tray-controls">
-        <button class="tray-btn ${muted ? 'muted' : ''}" data-action="mic" aria-pressed="${muted}" aria-label="${micAriaLabel}">${micIcon}</button>
-        <button class="tray-btn end ${endHidden ? 'hidden' : ''}" data-action="end" aria-label="${STRINGS.endCallAria}">${ICON_PHONE_OFF}</button>
-      </div>
+      <div class="tray-controls">${chrome.controls}</div>
     </div>
   `;
 
@@ -114,12 +164,15 @@ export function renderPill(host: HTMLElement, props: TrayProps): void {
     else props.onChat();
   });
 
+  // Call / Accept / Retry — the ONLY control that starts (or restarts) a call.
+  host.querySelector('[data-action="call"]')?.addEventListener('click', props.onCall);
+
+  // Chat shortcut on the incoming/resting pill.
+  host.querySelector('[data-action="chat"]')?.addEventListener('click', props.onChat);
+
+  // Mic is mute/unmute ONLY — it never starts a call. Disabled while connecting.
   host.querySelector('[data-action="mic"]')?.addEventListener('click', () => {
-    if (!inCall) {
-      props.onCall();
-    } else {
-      props.onMute(!muted);
-    }
+    props.onMute(props.voiceState !== 'muted');
   });
 
   host.querySelector('[data-action="end"]')?.addEventListener('click', props.onEnd);

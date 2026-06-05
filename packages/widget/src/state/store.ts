@@ -19,6 +19,11 @@ export type WidgetState = {
   capWarning: { reason: 'turns' | 'voice_ms' | 'duration_ms'; remaining: number } | null;
   connection: 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
   voiceError: { code: string; message: string } | null;
+  // Proactive "incoming call" attention state. When true and no call is live,
+  // the launcher pill flips to the INCOMING CALL treatment (magenta caption +
+  // green Accept). Set by the soft-prompt / attention timer; cleared when the
+  // visitor accepts (→ openCall) or a call otherwise starts.
+  invited: boolean;
 };
 
 export type Action =
@@ -26,6 +31,7 @@ export type Action =
   | { type: 'set_voice_state'; state: WidgetState['voiceState'] }
   | { type: 'set_connection'; status: WidgetState['connection'] }
   | { type: 'set_voice_error'; error: WidgetState['voiceError'] }
+  | { type: 'set_invited'; invited: boolean }
   | { type: 'user_input'; text: string; mode: Mode }
   | { type: 'agent_event'; event: AgentEvent }
   | { type: 'reset' };
@@ -48,14 +54,18 @@ function reduce(state: WidgetState, a: Action): WidgetState {
       return { ...state, mode: a.mode };
     case 'set_voice_state':
       // Successful voice transitions clear the last error so a retry doesn't
-      // keep showing the previous failure copy after recovery.
+      // keep showing the previous failure copy after recovery. Any live call
+      // also clears the proactive "incoming" invite so the pill doesn't show
+      // INCOMING CALL on top of an active call.
       return a.state !== 'idle'
-        ? { ...state, voiceState: a.state, voiceError: null }
+        ? { ...state, voiceState: a.state, voiceError: null, invited: false }
         : { ...state, voiceState: a.state };
     case 'set_connection':
       return { ...state, connection: a.status };
     case 'set_voice_error':
       return { ...state, voiceError: a.error };
+    case 'set_invited':
+      return { ...state, invited: a.invited };
     case 'reset':
       return {
         ...state,
@@ -202,6 +212,7 @@ export function createStore(opts: { sessionId: string }): Store {
     capWarning: null,
     connection: 'connecting',
     voiceError: null,
+    invited: false,
   };
   const subs: ((s: WidgetState) => void)[] = [];
   return {

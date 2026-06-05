@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, Mic, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { SectionHead } from "./HowItWorks";
+import { OliviaAvatar } from "./olivia/OliviaAvatar";
 
 type Msg = { who: "agent" | "user"; text: string };
 
@@ -16,7 +17,7 @@ const personas = [
 
 const scripts: Record<string, Msg[]> = {
   "calm-clinician": [
-    { who: "agent", text: "Hi, I'm Sage. What does your skin need help with today?" },
+    { who: "agent", text: "Hi, I'm Olivia. What does your skin need help with today?" },
     { who: "user", text: "Dry, flaky skin in winter. No fragrance." },
     {
       who: "agent",
@@ -25,7 +26,7 @@ const scripts: Record<string, Msg[]> = {
     },
   ],
   stylist: [
-    { who: "agent", text: "Hey! I'm Lumi. Outfit hunt or just browsing today?" },
+    { who: "agent", text: "Hey, I'm Olivia. Outfit hunt or just browsing today?" },
     { who: "user", text: "Wedding next weekend, formal but not boring." },
     {
       who: "agent",
@@ -128,8 +129,8 @@ export function Demo() {
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <SectionHead
           eyebrow="Live demo"
-          title="Try the conversation. Switch the persona."
-          subtitle="One engine, every voice. Pick the persona that fits your brand and your customer."
+          title="One Olivia, tuned to your brand."
+          subtitle="Same assistant, your tone of voice. Switch the mood and watch how Olivia adapts to your store and your customer."
         />
 
         <div className="mt-14 grid gap-8 lg:grid-cols-[1fr_1.3fr] lg:items-start">
@@ -188,13 +189,13 @@ export function Demo() {
             <div className="absolute -inset-3 rounded-[28px] bg-gradient-to-br from-violet/15 via-fuchsia/8 to-cyan/15 blur-2xl opacity-60" aria-hidden />
             <div className="relative rounded-[24px] border border-border bg-surface-elevated shadow-[var(--shadow-md)]">
               <div className="flex items-center gap-3 border-b border-border px-5 py-3.5">
-                <span className="relative grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-violet to-cyan text-white text-xs font-semibold">
-                  {personas.find((p) => p.id === persona)?.label.charAt(0)}
-                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-surface-elevated" />
-                </span>
+                <OliviaAvatar size="sm" presence="online" spin={false} />
                 <div className="flex-1">
                   <div className="text-sm font-medium">
-                    {personas.find((p) => p.id === persona)?.label}
+                    Olivia{" "}
+                    <span className="text-text-muted">
+                      · {personas.find((p) => p.id === persona)?.label}
+                    </span>
                   </div>
                   <div className="text-[11px] text-text-muted font-mono uppercase tracking-wider">
                     online · responds in &lt; 800ms

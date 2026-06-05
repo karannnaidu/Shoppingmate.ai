@@ -35,11 +35,11 @@ export function Cta() {
                 Install in 60 seconds
               </span>
               <h2 className="mt-5 font-display text-3xl font-semibold tracking-tight text-balance md:text-5xl">
-                Paste this. Watch your conversion catch up to your traffic.
+                Paste this. Olivia is live before your coffee&rsquo;s cold.
               </h2>
               <p className="mt-5 max-w-md text-background/70 text-pretty md:text-lg">
-                Five paying beta merchants are live. We provision your merchantId in
-                under an hour.
+                Five paying beta merchants already have Olivia on their storefront. We
+                provision your merchantId in under an hour.
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -49,14 +49,14 @@ export function Cta() {
                   data-tour-stop="signup"
                   className="group inline-flex items-center gap-2 rounded-full bg-background px-6 py-3.5 text-[15px] font-medium text-foreground transition-transform hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  Get started — $30/mo
+                  Get Olivia — $30/mo
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
                 <Link
                   href="/demo"
                   className="inline-flex items-center gap-2 rounded-full border border-background/25 px-6 py-3.5 text-[15px] font-medium text-background transition-colors hover:bg-background/5"
                 >
-                  Hear it talk
+                  Talk to Olivia
                 </Link>
               </div>
             </div>

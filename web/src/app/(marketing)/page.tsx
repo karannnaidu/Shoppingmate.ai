@@ -1,5 +1,7 @@
 import { Nav } from "@/components/Nav";
 import { Hero } from "@/components/Hero";
+import { MeetOlivia } from "@/components/MeetOlivia";
+import { OliviaStates } from "@/components/OliviaStates";
 import { Platforms } from "@/components/Platforms";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Demo } from "@/components/Demo";
@@ -16,6 +18,8 @@ export default function Home() {
       <Nav />
       <main className="relative">
         <Hero />
+        <MeetOlivia />
+        <OliviaStates />
         <Platforms />
         <HowItWorks />
         <Demo />

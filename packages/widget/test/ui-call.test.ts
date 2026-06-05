@@ -37,7 +37,7 @@ describe('renderCall', () => {
     renderCall(root, { ...baseProps, voiceState: 'idle' });
     const status = root.querySelector('.status-line')?.textContent ?? '';
     expect(status).not.toContain('is listening');
-    expect(status).toContain('voice paused');
+    expect(status).toContain('ready');
   });
 
   it('shows checkout CTA when checkoutUrl is set', () => {
@@ -48,16 +48,15 @@ describe('renderCall', () => {
     expect(cta.getAttribute('href')).toBe('https://shop/checkout');
   });
 
-  it('shows mic-denied copy when voiceError.code is mic_denied', () => {
+  it('shows the failed-call card with mic-denied hint when voiceError.code is mic_denied', () => {
     const root = document.createElement('div');
     renderCall(root, {
       ...baseProps,
       voiceState: 'idle',
       voiceError: { code: 'mic_denied', message: 'Permission denied' },
     });
-    const status = root.querySelector('.status-line')?.textContent ?? '';
-    expect(status).toContain('mic blocked');
-    expect(status).not.toContain('voice paused');
+    expect(root.querySelector('.call-error-title')?.textContent).toContain('Could not start the call');
+    expect(root.querySelector('.call-error-hint')?.textContent).toContain('Microphone blocked');
   });
 
   it('renders shoppingmate footer', () => {

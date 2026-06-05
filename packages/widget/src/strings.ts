@@ -1,13 +1,32 @@
 export const STRINGS = {
-  trayConnected: 'CONNECTED',
-  trayConnecting: 'CONNECTING…',
-  trayOffline: 'OFFLINE',
-  micStart: 'Start voice call',
+  // Call-phase captions shown under the persona name in the launcher pill.
+  // These reflect the *call* state, not the WS link — the presence dot carries
+  // connection health now.
+  captionResting: 'AI ASSISTANT',
+  captionIncoming: 'INCOMING CALL',
+  captionThinking: 'THINKING',
+  captionConnected: 'CONNECTED',
+  captionRetry: 'TAP TO RETRY',
+  captionOffline: 'OFFLINE',
+  // Resting-pill name prefix: "Talk to {Persona}".
+  talkToPrefix: 'Talk to',
+  callCta: 'Call',
+  acceptCta: 'Accept',
+  callAria: 'Start voice call',
+  acceptAria: 'Accept call',
   micMute: 'Mute mic',
   micUnmute: 'Unmute mic',
+  retryAria: 'Retry call',
   endCallAria: 'End call',
   closeAria: 'Close',
   openAria: 'Open shoppingmate',
+  callFailedTitle: 'Could not start the call. Please try again.',
+  callHelpHeading: 'How can I help you?',
+  callBullets: [
+    'Find the right product',
+    'Compare options out loud',
+    'Check out on this page',
+  ] as readonly string[],
   panelHelpHeading: "Hi, I'm",
   panelHelpSubtitle: "I'm here to help you:",
   panelBullets: [

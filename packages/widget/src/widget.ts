@@ -14,7 +14,6 @@ import { type AgentSocket, connectAgentWs } from './transport/ws.js';
 import { renderCall } from './ui/call.js';
 import { renderChat } from './ui/chat.js';
 import { renderPill } from './ui/pill.js';
-import { mountSoftPrompt } from './ui/soft-prompt.js';
 
 const TAG = 'shoppingmate-widget';
 
@@ -47,6 +46,7 @@ class WidgetElement extends HTMLElement {
   private merchantId = '';
   private domain = window.location.host;
   private stopActivityTracker: (() => void) | null = null;
+  private inviteTimer: ReturnType<typeof setTimeout> | null = null;
 
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -91,6 +91,7 @@ class WidgetElement extends HTMLElement {
     this.socket?.close();
     this.voiceMode.stop();
     this.stopActivityTracker?.();
+    if (this.inviteTimer) clearTimeout(this.inviteTimer);
   }
 
   private async start() {
@@ -162,13 +163,16 @@ class WidgetElement extends HTMLElement {
 
     const DEMO_MERCHANT_ID = 'SM-XPK2EN';
     if (this.merchantId === DEMO_MERCHANT_ID) {
-      mountSoftPrompt(document.body, {
-        onAccept: () => {
-          this.publishWidgetMessage({ type: 'tour_request' });
-          this.openCall();
-        },
-        onDismiss: () => {},
-      });
+      // Proactive "incoming call" invite. After a few seconds of silent
+      // browsing the launcher flips to the INCOMING CALL treatment (magenta
+      // caption + green Accept). Accepting starts the call AND requests the
+      // guided tour — preserving the old soft-prompt's tour_request behavior,
+      // now folded into the pill instead of a separate body-mounted bubble.
+      this.inviteTimer = setTimeout(() => {
+        if (this.store.get().voiceState === 'idle' && this.store.get().mode === 'pill') {
+          this.store.dispatch({ type: 'set_invited', invited: true });
+        }
+      }, 5000);
     }
 
     // Task 15: start activity tracker for this session.
@@ -270,6 +274,8 @@ class WidgetElement extends HTMLElement {
       callable,
       voiceState: s.voiceState,
       connection: s.connection,
+      voiceError: s.voiceError,
+      invited: s.invited,
       personaName: this.persona.name,
       personaInitial: this.persona.initial,
       personaAvatarUrl: this.persona.avatarUrl,
@@ -279,12 +285,28 @@ class WidgetElement extends HTMLElement {
         this.voiceMode.stop();
         this.store.dispatch({ type: 'set_mode', mode: 'pill' });
       },
-      onChat: () => this.store.dispatch({ type: 'set_mode', mode: 'chat' }),
+      onChat: () => {
+        // Opening text chat also dismisses any pending "incoming call" invite
+        // so the pill doesn't keep ringing behind the open panel.
+        if (s.invited) this.store.dispatch({ type: 'set_invited', invited: false });
+        this.store.dispatch({ type: 'set_mode', mode: 'chat' });
+      },
       onClose: () => this.store.dispatch({ type: 'set_mode', mode: 'pill' }),
     });
   }
 
   private openCall() {
+    // Accepting a proactive invite also asks Sage to run the guided tour
+    // (preserves the retired soft-prompt's tour_request). Clear the invite so
+    // the launcher leaves the INCOMING CALL state as the call begins.
+    if (this.store.get().invited) {
+      this.publishWidgetMessage({ type: 'tour_request' });
+      this.store.dispatch({ type: 'set_invited', invited: false });
+    }
+    if (this.inviteTimer) {
+      clearTimeout(this.inviteTimer);
+      this.inviteTimer = null;
+    }
     this.store.dispatch({ type: 'set_mode', mode: 'call' });
     this.voiceMode.start();
   }

@@ -1,5 +1,20 @@
-export const SHADOW_CSS = `
-:host { all: initial; }
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Olivia — launcher states preview</title>
+<style>
+  body { margin:0; background:#111317; color:#e7e7ea; font-family: system-ui, sans-serif; padding:40px; }
+  h1 { font-weight:600; letter-spacing:-0.02em; }
+  p.note { color:#8a8a93; max-width:60ch; }
+  .grid { display:grid; gap:24px; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); margin-top:28px; }
+  .case { background:#0a0a0a; border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:22px; }
+  .case h2 { font-size:12px; text-transform:uppercase; letter-spacing:0.16em; color:#8a8a93; margin:0 0 18px; font-family: ui-monospace, monospace; }
+  .stage { display:flex; flex-direction:column; align-items:flex-start; gap:14px; min-height:120px; justify-content:center; }
+  /* The real widget styles, scoped under .stage instead of :host */
+  
+
 * { box-sizing: border-box; }
 
 .root {
@@ -570,4 +585,156 @@ export const SHADOW_CSS = `
   .tray-presence.online { animation: none !important; }
   .tray-waveform.active .bar { animation: none !important; }
 }
-`;
+
+</style>
+</head>
+<body>
+  <h1>Olivia — launcher states</h1>
+  <p class="note">Generated from the live widget renderer (<code>renderPill</code> / <code>renderCall</code>) and shadow CSS. The Call button starts the call; the mic only mutes once a call is live.</p>
+  <div class="grid">
+    
+    <section class="case">
+      <h2>1 · Resting launcher</h2>
+      <div class="stage">
+    <div class="tray phase-resting" role="region" aria-label="shoppingmate">
+      <button class="tray-avatar" data-action="toggle" aria-expanded="false" aria-label="Open shoppingmate">
+        <span class="tray-avatar-ring" aria-hidden="true"></span>
+        <img src="https://shoppingmate-web.vercel.app/widget/personas/concierge.png" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+        <span class="tray-avatar-fallback" aria-hidden="true">O</span>
+        <span class="tray-presence online"></span>
+      </button>
+      <div class="tray-meta">
+        <div class="tray-name">Talk to Olivia</div>
+        <div class="tray-caption resting">AI ASSISTANT</div>
+      </div>
+      <div class="tray-controls">
+    <button class="tray-call" data-action="call" aria-label="Start voice call">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg><span class="tray-call-label">Call</span>
+    </button></div>
+    </div>
+  </div>
+    </section>
+
+    <section class="case">
+      <h2>2 · Incoming call</h2>
+      <div class="stage">
+    <div class="tray phase-incoming" role="region" aria-label="shoppingmate">
+      <button class="tray-avatar" data-action="toggle" aria-expanded="false" aria-label="Open shoppingmate">
+        <span class="tray-avatar-ring" aria-hidden="true"></span>
+        <img src="https://shoppingmate-web.vercel.app/widget/personas/concierge.png" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+        <span class="tray-avatar-fallback" aria-hidden="true">O</span>
+        <span class="tray-presence online"></span>
+      </button>
+      <div class="tray-meta">
+        <div class="tray-name">Olivia</div>
+        <div class="tray-caption incoming">INCOMING CALL</div>
+      </div>
+      <div class="tray-controls">
+    <button class="tray-call" data-action="call" aria-label="Accept call">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg><span class="tray-call-label">Accept</span>
+    </button>
+    <button class="tray-btn ghost" data-action="chat" aria-label="Open shoppingmate"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></button></div>
+    </div>
+  </div>
+    </section>
+
+    <section class="case">
+      <h2>3 · Connecting / requesting mic</h2>
+      <div class="stage">
+    <div class="tray phase-connecting" role="region" aria-label="shoppingmate">
+      <button class="tray-avatar" data-action="toggle" aria-expanded="true" aria-label="Open shoppingmate">
+        <span class="tray-avatar-ring" aria-hidden="true"></span>
+        <img src="https://shoppingmate-web.vercel.app/widget/personas/concierge.png" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+        <span class="tray-avatar-fallback" aria-hidden="true">O</span>
+        <span class="tray-presence online"></span>
+      </button>
+      <div class="tray-meta">
+        <div class="tray-name">Olivia</div>
+        <div class="tray-caption thinking">THINKING</div>
+      </div>
+      <div class="tray-controls"><span class="tray-spinner" aria-hidden="true"></span>
+    <button class="tray-btn " data-action="mic" disabled="" aria-pressed="false" aria-label="Mute mic"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></button>
+    <button class="tray-btn end" data-action="end" aria-label="End call"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67"></path><path d="M5 5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L10.9 11.1"></path><line x1="22" y1="2" x2="2" y2="22"></line></svg></button></div>
+    </div>
+  </div>
+    </section>
+
+    <section class="case">
+      <h2>4 · Mic blocked / failed</h2>
+      <div class="stage">
+      <div class="panel call-panel">
+        <button class="panel-close" data-action="close" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+        
+          <div class="call-error">
+            <p class="call-error-title">Could not start the call. Please try again.</p>
+            <p class="call-error-hint">Microphone blocked. Allow mic access in your browser, then tap Call.</p>
+          </div>
+        
+        <div class="status-line hidden" data-region="status">Olivia is ready</div>
+        <div class="transcript hidden" data-region="transcript" aria-live="polite"></div>
+        
+        <div class="panel-footer">Powered by shoppingmate</div>
+      </div>
+    
+    <div class="tray phase-error" role="region" aria-label="shoppingmate">
+      <button class="tray-avatar" data-action="toggle" aria-expanded="true" aria-label="Open shoppingmate">
+        <span class="tray-avatar-ring" aria-hidden="true"></span>
+        <img src="https://shoppingmate-web.vercel.app/widget/personas/concierge.png" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+        <span class="tray-avatar-fallback" aria-hidden="true">O</span>
+        <span class="tray-presence offline"></span>
+      </button>
+      <div class="tray-meta">
+        <div class="tray-name">Olivia</div>
+        <div class="tray-caption retry">TAP TO RETRY</div>
+      </div>
+      <div class="tray-controls">
+    <button class="tray-call" data-action="call" aria-label="Retry call">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg><span class="tray-call-label">Call</span>
+    </button>
+    <button class="tray-btn end" data-action="end" aria-label="End call"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67"></path><path d="M5 5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L10.9 11.1"></path><line x1="22" y1="2" x2="2" y2="22"></line></svg></button></div>
+    </div>
+  </div>
+    </section>
+
+    <section class="case">
+      <h2>5 · Connected (live)</h2>
+      <div class="stage">
+      <div class="panel call-panel">
+        <button class="panel-close" data-action="close" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+        
+        
+          <div class="call-prompt">
+            <h2 class="call-prompt-heading">How can I help you?</h2>
+            <ul class="call-prompt-bullets">
+              <li>Find the right product</li><li>Compare options out loud</li><li>Check out on this page</li>
+            </ul>
+          </div>
+        <div class="status-line " data-region="status">Olivia is listening…</div>
+        <div class="transcript hidden" data-region="transcript" aria-live="polite"></div>
+        
+        <div class="panel-footer">Powered by shoppingmate</div>
+      </div>
+    
+    <div class="tray phase-connected" role="region" aria-label="shoppingmate">
+      <button class="tray-avatar" data-action="toggle" aria-expanded="true" aria-label="Open shoppingmate">
+        <span class="tray-avatar-ring" aria-hidden="true"></span>
+        <img src="https://shoppingmate-web.vercel.app/widget/personas/concierge.png" alt="" class="tray-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
+        <span class="tray-avatar-fallback" aria-hidden="true">O</span>
+        <span class="tray-presence online"></span>
+      </button>
+      <div class="tray-meta">
+        <div class="tray-name">Olivia</div>
+        <div class="tray-caption connected">CONNECTED</div>
+      </div>
+      <div class="tray-controls">
+    <div class="tray-waveform active " aria-hidden="true">
+      <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+    </div>
+    <button class="tray-btn " data-action="mic" aria-pressed="false" aria-label="Mute mic"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></button>
+    <button class="tray-btn end" data-action="end" aria-label="End call"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67"></path><path d="M5 5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L10.9 11.1"></path><line x1="22" y1="2" x2="2" y2="22"></line></svg></button></div>
+    </div>
+  </div>
+    </section>
+  </div>
+</body>
+</html>

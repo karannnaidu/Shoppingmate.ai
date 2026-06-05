@@ -252,3 +252,37 @@ body {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* ----------------------------------------------------------------------------
+   Olivia — bot microinteractions (mirror the live <shoppingmate-widget> states)
+   Reused across the landing page so the page IS a live demo of the product.
+---------------------------------------------------------------------------- */
+@keyframes olivia-ring-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes olivia-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes olivia-bar {
+  0%, 100% { transform: scaleY(0.28); }
+  50% { transform: scaleY(1); }
+}
+@keyframes olivia-caption-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@keyframes olivia-call-pulse {
+  0%, 100% { box-shadow: 0 6px 18px -4px rgba(34, 197, 94, 0.5); }
+  50% { box-shadow: 0 8px 26px -2px rgba(34, 197, 94, 0.95); }
+}
+@keyframes olivia-presence {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.olivia-ring-spin { animation: olivia-ring-spin 6s linear infinite; }
+.olivia-ring-spin--fast { animation: olivia-ring-spin 2.4s linear infinite; }
+.olivia-spin { animation: olivia-spin 0.7s linear infinite; }
+.olivia-bar { transform-origin: center bottom; animation: olivia-bar 0.9s ease-in-out infinite; }
+.olivia-caption-blink { animation: olivia-caption-blink 1.1s ease-in-out infinite; }
+.olivia-call-pulse { animation: olivia-call-pulse 1.6s ease-in-out infinite; }
+.olivia-presence-pulse { animation: olivia-presence 2.4s ease-in-out infinite; }
