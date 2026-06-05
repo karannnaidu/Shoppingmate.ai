@@ -1,0 +1,10 @@
+import postgres from '../../../node_modules/.pnpm/postgres@3.4.9/node_modules/postgres/src/index.js';
+const sql = postgres(process.env.DATABASE_URL, { ssl: 'require' });
+const id = process.argv[2] ?? 'SM-2SCCLZ';
+const rows = await sql`SELECT id, name, domain, persona_id, brand_summary, brand_categories, site_graph_enabled FROM merchants WHERE id=${id}`;
+for (const r of rows) console.log(JSON.stringify(r, null, 2));
+const kb = await sql`SELECT count(*) AS n FROM brand_kb_chunks WHERE merchant_id=${id}`;
+console.log('brand_kb_chunks:', kb[0].n);
+const sample = await sql`SELECT chunk_index, left(text, 200) AS preview FROM brand_kb_chunks WHERE merchant_id=${id} ORDER BY chunk_index LIMIT 3`;
+for (const r of sample) console.log('chunk', r.chunk_index, ':', r.preview);
+await sql.end();

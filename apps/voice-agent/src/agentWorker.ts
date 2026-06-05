@@ -164,8 +164,8 @@ const agentDefinition = defineAgent({
       await job.room.disconnect();
       return;
     }
-    // Merchant + KB queries are independent — fire in parallel to save ~150ms.
-    const [merchants, kbChunks] = await Promise.all([
+    // Merchant + KB + site-graph projection are independent — fire in parallel to save ~150ms.
+    const [merchants, kbChunks, projection] = await Promise.all([
       db
         .select()
         .from(schema.merchants)
@@ -177,6 +177,12 @@ const agentDefinition = defineAgent({
         .where(eq(schema.brandKbChunks.merchantId, session.merchantId))
         .orderBy(asc(schema.brandKbChunks.chunkIndex))
         .limit(24), // ~6K tokens; native-audio model is smaller-context than Sonnet
+      db.query.projectionCache.findFirst({
+        where: and(
+          eq(schema.projectionCache.merchantId, session.merchantId),
+          eq(schema.projectionCache.consumer, 'sonnet_addendum'),
+        ),
+      }),
     ]);
     const merchant = merchants[0];
     if (!merchant) {
@@ -196,7 +202,9 @@ const agentDefinition = defineAgent({
       .openSession({ sessionId, merchantId: merchant.id, visitorId })
       .catch((err) => log.warn({ err, sessionId }, 'openSession failed'));
 
-    const kbText = kbChunks.length > 0 ? kbChunks.map((c) => c.text).join('\n\n') : undefined;
+    const kbChunkText = kbChunks.length > 0 ? kbChunks.map((c) => c.text).join('\n\n') : '';
+    const siteGraphText = projection?.output ?? '';
+    const kbText = [kbChunkText, siteGraphText].filter((s) => s.trim().length > 0).join('\n\n') || undefined;
     const demoMode = merchant.id === sharedEnv.SHOPPINGMATE_DEMO_MERCHANT_ID;
 
     const voice = resolveVoiceContext(
