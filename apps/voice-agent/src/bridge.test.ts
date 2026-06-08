@@ -35,6 +35,25 @@ describe('createBridge — STT-final → runTurn → say → speak', () => {
     expect(deps.speak).toHaveBeenCalledWith('Hi there.');
   });
 
+  it('forwards loadPromptOpts into runTurn deps (side-channel gets brand KB + site map)', async () => {
+    // Regression for 2026-06-08: the voice bridge ran the side-channel Sonnet
+    // with no KB/site map, so it searched the catalog with terms that never
+    // matched (not_found → no cards → no price) and guessed nav paths.
+    const loadPromptOpts = vi.fn().mockResolvedValue({ kbText: 'KB', siteGraphText: 'MAP' });
+    const capture = vi.fn(async function* () {
+      yield { type: 'end_of_turn' } as AgentEvent;
+    });
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      loadPromptOpts,
+      runTurn: capture as unknown as BridgeDeps['runTurn'],
+    };
+    const bridge = createBridge(deps);
+    await bridge.handleUserText('what does Sleep Mantra cost');
+    const runDeps = capture.mock.calls[0]![0] as { loadPromptOpts?: unknown };
+    expect(runDeps.loadPromptOpts).toBe(loadPromptOpts);
+  });
+
   it('publishes user_text event to data channel for transcript', async () => {
     const deps = baseDeps();
     const bridge = createBridge(deps);

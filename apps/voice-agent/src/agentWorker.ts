@@ -365,6 +365,14 @@ const agentDefinition = defineAgent({
           transport: new NoOpWSTransport(),
           state: new InMemorySessionState(),
         }),
+      // Feed the side-channel Sonnet the same brand KB + site map the text-chat
+      // path gets, so it searches the catalog with real product names (cards +
+      // price render) and navigates with real paths instead of guessing.
+      loadPromptOpts: async () => ({
+        kbText: kbChunkText.trim().length > 0 ? kbChunkText : undefined,
+        siteGraphText: siteGraphText.trim().length > 0 ? siteGraphText : undefined,
+        demoMode,
+      }),
       speak: async () => {
         // No-op: Gemini Live owns voice output. If we forward runtime `say`
         // text into gemini.speak, Gemini answers twice (once autonomously,

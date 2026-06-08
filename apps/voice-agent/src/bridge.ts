@@ -5,6 +5,7 @@ import type {
   RecommendationStore,
   RunTurnDeps,
   SessionState,
+  SystemPromptOpts,
   WidgetMessage,
 } from '@shoppingmate/agent';
 import type { Adapter } from '@shoppingmate/adapters';
@@ -45,6 +46,12 @@ export type BridgeDeps = {
     value?: number,
   ) => Promise<void>;
   loadAdapter: (m: Merchant, sid: string) => Adapter;
+  // Brand KB + site-graph map + demo flag for the side-channel system prompt.
+  // Without this the side-channel Sonnet runs blind — no product names (so it
+  // searches with terms that don't match the catalog → not_found → no cards/no
+  // price) and no site map (so site.navigate guesses paths). The text-chat path
+  // passes this; voice must too. See apps/api loadPromptOpts.
+  loadPromptOpts?: (m: Merchant) => Promise<SystemPromptOpts>;
   speak: (text: string) => Promise<void>;
   publishData: (msg: DataChannelMessage) => void;
   closeRoom: () => void;
@@ -96,6 +103,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
         loadAdapter: deps.loadAdapter,
         saveSession: deps.saveSession,
         recordMetric: deps.recordMetric,
+        loadPromptOpts: deps.loadPromptOpts,
         dispatchHostAction: hostActionsEnabled
           ? (action) => api.dispatchHostAction!(action)
           : undefined,
