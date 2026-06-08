@@ -16,8 +16,8 @@ describe('PERSONAS — Gemini voice mapping (Plan 6 Phase B)', () => {
     }
   });
 
-  it('exactly 8 personas defined', () => {
-    expect(Object.keys(PERSONAS).length).toBe(8);
+  it('exactly 9 personas defined', () => {
+    expect(Object.keys(PERSONAS).length).toBe(9);
   });
 
   it('lookupPersona falls back to DEFAULT_PERSONA on unknown', () => {
