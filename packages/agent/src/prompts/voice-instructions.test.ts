@@ -47,4 +47,13 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).not.toContain('site.navigate({');
     expect(out).not.toContain('TOUR TOOLS');
   });
+
+  it('demo mode also mirrors the visitor language and does not force English-only', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
+    expect(out).toMatch(/same language|match their language|reply in (that|the same)/i);
+    expect(out).toMatch(/switch/i);
+    // The old "Speak natural conversational English only" line forced English
+    // even when the founder spoke another language — must be gone.
+    expect(out).not.toMatch(/english only/i);
+  });
 });
