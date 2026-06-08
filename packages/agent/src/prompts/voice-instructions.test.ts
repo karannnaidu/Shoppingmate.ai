@@ -39,6 +39,20 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).toMatch(/switch/i);
   });
 
+  it('non-demo voice instruction forbids speaking tool / function syntax', () => {
+    // Regression for 2026-06-08 Calmosis report: the voice bot spoke literal
+    // tool syntax aloud — "products.search(query=...)", "cart.add(sku=...)",
+    // "site.navigate(...)" — because the non-demo voice prompt never told it
+    // not to. Gemini has no tool channel; a separate Sonnet side-channel drives
+    // the page. The prompt must forbid verbalizing tools and explain the split.
+    const out = buildVoiceSystemInstruction(PERSONAS['calmosis-clinician']!, {
+      name: 'Calmosis',
+      domain: 'calmosis.com',
+    });
+    expect(out).toMatch(/never (say|speak)[^.]*\b(tool|function|json|code|syntax)/i);
+    expect(out).toMatch(/separate (layer|system)|behind the scenes|another system/i);
+  });
+
   it('demo mode tells the voice model not to recite tool names and to answer pricing in voice', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
     expect(out).toContain('VOICE MODE PRICING + TOOLS');

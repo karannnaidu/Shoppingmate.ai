@@ -1,5 +1,8 @@
 import type { Persona } from './persona-table.js';
 
+const NO_TOOL_SYNTAX_RULE = `YOU ARE A VOICE, NOT A SCRIPT
+Speak only natural, conversational sentences. NEVER say tool names, function names, code, JSON, parentheses, "dot", or call-syntax out loud — never utter things like "products dot search", "cart.add(sku=...)", "products.search(query=...)", or "site.navigate(...)". Those are not words; they are internal plumbing. A separate system silently handles searching the catalog, showing product cards, navigating the page, and managing the cart while you talk — you never invoke any of that yourself. When you want the visitor to see or do something, just say it like a person would ("let me pull that up", "here's the Sleep Mantra page") and let the separate layer take care of the rest.`;
+
 const MULTILINGUAL_RULE = `LANGUAGE
 Detect the language and dialect the visitor speaks and reply in that same language. If they speak Hindi, reply in Hindi; if they mix languages (e.g. Hinglish), mirror that mix naturally; the same goes for any other language. Switch the moment the visitor switches — never force the conversation back to English. You may open in English, but from the visitor's first words onward, match their language. Every rule below (no spoken prices, no invented facts, the guardrails) applies in every language.`;
 
@@ -49,6 +52,7 @@ export function buildVoiceSystemInstruction(
   const sections = [
     role,
     `Voice cadence: ${persona.voiceDescriptor}`,
+    NO_TOOL_SYNTAX_RULE,
     MULTILINGUAL_RULE,
     sceneRule,
     NO_PRICE_RULE,
