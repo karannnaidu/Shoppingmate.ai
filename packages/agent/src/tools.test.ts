@@ -50,6 +50,33 @@ describe('buildToolSurface()', () => {
       required: ['sku', 'qty'],
     });
   });
+
+  it('omits cart-mutation tools for dom adapters (cart.add there fakes success)', () => {
+    // Regression for 2026-06-08 Calmosis report: dom cart.add ran through a
+    // no-op transport and lied ("added to cart"). Drop the cart tools so the
+    // model navigates to the PDP instead of claiming a fake add.
+    const dom = { adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
+    const names = buildToolSurface(dom).map((t) => t.function.name);
+    expect(names).not.toContain('cart.add');
+    expect(names).not.toContain('cart.update');
+    expect(names).not.toContain('cart.get');
+    expect(names).not.toContain('coupons.apply');
+    // products + checkout + navigation survive.
+    expect(names).toEqual(['products.search', 'products.get', 'checkout.url', 'site.navigate']);
+  });
+
+  it('omits cart-mutation tools for suggest adapters too', () => {
+    const sug = { adapterType: 'suggest' } as unknown as Merchant;
+    const names = buildToolSurface(sug).map((t) => t.function.name);
+    expect(names).not.toContain('cart.add');
+    expect(names).toEqual(['products.search', 'products.get', 'checkout.url']);
+  });
+
+  it('keeps cart tools for API-backed adapters (shopify)', () => {
+    const names = buildToolSurface(merchant).map((t) => t.function.name);
+    expect(names).toContain('cart.add');
+    expect(names).toContain('coupons.apply');
+  });
 });
 
 function makeAdapter(overrides: Partial<Adapter> = {}): Adapter {

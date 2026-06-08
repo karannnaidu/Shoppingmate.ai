@@ -1,5 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { lookupPersona } from './persona-table.js';
+import { merchantCanMutateCart } from '../tools.js';
 
 export const BRAND_KB_SLOT = '<!-- BRAND_KB_SLOT (Phase 2) -->';
 export const SITE_GRAPH_SLOT = '<!-- SITE_GRAPH_SLOT -->';
@@ -56,8 +57,24 @@ You can call site.navigate({path:"<relative path>"}) to take the visitor to a pa
 `
     : '';
 
+  // For adapters that can't actually change a cart (dom/suggest, where cart.add
+  // is a no-op that fakes success), the cart tools are withheld from the surface
+  // — so tell the model the truth and steer it to the product page instead of
+  // letting it claim a fake add (the 2026-06-08 Calmosis bug: "Peace Mantra has
+  // been added" when nothing happened).
+  const buyFlowBlock = merchantCanMutateCart(merchant)
+    ? ''
+    : `
+ADDING TO CART (read carefully — specific to this brand)
+You CANNOT add items to the cart yourself here, and you have no cart tool. ${
+        merchant.siteGraphEnabled
+          ? 'When the visitor wants to add or buy a product, call site.navigate to open that product\'s page, then ask them to tap the "Add to cart" button on the page.'
+          : 'When the visitor wants to add or buy a product, point them to that product\'s page and ask them to tap "Add to cart" there.'
+      } NEVER say or claim that you have added something to the cart, that it is "in your cart", or that the cart was updated — none of that is true. Be honest and concrete: e.g. "I've opened the Sleep Mantra page — tap Add to cart there and I'll walk you to checkout."
+`;
+
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
-${brandSummaryBlock}${navigationBlock}
+${brandSummaryBlock}${navigationBlock}${buyFlowBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.
@@ -68,8 +85,13 @@ PERSONA
 ${persona.voiceDescriptor}
 
 INVENTORY ACCESS
-You have tools to search products, see details, manage the visitor's cart, apply coupons, and send them to checkout.
+${
+    merchantCanMutateCart(merchant)
+      ? "You have tools to search products, see details, manage the visitor's cart, apply coupons, and send them to checkout."
+      : 'You have tools to search products, see details, and send the visitor to checkout.'
+  }
 Use products.search whenever the visitor asks for something — never guess at the catalog.
+- PRICE QUESTIONS: when the visitor asks how much something costs, call products.search (or products.get for a specific item) FIRST so the product card — which shows the exact price — appears on their screen, then point them to it. Do not tell them to look at a card that you haven't caused to appear.
 
 SPEAKING RULES
 - NEVER say a numeric price. Say "in your budget", "the higher-end pick", "the value option", or "see the price on the card I just sent". The card next to your message shows the exact price.

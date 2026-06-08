@@ -41,6 +41,26 @@ describe('buildSystemPrompt()', () => {
   });
 });
 
+describe('cart guidance for non-cart-capable (dom) merchants', () => {
+  const dom = {
+    id: 'SM-2SCCLZ', name: 'Calmosis', domain: 'calmosis.com',
+    personaId: 'calmosis-clinician', adapterType: 'dom', siteGraphEnabled: true,
+  } as unknown as Merchant;
+
+  it('tells a dom merchant bot it cannot add to cart and must navigate instead', () => {
+    const p = buildSystemPrompt(dom);
+    expect(p).toMatch(/cannot add .*cart|can.?t add .*cart/i);
+    expect(p).toMatch(/add to cart/i);
+    // Must forbid the lie the live bot told ("Peace Mantra has been added").
+    expect(p).toMatch(/never (say|claim)[^.]*added/i);
+  });
+
+  it('does not add the cannot-add-to-cart block for API-backed merchants', () => {
+    const p = buildSystemPrompt(merchant); // shopify
+    expect(p).not.toMatch(/cannot add .*cart/i);
+  });
+});
+
 describe('SITE_GRAPH_SLOT injection', () => {
   it('uses raw slot placeholder when siteGraphText is missing', () => {
     const m = {

@@ -7,8 +7,23 @@ import { formatPlanSpeech } from './pricing/speech.js';
 export const SHOPPINGMATE_DEMO_MERCHANT_ID =
   process.env.SHOPPINGMATE_DEMO_MERCHANT_ID ?? 'SM-XPK2EN';
 
+/**
+ * Whether the merchant's adapter can actually mutate a server-side cart.
+ *
+ * 'dom' and 'suggest' adapters "add to cart" by driving the live page through a
+ * WSTransport — but in the current runtime that transport is a no-op (the
+ * widget has no dom-harness handler), so cart.add/update/coupons silently FAKE
+ * success and the assistant then lies ("added to cart") while nothing changed
+ * on the real site. Only the API-backed adapters (shopify, woo, magento,
+ * bigcommerce, wix, squarespace) truly modify a cart. For the faked ones we
+ * drop the cart tools and steer the model to navigate the visitor to the
+ * product page instead (see buildSystemPrompt). */
+export function merchantCanMutateCart(merchant: Merchant): boolean {
+  return merchant.adapterType !== 'dom' && merchant.adapterType !== 'suggest';
+}
+
 export function buildToolSurface(merchant: Merchant): ToolDef[] {
-  const base: ToolDef[] = [
+  const productTools: ToolDef[] = [
     {
       type: 'function',
       function: {
@@ -42,6 +57,8 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
         },
       },
     },
+  ];
+  const cartTools: ToolDef[] = [
     {
       type: 'function',
       function: {
@@ -93,6 +110,8 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
         },
       },
     },
+  ];
+  const checkoutTools: ToolDef[] = [
     {
       type: 'function',
       function: {
@@ -103,9 +122,15 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
       },
     },
   ];
+  // Demo merchant keeps the full surface — its showcase tour expects cart tools.
   if (merchant.id === SHOPPINGMATE_DEMO_MERCHANT_ID) {
-    return [...base, ...DEMO_TOOLS];
+    return [...productTools, ...cartTools, ...checkoutTools, ...DEMO_TOOLS];
   }
+  // Drop cart-mutation tools for adapters that can't really change a cart
+  // (dom/suggest) so the model can't claim it added something it didn't.
+  const base = merchantCanMutateCart(merchant)
+    ? [...productTools, ...cartTools, ...checkoutTools]
+    : [...productTools, ...checkoutTools];
   if (merchant.siteGraphEnabled) {
     return [...base, ...SITE_NAV_TOOLS];
   }
