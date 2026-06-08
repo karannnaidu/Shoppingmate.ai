@@ -24,6 +24,21 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).toMatch(/voice cadence/i);
   });
 
+  it('tells the voice model to mirror the visitor\'s language (multilingual)', () => {
+    // Regression for 2026-06-08 Calmosis report: native-audio replied in
+    // English even when the visitor spoke Hindi/Hinglish because the all-English
+    // system prompt biased the model toward English. The instruction must tell
+    // the model to detect and reply in the visitor's language and to switch when
+    // they switch.
+    const out = buildVoiceSystemInstruction(PERSONAS['calmosis-clinician']!, {
+      name: 'Calmosis',
+      domain: 'calmosis.com',
+    });
+    expect(out).toMatch(/language/i);
+    expect(out).toMatch(/same language|match their language|reply in (that|the same)/i);
+    expect(out).toMatch(/switch/i);
+  });
+
   it('demo mode tells the voice model not to recite tool names and to answer pricing in voice', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
     expect(out).toContain('VOICE MODE PRICING + TOOLS');

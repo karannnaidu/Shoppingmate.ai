@@ -1,5 +1,8 @@
 import type { Persona } from './persona-table.js';
 
+const MULTILINGUAL_RULE = `LANGUAGE
+Detect the language and dialect the visitor speaks and reply in that same language. If they speak Hindi, reply in Hindi; if they mix languages (e.g. Hinglish), mirror that mix naturally; the same goes for any other language. Switch the moment the visitor switches — never force the conversation back to English. You may open in English, but from the visitor's first words onward, match their language. Every rule below (no spoken prices, no invented facts, the guardrails) applies in every language.`;
+
 const NO_PRICE_RULE =
   'Never speak numeric prices, currency amounts, dollar/euro figures, or discount percentages out loud. ' +
   'Do NOT invent or estimate prices ("a few hundred dollars", "around fifty bucks", etc) — those are hallucinations, not paraphrases. ' +
@@ -46,6 +49,7 @@ export function buildVoiceSystemInstruction(
   const sections = [
     role,
     `Voice cadence: ${persona.voiceDescriptor}`,
+    MULTILINGUAL_RULE,
     sceneRule,
     NO_PRICE_RULE,
     `GUARDRAILS\n${guardrails}`,
