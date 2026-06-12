@@ -26,10 +26,48 @@ export type BootstrapResult =
     }
   | { kind: 'err'; reason: string };
 
+// Backoff schedule for transient bootstrap failures. Each entry is the delay
+// (ms) BEFORE the corresponding retry, so this yields up to 3 total attempts.
+const RETRY_DELAYS_MS = [200, 500] as const;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+// The widget bootstrap is a 3-call chain (install → session → voice/token). A
+// single transient API failure on any of them used to abort the whole chain,
+// leaving voice unconfigured so clicking Call failed with "Could not start the
+// call". Those failures are intermittent (a brief edge 502 or an unhandled
+// handler exception that Hono turns into a CORS-headerless 500 the browser
+// reports as a CORS error), so a small retry recovers transparently.
+//
+// Retry policy: retry on a thrown error (network/CORS/connection) or a 5xx
+// status. Never retry a 4xx — those are deterministic rejections (403 origin
+// mismatch, 404 unknown merchant) that a retry can't fix.
+async function fetchRetry(url: string, init: RequestInit): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (res.status >= 500 && attempt < RETRY_DELAYS_MS.length) {
+        await sleep(RETRY_DELAYS_MS[attempt] ?? 0);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < RETRY_DELAYS_MS.length) {
+        await sleep(RETRY_DELAYS_MS[attempt] ?? 0);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult> {
   try {
     const visitorId = getOrCreateVisitorId();
-    const installRes = await fetch(`${input.apiBase}/v1/install`, {
+    const installRes = await fetchRetry(`${input.apiBase}/v1/install`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -50,7 +88,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
     // orders/create webhook can attribute the conversion. No-op on other platforms.
     void injectShopifyCartAttribute({ visitorId, platform: installBody.platform ?? 'custom' });
 
-    const sessionRes = await fetch(`${input.apiBase}/v1/session`, {
+    const sessionRes = await fetchRetry(`${input.apiBase}/v1/session`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ merchantId: input.merchantId, domain: input.domain }),
@@ -60,7 +98,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
 
     let voice: VoiceBootstrap | null = null;
     try {
-      const vRes = await fetch(`${input.apiBase}/v1/voice/token`, {
+      const vRes = await fetchRetry(`${input.apiBase}/v1/voice/token`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

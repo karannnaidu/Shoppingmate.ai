@@ -56,6 +56,67 @@ describe('bootstrap', () => {
       domain: 'merchant.example.com',
     });
     expect(res.kind).toBe('err');
+    // 4xx is a permanent rejection — do NOT retry it.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries install on a transient 5xx and then succeeds', async () => {
+    // Reproduces the production bug: a transient API error (unlogged 500 with no
+    // CORS header → browser reports a CORS failure) on a bootstrap call used to
+    // abort the whole bootstrap, leaving voice unconfigured. Bootstrap must now
+    // retry the transient failure instead of giving up.
+    let installCalls = 0;
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.endsWith('/v1/install')) {
+        installCalls += 1;
+        if (installCalls === 1) return new Response('boom', { status: 500 });
+        return new Response(JSON.stringify({ status: 'live' }));
+      }
+      if (url.endsWith('/v1/session'))
+        return new Response(
+          JSON.stringify({ sessionId: 'ws_a', wsUrl: 'wss://api/v1/widget/ws_a/agent?token=tok' }),
+        );
+      if (url.endsWith('/v1/voice/token'))
+        return new Response(
+          JSON.stringify({ wsUrl: 'wss://livekit.cloud', roomName: 'sm_ws_a', token: 'lk', personaId: 'concierge' }),
+        );
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await bootstrap({
+      apiBase: 'https://api',
+      merchantId: 'SM-TST001',
+      domain: 'merchant.example.com',
+    });
+    expect(res.kind).toBe('ok');
+    expect(installCalls).toBe(2);
+  });
+
+  it('retries session on a transient network throw and then succeeds', async () => {
+    let sessionCalls = 0;
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url.endsWith('/v1/install')) return new Response(JSON.stringify({ status: 'live' }));
+      if (url.endsWith('/v1/session')) {
+        sessionCalls += 1;
+        if (sessionCalls === 1) throw new TypeError('Failed to fetch');
+        return new Response(
+          JSON.stringify({ sessionId: 'ws_a', wsUrl: 'wss://api/v1/widget/ws_a/agent?token=tok' }),
+        );
+      }
+      if (url.endsWith('/v1/voice/token'))
+        return new Response(
+          JSON.stringify({ wsUrl: 'wss://livekit.cloud', roomName: 'sm_ws_a', token: 'lk', personaId: 'concierge' }),
+        );
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await bootstrap({
+      apiBase: 'https://api',
+      merchantId: 'SM-TST001',
+      domain: 'merchant.example.com',
+    });
+    expect(res.kind).toBe('ok');
+    expect(sessionCalls).toBe(2);
   });
 
   it('still bootstraps successfully when /v1/voice/token returns 503', async () => {

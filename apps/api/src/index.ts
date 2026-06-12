@@ -54,6 +54,29 @@ app.route('/v1/site-graph', siteGraphRoute);
 app.route('/v1/voice/token', voiceTokenRoute);
 app.route('/webhooks/shopify', shopifyWebhookRoute);
 
+// Without an explicit error handler, Hono turns any unhandled exception in a
+// route (e.g. a transient Postgres/Redis connection blip in the install/session
+// merchant lookup) into a bare 500 that (a) is never logged and (b) is built
+// AFTER the cors() middleware ran, so it omits the Access-Control-Allow-Origin
+// header. The browser then reports "No 'Access-Control-Allow-Origin' header is
+// present", the widget's bootstrap aborts, and the visitor sees "Could not
+// start the call" — with nothing in our logs. Re-apply the CORS header on the
+// error path and log the cause so these transient failures are observable and
+// the widget can read the 5xx (and retry it) instead of seeing an opaque CORS
+// error.
+app.onError((err, c) => {
+  const origin = c.req.header('origin');
+  logger.error(
+    { err, method: c.req.method, path: c.req.path, origin },
+    'unhandled request error',
+  );
+  if (origin) {
+    c.header('Access-Control-Allow-Origin', origin);
+    c.header('Vary', 'Origin');
+  }
+  return c.json({ error: 'internal_error', message: 'internal server error' }, 500);
+});
+
 const server = serve({ fetch: app.fetch, port: env.API_PORT }, ({ port }) => {
   logger.info({ port }, 'api listening');
 });
