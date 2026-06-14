@@ -335,6 +335,26 @@ export async function* runTurn(
             envelope = result.ok
               ? { ok: true, value: result }
               : { ok: false, kind: 'unsupported', reason: result.reason };
+            // Funnel metrics — emitted at the shared dispatch chokepoint so both
+            // the text WS and the voice bridge inherit them. Only on success so
+            // the funnel reflects real bot-driven cart/checkout progress.
+            if (result.ok) {
+              if (action.type === 'cart_add') {
+                await deps.recordMetric('cart.add', {
+                  merchantId: merchant.id,
+                  sessionId: session.sessionId,
+                  sku: action.sku,
+                  qty: action.qty,
+                });
+              }
+              if (action.type === 'navigate' && action.path.includes('/checkout')) {
+                await deps.recordMetric('checkout.reached', {
+                  merchantId: merchant.id,
+                  sessionId: session.sessionId,
+                  source: 'navigate',
+                });
+              }
+            }
           }
         } else {
           envelope = await dispatchTool(adapter, ctx, call.name, args);
@@ -395,6 +415,11 @@ export async function* runTurn(
         }
       }
       if (envelope.ok && call.name === 'checkout.url' && typeof envelope.value === 'string') {
+        await deps.recordMetric('checkout.reached', {
+          merchantId: merchant.id,
+          sessionId: session.sessionId,
+          source: 'checkout_url',
+        });
         yield { type: 'checkout_redirect', url: envelope.value };
       }
       history.push({

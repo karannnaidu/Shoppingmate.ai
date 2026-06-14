@@ -530,4 +530,34 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
     )) { /* drain */ }
     expect(dispatched).toEqual([{ type: 'navigate', path: '/pricing' }]);
   });
+
+  it('emits checkout.reached when navigating to a /checkout path', async () => {
+    const metrics: Array<{ name: string; tags: any }> = [];
+    const fakeChatTools = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          { id: 'tc1', name: 'site.navigate', argumentsJson: JSON.stringify({ path: '/checkout' }) },
+        ],
+      })
+      .mockResolvedValueOnce({ text: 'Taking you to checkout.', toolCalls: [] });
+    const session2 = makeBaseSession({ merchantId: 'SM-XPK2EN' });
+    const merchant3 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as any;
+    for await (const _ev of runTurn(
+      {
+        loadAdapter: () => fakeAdapter(),
+        saveSession: async () => {},
+        recordMetric: async (name: string, tags: any) => {
+          metrics.push({ name, tags });
+        },
+        chatToolsImpl: fakeChatTools as any,
+        dispatchHostAction: async () => ({ ok: true as const }),
+      } as any,
+      merchant3,
+      session2,
+      { type: 'user_text', sessionId: 's1', text: 'checkout please', mode: 'voice' },
+    )) { /* drain */ }
+    expect(metrics.some((m) => m.name === 'checkout.reached' && m.tags.source === 'navigate')).toBe(true);
+  });
 });
