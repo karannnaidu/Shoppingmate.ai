@@ -92,7 +92,9 @@ export async function handleConversionIngest(
           priceCents: Number(li.priceCents ?? 0),
         }))
       : [],
-    matchSource: 'gtag',
+    // Calmosis (custom storefront) posts COD orders the bot drove with
+    // matchSource:'cod'; everything else stays gtag.
+    matchSource: payload.matchSource === 'cod' ? 'cod' : 'gtag',
   };
 
   let result: AttributeResult;
@@ -105,20 +107,21 @@ export async function handleConversionIngest(
 
   // Emit telemetry counters. Auth-failed / merchant-unknown branches don't emit
   // because the DB FK on metric_events requires a valid merchantId we don't have there.
+  const source = payload.matchSource === 'cod' ? 'cod' : 'gtag';
   try {
     await Promise.all([
       ...result.wrote.map((kind) =>
         args.recordMetric({
           merchantId: payload.merchantId,
           metricName: schema.metricNames.conversionIngested,
-          tags: { source: 'gtag', kind },
+          tags: { source, kind },
         }),
       ),
       ...result.skipped.map((kind) =>
         args.recordMetric({
           merchantId: payload.merchantId,
           metricName: schema.metricNames.conversionMissDuplicate,
-          tags: { source: 'gtag', kind },
+          tags: { source, kind },
         }),
       ),
     ]);

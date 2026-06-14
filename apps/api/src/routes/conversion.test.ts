@@ -71,6 +71,31 @@ describe('POST /v1/conversion handler', () => {
     expect(order.matchSource).toBe('gtag');
   });
 
+  it('passes matchSource=cod through to attribute() for COD orders', async () => {
+    const codBody = JSON.stringify({
+      merchantId: 'm1',
+      orderId: 'ord-cod-1',
+      totalCents: 25000,
+      currency: 'INR',
+      visitorId: 'v1',
+      occurredAt: '2026-06-14T10:00:00Z',
+      lineItems: [{ sku: 'CALM-1', quantity: 1, priceCents: 25000 }],
+      matchSource: 'cod',
+    });
+    const attribute = vi.fn().mockResolvedValue({ wrote: ['assisted'], skipped: [], missReason: null });
+    const out = await handleConversionIngest({
+      rawBody: codBody,
+      hmacHeader: computeHmac(codBody, secret),
+      lookupMerchantSecret: async () => secret,
+      attribute,
+      recordMetric: vi.fn(),
+    });
+    expect(out.status).toBe(200);
+    const [order] = attribute.mock.calls[0]!;
+    expect(order.matchSource).toBe('cod');
+    expect(order.totalCents).toBe(25000);
+  });
+
   it('returns 400 on malformed body', async () => {
     const bad = '{not json';
     const out = await handleConversionIngest({

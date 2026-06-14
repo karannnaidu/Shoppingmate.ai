@@ -8,7 +8,7 @@ export type OrderPayload = {
   visitorId: string;
   occurredAt: Date;
   lineItems: Array<Pick<ConversionLineItem, 'sku' | 'quantity' | 'priceCents'>>;
-  matchSource: 'shopify_webhook' | 'gtag';
+  matchSource: 'shopify_webhook' | 'gtag' | 'cod';
 };
 
 export type SessionRow = { id: string; endedAt: Date | null };

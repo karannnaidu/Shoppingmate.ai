@@ -30,7 +30,7 @@ export const conversionEvents = pgTable(
     currency: text('currency').notNull(),
     attributionKind: text('attribution_kind').notNull(), // 'assisted' | 'influenced'
     attributionWindowDays: integer('attribution_window_days').notNull(),
-    matchSource: text('match_source').notNull(), // 'shopify_webhook' | 'gtag'
+    matchSource: text('match_source').notNull(), // 'shopify_webhook' | 'gtag' | 'cod'
     visitorId: text('visitor_id').notNull(),
     lineItems: jsonb('line_items').$type<ConversionLineItem[]>().notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
