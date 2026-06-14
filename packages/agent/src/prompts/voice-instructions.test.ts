@@ -49,8 +49,12 @@ describe('buildVoiceSystemInstruction', () => {
       name: 'Calmosis',
       domain: 'calmosis.com',
     });
-    expect(out).toMatch(/never (say|speak)[^.]*\b(tool|function|json|code|syntax)/i);
-    expect(out).toMatch(/separate (layer|system)|behind the scenes|another system/i);
+    expect(out).toMatch(/never speak[^.]*\b(function|json|code|programming|technical)/i);
+    expect(out).toMatch(/background|automatically|behind the scenes/i);
+    // Anti-priming: the rule must NOT contain literal tool-call examples, which
+    // prime native-audio to say them (the 2026-06-15 recurring leak).
+    expect(out).not.toContain('site.navigate(');
+    expect(out).not.toContain('cart.add(');
   });
 
   it('demo mode tells the voice model not to recite tool names and to answer pricing in voice', () => {
