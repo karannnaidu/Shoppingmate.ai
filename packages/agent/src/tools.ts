@@ -32,7 +32,8 @@ export function isCalmosisStitch(merchant: Pick<Merchant, 'id'>): boolean {
 
 // Calmosis cart/coupon tools are HOST ACTIONS (executed by the widget against
 // the storefront's __shoppingmate*__ hooks), not adapter calls.
-const CALMOSIS_SKU_DESC = 'One of: peace-mantra, sleep-mantra, green-mantra, dog-mantra';
+const CALMOSIS_SKU_DESC =
+  'One of: peace-mantra, sleep-mantra, green-mantra, dog-mantra, or bliss-club (the Bliss Club membership)';
 const CALMOSIS_CART_TOOLS: ToolDef[] = [
   {
     type: 'function',

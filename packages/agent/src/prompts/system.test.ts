@@ -71,6 +71,7 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     const p = buildSystemPrompt(calmosis);
     expect(p).toMatch(/BUYING ON CALMOSIS/);
     expect(p).toMatch(/cart\.add/);
+    expect(p).toMatch(/bliss club/i); // membership awareness (bliss-club)
     expect(p).toMatch(/one product per order/i);
     expect(p).toMatch(/₹250|cash on delivery/i);
     // Must NOT carry the "you cannot add to cart" lie-guard (Calmosis CAN add now).
