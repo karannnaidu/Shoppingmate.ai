@@ -10,7 +10,9 @@ export type HostAction =
   | { type: 'point_at'; intent: string }
   | { type: 'demo_click'; intent: string }
   | { type: 'cart_add'; sku: string; qty: number }
-  | { type: 'open_cart' };
+  | { type: 'open_cart' }
+  | { type: 'cart_set_qty'; sku: string; qty: number }
+  | { type: 'apply_coupon'; code: string };
 
 export type HostActionResult =
   | { ok: true }
@@ -34,6 +36,10 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return cartAdd(action.sku, action.qty);
     case 'open_cart':
       return openCart();
+    case 'cart_set_qty':
+      return cartSetQty(action.sku, action.qty);
+    case 'apply_coupon':
+      return applyCoupon(action.code);
   }
 }
 
@@ -59,6 +65,29 @@ function openCart(): HostActionResult {
   try {
     fn();
     return { ok: true };
+  } catch {
+    return { ok: false, reason: 'not_found' };
+  }
+}
+
+type CartSetQtyHook = (sku: string, qty: number) => boolean;
+type ApplyCouponHook = (code: string) => Promise<boolean>;
+
+function cartSetQty(sku: string, qty: number): HostActionResult {
+  const fn = (window as unknown as { __shoppingmateCartSetQty__?: CartSetQtyHook }).__shoppingmateCartSetQty__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    return fn(sku, qty) ? { ok: true } : { ok: false, reason: 'not_found' };
+  } catch {
+    return { ok: false, reason: 'not_found' };
+  }
+}
+
+async function applyCoupon(code: string): Promise<HostActionResult> {
+  const fn = (window as unknown as { __shoppingmateApplyCoupon__?: ApplyCouponHook }).__shoppingmateApplyCoupon__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    return (await fn(code)) ? { ok: true } : { ok: false, reason: 'not_found' };
   } catch {
     return { ok: false, reason: 'not_found' };
   }

@@ -66,7 +66,9 @@ export type HostAction =
   | { type: 'point_at'; intent: string }
   | { type: 'demo_click'; intent: string }
   | { type: 'cart_add'; sku: string; qty: number }
-  | { type: 'open_cart' };
+  | { type: 'open_cart' }
+  | { type: 'cart_set_qty'; sku: string; qty: number }
+  | { type: 'apply_coupon'; code: string };
 
 export type HostActionResult =
   | { ok: true }
@@ -84,9 +86,12 @@ function isValidHostAction(a: any): a is HostAction {
     case 'demo_click':
       return typeof a.intent === 'string';
     case 'cart_add':
+    case 'cart_set_qty':
       return typeof a.sku === 'string' && typeof a.qty === 'number';
     case 'open_cart':
       return true;
+    case 'apply_coupon':
+      return typeof a.code === 'string';
     default:
       return false;
   }

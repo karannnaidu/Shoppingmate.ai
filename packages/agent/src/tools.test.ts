@@ -72,13 +72,14 @@ describe('buildToolSurface()', () => {
     expect(names).toEqual(['products.search', 'products.get', 'checkout.url']);
   });
 
-  it('Calmosis (SM-2SCCLZ) gets cart.add (host-action) + site.navigate, but not the faked cart tools', () => {
+  it('Calmosis (SM-2SCCLZ) gets cart.add/update + coupon.apply (host actions) + site.navigate', () => {
     const calmosis = { id: 'SM-2SCCLZ', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
     const names = buildToolSurface(calmosis).map((t) => t.function.name);
-    expect(names).toContain('cart.add'); // routed as a host action to __shoppingmateCartAdd__
+    expect(names).toContain('cart.add'); // host action → __shoppingmateCartAdd__
+    expect(names).toContain('cart.update'); // host action → __shoppingmateCartSetQty__ (qty 0 = remove)
+    expect(names).toContain('coupon.apply'); // host action → __shoppingmateApplyCoupon__
     expect(names).toContain('site.navigate');
-    expect(names).not.toContain('cart.update');
-    expect(names).not.toContain('coupons.apply');
+    expect(names).not.toContain('coupons.apply'); // the faked adapter coupon tool stays off
   });
 
   it('keeps cart tools for API-backed adapters (shopify)', () => {

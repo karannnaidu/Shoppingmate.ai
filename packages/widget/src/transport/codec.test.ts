@@ -17,6 +17,15 @@ describe('decodeAgentEvent — host_action_request validation', () => {
     });
   });
 
+  it('decodes cart_set_qty and apply_coupon host actions', () => {
+    expect(
+      decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'q', action: { type: 'cart_set_qty', sku: 'sleep-mantra', qty: 1 } })),
+    ).not.toBeNull();
+    expect(
+      decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'c', action: { type: 'apply_coupon', code: 'CALM10' } })),
+    ).not.toBeNull();
+  });
+
   it('decodes an open_cart host action', () => {
     const raw = JSON.stringify({
       type: 'host_action_request',

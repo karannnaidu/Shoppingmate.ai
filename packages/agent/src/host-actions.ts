@@ -8,7 +8,10 @@ export type HostAction =
   // Calmosis stitch: add a SKU to the real storefront cart via the host page's
   // window.__shoppingmateCartAdd__ hook, and open the cart drawer.
   | { type: 'cart_add'; sku: string; qty: number }
-  | { type: 'open_cart' };
+  | { type: 'open_cart' }
+  // Calmosis stitch: set absolute quantity (qty<=0 removes) + apply a coupon.
+  | { type: 'cart_set_qty'; sku: string; qty: number }
+  | { type: 'apply_coupon'; code: string };
 
 export type HostActionResult =
   | { ok: true }

@@ -313,7 +313,11 @@ export async function* runTurn(
         }
         const start = Date.now();
         const isCalmosisCart =
-          isCalmosisStitch(merchant) && (call.name === 'cart.add' || call.name === 'cart.open');
+          isCalmosisStitch(merchant) &&
+          (call.name === 'cart.add' ||
+            call.name === 'cart.open' ||
+            call.name === 'cart.update' ||
+            call.name === 'coupon.apply');
         if (
           call.name === 'site.navigate' ||
           call.name === 'site.scroll_to' ||
@@ -542,6 +546,10 @@ function toHostAction(name: string, args: Record<string, unknown>): HostAction {
       return { type: 'cart_add', sku: String(args.sku ?? ''), qty: Number(args.qty) || 1 };
     case 'cart.open':
       return { type: 'open_cart' };
+    case 'cart.update':
+      return { type: 'cart_set_qty', sku: String(args.sku ?? ''), qty: Math.max(0, Number(args.qty) || 0) };
+    case 'coupon.apply':
+      return { type: 'apply_coupon', code: String(args.code ?? '') };
     default:
       throw new Error(`toHostAction: unknown site tool ${name}`);
   }

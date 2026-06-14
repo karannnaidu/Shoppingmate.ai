@@ -30,25 +30,52 @@ export function isCalmosisStitch(merchant: Pick<Merchant, 'id'>): boolean {
   return merchant.id === CALMOSIS_MERCHANT_ID;
 }
 
-// cart.add for Calmosis is a HOST ACTION (executed by the widget against the
-// storefront's __shoppingmateCartAdd__ hook), not an adapter call.
+// Calmosis cart/coupon tools are HOST ACTIONS (executed by the widget against
+// the storefront's __shoppingmate*__ hooks), not adapter calls.
+const CALMOSIS_SKU_DESC = 'One of: peace-mantra, sleep-mantra, green-mantra, dog-mantra';
 const CALMOSIS_CART_TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
       name: 'cart.add',
       description:
-        "Add a product to the visitor's cart on the Calmosis store and open the cart. Use when the visitor wants to add or buy a product.",
+        "Add a product to the visitor's cart on the Calmosis store and open the cart. Use when the visitor wants to add or buy a product. Calling again adds one more of the same product.",
       parameters: {
         type: 'object',
         properties: {
-          sku: {
-            type: 'string',
-            description: 'One of: peace-mantra, sleep-mantra, green-mantra, dog-mantra',
-          },
+          sku: { type: 'string', description: CALMOSIS_SKU_DESC },
           qty: { type: 'integer', minimum: 1, default: 1 },
         },
         required: ['sku'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cart.update',
+      description:
+        "Set the EXACT quantity of a product already in the cart (e.g. the visitor says 'make it 1' or 'I want 2'). Use qty 0 to REMOVE the product from the cart.",
+      parameters: {
+        type: 'object',
+        properties: {
+          sku: { type: 'string', description: CALMOSIS_SKU_DESC },
+          qty: { type: 'integer', minimum: 0, description: '0 removes the item' },
+        },
+        required: ['sku', 'qty'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'coupon.apply',
+      description:
+        'Apply a discount/coupon code to the order (e.g. CALM10). The discount is reflected at checkout. Only claim it worked if this returns success.',
+      parameters: {
+        type: 'object',
+        properties: { code: { type: 'string' } },
+        required: ['code'],
       },
     },
   },
