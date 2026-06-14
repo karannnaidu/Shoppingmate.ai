@@ -42,21 +42,38 @@ describe('buildSystemPrompt()', () => {
 });
 
 describe('cart guidance for non-cart-capable (dom) merchants', () => {
+  // A generic dom merchant (NOT Calmosis) has no working cart tool.
   const dom = {
-    id: 'SM-2SCCLZ', name: 'Calmosis', domain: 'calmosis.com',
-    personaId: 'calmosis-clinician', adapterType: 'dom', siteGraphEnabled: true,
+    id: 'SM-OTHERDOM', name: 'SomeBrand', domain: 'some.test',
+    personaId: 'calm-clinician', adapterType: 'dom', siteGraphEnabled: true,
   } as unknown as Merchant;
 
-  it('tells a dom merchant bot it cannot add to cart and must navigate instead', () => {
+  it('tells a generic dom merchant bot it cannot add to cart and must navigate instead', () => {
     const p = buildSystemPrompt(dom);
     expect(p).toMatch(/cannot add .*cart|can.?t add .*cart/i);
     expect(p).toMatch(/add to cart/i);
-    // Must forbid the lie the live bot told ("Peace Mantra has been added").
     expect(p).toMatch(/never (say|claim)[^.]*added/i);
   });
 
   it('does not add the cannot-add-to-cart block for API-backed merchants', () => {
     const p = buildSystemPrompt(merchant); // shopify
+    expect(p).not.toMatch(/cannot add .*cart/i);
+  });
+});
+
+describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
+  const calmosis = {
+    id: 'SM-2SCCLZ', name: 'Calmosis', domain: 'calmosis.com',
+    personaId: 'calmosis-clinician', adapterType: 'dom', siteGraphEnabled: true,
+  } as unknown as Merchant;
+
+  it('gives Calmosis the real buy flow (cart.add + checkout), not the cannot-add block', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/BUYING ON CALMOSIS/);
+    expect(p).toMatch(/cart\.add/);
+    expect(p).toMatch(/one product per order/i);
+    expect(p).toMatch(/₹250|cash on delivery/i);
+    // Must NOT carry the "you cannot add to cart" lie-guard (Calmosis CAN add now).
     expect(p).not.toMatch(/cannot add .*cart/i);
   });
 });

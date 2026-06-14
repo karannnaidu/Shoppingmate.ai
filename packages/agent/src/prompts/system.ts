@@ -1,6 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { lookupPersona } from './persona-table.js';
-import { merchantCanMutateCart } from '../tools.js';
+import { merchantCanMutateCart, isCalmosisStitch } from '../tools.js';
 
 export const BRAND_KB_SLOT = '<!-- BRAND_KB_SLOT (Phase 2) -->';
 export const SITE_GRAPH_SLOT = '<!-- SITE_GRAPH_SLOT -->';
@@ -62,7 +62,22 @@ You can call site.navigate({path:"<relative path>"}) to take the visitor to a pa
   // — so tell the model the truth and steer it to the product page instead of
   // letting it claim a fake add (the 2026-06-08 Calmosis bug: "Peace Mantra has
   // been added" when nothing happened).
-  const buyFlowBlock = merchantCanMutateCart(merchant)
+  // Calmosis can add to the real cart (host-action → __shoppingmateCartAdd__)
+  // and check out via the storefront. Give it the real purchase flow.
+  const calmosisPurchaseBlock = isCalmosisStitch(merchant)
+    ? `
+BUYING ON CALMOSIS (you can actually sell)
+- One product per order. The products are Peace Mantra, Sleep Mantra, Green Mantra, and Dog Mantra. Do NOT discuss trial/weekly/monthly packs — just the product itself.
+- When the visitor wants a product, call cart.add({sku, qty}) — this adds it to the real cart and opens the cart. Confirm naturally ("Added Peace Mantra to your cart").
+- When they're ready to buy, call site.navigate({path:"/checkout"}) to take them to checkout, where they enter their details (name, phone, email, age, gender, address) and pay.
+- Payment options are pay-online (prepaid) or Cash on Delivery (COD adds a flat ₹250 fee). Nudge prepaid: "Pay online now and skip the ₹250 cash-on-delivery fee."
+- Never invent prices, SKUs, or order numbers. The exact price is on the product card and at checkout.
+`
+    : '';
+
+  // For adapters that can't change a cart AND aren't Calmosis, be honest that
+  // there is no cart tool and steer to the product page.
+  const buyFlowBlock = merchantCanMutateCart(merchant) || isCalmosisStitch(merchant)
     ? ''
     : `
 ADDING TO CART (read carefully — specific to this brand)
@@ -74,7 +89,7 @@ You CANNOT add items to the cart yourself here, and you have no cart tool. ${
 `;
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
-${brandSummaryBlock}${navigationBlock}${buyFlowBlock}
+${brandSummaryBlock}${navigationBlock}${calmosisPurchaseBlock}${buyFlowBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.
