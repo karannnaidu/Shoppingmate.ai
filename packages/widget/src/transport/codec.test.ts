@@ -1,0 +1,37 @@
+import { describe, expect, it } from 'vitest';
+import { decodeAgentEvent } from './codec.js';
+
+describe('decodeAgentEvent — host_action_request validation', () => {
+  it('decodes a cart_add host action (regression: was dropped → 5s timeout)', () => {
+    const raw = JSON.stringify({
+      type: 'host_action_request',
+      callId: 'ha_1',
+      action: { type: 'cart_add', sku: 'sleep-mantra', qty: 1 },
+    });
+    const ev = decodeAgentEvent(raw);
+    expect(ev).not.toBeNull();
+    expect(ev).toMatchObject({
+      type: 'host_action_request',
+      callId: 'ha_1',
+      action: { type: 'cart_add', sku: 'sleep-mantra', qty: 1 },
+    });
+  });
+
+  it('decodes an open_cart host action', () => {
+    const raw = JSON.stringify({
+      type: 'host_action_request',
+      callId: 'ha_2',
+      action: { type: 'open_cart' },
+    });
+    expect(decodeAgentEvent(raw)).not.toBeNull();
+  });
+
+  it('still decodes navigate, and rejects unknown action types', () => {
+    expect(
+      decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'a', action: { type: 'navigate', path: '/shop' } })),
+    ).not.toBeNull();
+    expect(
+      decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'b', action: { type: 'bogus' } })),
+    ).toBeNull();
+  });
+});
