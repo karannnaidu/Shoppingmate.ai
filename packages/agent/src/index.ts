@@ -54,3 +54,10 @@ export type {
 export { PLANS, findPlan, type Plan } from './pricing/plans.js';
 export { formatPlanSpeech, numberToWords } from './pricing/speech.js';
 export { createTour, type Tour, type TourBeat, type TourState, type BeatPlan } from './demo-tour.js';
+export {
+  createConversationRecorder,
+  type ConversationRecorder,
+  type ConversationTags,
+  type TranscriptRole,
+  type TranscriptTurn,
+} from './conversationRecorder.js';
