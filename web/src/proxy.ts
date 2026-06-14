@@ -34,7 +34,12 @@ export async function proxy(req: NextRequest) {
     !url.pathname.startsWith('/verify')
   ) {
     url.pathname = `/app${url.pathname === '/' ? '' : url.pathname}`;
-    return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+    const res = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+    // Marker header so the subdomain→/app rewrite is observable (in tests and
+    // in prod debugging). NextResponse.rewrite only sets Next's internal
+    // x-middleware-rewrite, which isn't a stable contract to assert against.
+    res.headers.set('x-proxy-rewrite', url.pathname);
+    return res;
   }
 
   if (url.pathname.startsWith('/app')) {

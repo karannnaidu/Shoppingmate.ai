@@ -1,9 +1,21 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
+  // Explicit `@` alias so vitest resolves it to a single canonical absolute
+  // path. Without this, on Windows the tsconfig-paths plugin and vitest's mock
+  // registry can normalize the spaced/mixed-case project path differently, so a
+  // `vi.mock('@/lib/...')` registered by a test fails to intercept the same
+  // specifier imported by a route module — the route silently gets the real
+  // module (manifested as auth routes returning 401 in mocked tests).
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   test: {
     environment: 'happy-dom',
     include: ['src/**/*.test.{ts,tsx}', '*.test.{ts,tsx}'],
