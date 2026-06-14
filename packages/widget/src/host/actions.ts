@@ -8,7 +8,9 @@ export type HostAction =
   | { type: 'highlight'; intent: string; durationMs?: number }
   | { type: 'click'; intent: string }
   | { type: 'point_at'; intent: string }
-  | { type: 'demo_click'; intent: string };
+  | { type: 'demo_click'; intent: string }
+  | { type: 'cart_add'; sku: string; qty: number }
+  | { type: 'open_cart' };
 
 export type HostActionResult =
   | { ok: true }
@@ -28,6 +30,37 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return pointAt(action.intent);
     case 'demo_click':
       return demoClick(action.intent);
+    case 'cart_add':
+      return cartAdd(action.sku, action.qty);
+    case 'open_cart':
+      return openCart();
+  }
+}
+
+// Calmosis storefront exposes window.__shoppingmateCartAdd__(sku, qty) (returns
+// boolean) and window.__shoppingmateOpenCart__(). Drive the REAL cart through
+// them — no DOM scraping. If the hook isn't present, report not_found.
+type CartAddHook = (sku: string, qty?: number) => boolean;
+type OpenCartHook = () => void;
+
+function cartAdd(sku: string, qty: number): HostActionResult {
+  const fn = (window as unknown as { __shoppingmateCartAdd__?: CartAddHook }).__shoppingmateCartAdd__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    return fn(sku, qty) ? { ok: true } : { ok: false, reason: 'not_found' };
+  } catch {
+    return { ok: false, reason: 'not_found' };
+  }
+}
+
+function openCart(): HostActionResult {
+  const fn = (window as unknown as { __shoppingmateOpenCart__?: OpenCartHook }).__shoppingmateOpenCart__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    fn();
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'not_found' };
   }
 }
 

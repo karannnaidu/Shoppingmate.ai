@@ -22,6 +22,38 @@ export function merchantCanMutateCart(merchant: Merchant): boolean {
   return merchant.adapterType !== 'dom' && merchant.adapterType !== 'suggest';
 }
 
+/** The Calmosis tenant — its storefront exposes window.__shoppingmateCartAdd__
+ *  and a guest checkout API, so its bot drives the real cart via host actions
+ *  (not the faked DOM adapter). */
+export const CALMOSIS_MERCHANT_ID = 'SM-2SCCLZ';
+export function isCalmosisStitch(merchant: Pick<Merchant, 'id'>): boolean {
+  return merchant.id === CALMOSIS_MERCHANT_ID;
+}
+
+// cart.add for Calmosis is a HOST ACTION (executed by the widget against the
+// storefront's __shoppingmateCartAdd__ hook), not an adapter call.
+const CALMOSIS_CART_TOOLS: ToolDef[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'cart.add',
+      description:
+        "Add a product to the visitor's cart on the Calmosis store and open the cart. Use when the visitor wants to add or buy a product.",
+      parameters: {
+        type: 'object',
+        properties: {
+          sku: {
+            type: 'string',
+            description: 'One of: peace-mantra, sleep-mantra, green-mantra, dog-mantra',
+          },
+          qty: { type: 'integer', minimum: 1, default: 1 },
+        },
+        required: ['sku'],
+      },
+    },
+  },
+];
+
 export function buildToolSurface(merchant: Merchant): ToolDef[] {
   const productTools: ToolDef[] = [
     {
@@ -132,7 +164,10 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
     ? [...productTools, ...cartTools, ...checkoutTools]
     : [...productTools, ...checkoutTools];
   if (merchant.siteGraphEnabled) {
-    return [...base, ...SITE_NAV_TOOLS];
+    const siteTools = isCalmosisStitch(merchant)
+      ? [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS]
+      : SITE_NAV_TOOLS;
+    return [...base, ...siteTools];
   }
   return base;
 }

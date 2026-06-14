@@ -72,6 +72,15 @@ describe('buildToolSurface()', () => {
     expect(names).toEqual(['products.search', 'products.get', 'checkout.url']);
   });
 
+  it('Calmosis (SM-2SCCLZ) gets cart.add (host-action) + site.navigate, but not the faked cart tools', () => {
+    const calmosis = { id: 'SM-2SCCLZ', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
+    const names = buildToolSurface(calmosis).map((t) => t.function.name);
+    expect(names).toContain('cart.add'); // routed as a host action to __shoppingmateCartAdd__
+    expect(names).toContain('site.navigate');
+    expect(names).not.toContain('cart.update');
+    expect(names).not.toContain('coupons.apply');
+  });
+
   it('keeps cart tools for API-backed adapters (shopify)', () => {
     const names = buildToolSurface(merchant).map((t) => t.function.name);
     expect(names).toContain('cart.add');

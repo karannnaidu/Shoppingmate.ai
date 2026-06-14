@@ -4,7 +4,11 @@ export type HostAction =
   | { type: 'highlight'; intent: string; durationMs?: number }
   | { type: 'click'; intent: string }
   | { type: 'point_at'; intent: string }
-  | { type: 'demo_click'; intent: string };
+  | { type: 'demo_click'; intent: string }
+  // Calmosis stitch: add a SKU to the real storefront cart via the host page's
+  // window.__shoppingmateCartAdd__ hook, and open the cart drawer.
+  | { type: 'cart_add'; sku: string; qty: number }
+  | { type: 'open_cart' };
 
 export type HostActionResult =
   | { ok: true }

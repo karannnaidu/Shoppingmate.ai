@@ -5,7 +5,7 @@ import { checkCaps } from './caps.js';
 import type { HostAction, HostActionResult } from './host-actions.js';
 import { redactPii, segmentSay, stripPrices } from './postprocess.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
-import { type ToolResultEnvelope, buildToolSurface, dispatchTool } from './tools.js';
+import { type ToolResultEnvelope, buildToolSurface, dispatchTool, isCalmosisStitch } from './tools.js';
 import type {
   AgentEvent,
   AnthropicMessage,
@@ -312,13 +312,16 @@ export async function* runTurn(
           // bad arguments JSON from the model — surface as unsupported via dispatchTool
         }
         const start = Date.now();
+        const isCalmosisCart =
+          isCalmosisStitch(merchant) && (call.name === 'cart.add' || call.name === 'cart.open');
         if (
           call.name === 'site.navigate' ||
           call.name === 'site.scroll_to' ||
           call.name === 'site.highlight' ||
           call.name === 'site.click' ||
           call.name === 'site.point_at' ||
-          call.name === 'site.demo_click'
+          call.name === 'site.demo_click' ||
+          isCalmosisCart
         ) {
           if (!deps.dispatchHostAction) {
             envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
@@ -535,6 +538,10 @@ function toHostAction(name: string, args: Record<string, unknown>): HostAction {
       return { type: 'point_at', intent: String(args.intent ?? '') };
     case 'site.demo_click':
       return { type: 'demo_click', intent: String(args.intent ?? '') };
+    case 'cart.add':
+      return { type: 'cart_add', sku: String(args.sku ?? ''), qty: Number(args.qty) || 1 };
+    case 'cart.open':
+      return { type: 'open_cart' };
     default:
       throw new Error(`toHostAction: unknown site tool ${name}`);
   }
