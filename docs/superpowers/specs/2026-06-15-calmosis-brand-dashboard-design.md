@@ -43,25 +43,18 @@ Establish that Phase 2 works before extending it.
 - Confirm a **Calmosis merchant record + owner login** exists (`merchants` + `merchant_owners`). If the owner mapping is missing, create it so the team can sign in. Reconcile tenant id (memory cites `SM-XPK2EN`; check scripts default to `SM-2SCCLZ` — determine the live Calmosis id of record).
 - **Deliverable:** a short verification report with real command output and per-page status.
 
-### Component 2 — Transcript capture (backend, net-new)
+### Component 2 — Conversation capture / transcripts (backend, net-new)
 
-**Schema:** new append-only table `conversation_turns`:
+**Refined during planning (DRY):** the dashboard already has a fully-built Conversations list page, drill-down detail, and a transcript reader (`web/src/lib/conversations-repo.ts` `getConversation` reads `tags.transcript`). But **nothing emits the `conversationCompleted` metric event** those readers depend on — so the Conversations page, the "Conversations" KPI, and transcripts are all silently empty today. Rather than add a new `conversation_turns` table + new transcripts page, we **emit the missing `conversationCompleted` event** at session end with the tags the existing reader expects. This lights up transcripts AND fixes the empty Conversations page/KPI in one move.
 
-| column | type | notes |
-|---|---|---|
-| `id` | bigserial PK | |
-| `session_id` | text | references `conversation_sessions.id`, on delete cascade |
-| `merchant_id` | text | references `merchants.id`, denormalized for query speed |
-| `role` | text | `'visitor' \| 'bot'` |
-| `text` | text | verbatim turn text |
-| `tool_calls` | jsonb (nullable) | tool/host-action calls made on this bot turn (name + args + result) |
-| `ts` | timestamptz | default now() |
+**Emission tags** on `conversationCompleted` (read by `conversations-repo`):
+`session_id`, `mode` (`voice`|`text`), `duration_sec`, `turns`, `outcome` (`purchased`|`abandoned`), `attributed_cents`, `transcript` (array of `{role, content, timestamp}`).
 
-Index on `(session_id, ts)` and `(merchant_id, ts desc)`.
+**Shared helper:** `packages/agent/src/conversationRecorder.ts` — `createConversationRecorder()` with `addTurn(role, content)`, `markCartAdd()`, `markCheckoutReached()`, `markPurchased(cents)`, and `finish({mode}) => tags`. Unit-tested in isolation.
 
-**Emission:**
-- Voice agent (`apps/voice-agent/src/agentWorker.ts`): persist visitor utterances and bot turns from the Gemini output/input transcription it already receives.
-- Text chat (`runTurn` path via `apps/api/src/index.ts`): persist visitor message + bot reply per turn.
+**Emission sites:**
+- Voice agent (`apps/voice-agent/src/agentWorker.ts`): accumulate visitor turns from `final_transcript`, bot turns from `bot_text`; on `RoomEvent.Disconnected`, emit `conversationCompleted`.
+- Text chat (`apps/api/src/index.ts`): accumulate visitor `user_text` + streamed bot `say` text per turn; on `session_end`, emit `conversationCompleted`.
 
 Capture is best-effort and must never block or fail the conversation (wrap in try/catch, log on failure).
 
