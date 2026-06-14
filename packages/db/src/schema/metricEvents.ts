@@ -88,4 +88,10 @@ export const metricNames = {
   conversionMissMerchantUnknown: 'conversion.miss.merchant_unknown',
   conversionMissAuthFailed: 'conversion.miss.auth_failed',
   conversionMissDuplicate: 'conversion.miss.duplicate',
+  // Dashboard conversation + funnel metrics. conversationCompleted/voiceConversation
+  // use the exact literals the web readers (conversations-repo, kpi-repo) query.
+  conversationCompleted: 'conversationCompleted',
+  voiceConversation: 'voiceConversation',
+  cartAdd: 'cart.add',
+  checkoutReached: 'checkout.reached',
 } as const;
