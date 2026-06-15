@@ -19,9 +19,11 @@ export type HostAction =
 export type CheckoutDetails = {
   name: string;
   phone: string;
+  email: string;
   address: string;
-  email?: string;
-  pincode?: string;
+  city: string;
+  state: string;
+  pincode: string;
   payment: 'cod' | 'prepaid';
 };
 

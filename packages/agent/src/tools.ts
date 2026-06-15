@@ -118,18 +118,20 @@ const CALMOSIS_CHECKOUT_TOOLS: ToolDef[] = [
     function: {
       name: 'checkout.fill',
       description:
-        "Fill the visitor's details into the Calmosis checkout so the order is ready to place. Call this once you've collected their name, phone, full delivery address, and payment choice. Then read the order back (items + address + payment) and ask them to confirm before placing.",
+        "Fill the visitor's details into the Calmosis checkout so the order is ready to place. Call this once you've collected ALL of: name, 10-digit phone, email, full street address, city, state, and 6-digit pincode (plus their COD/prepaid preference). Then read the order back (items + address + payment) and ask them to confirm before placing.",
       parameters: {
         type: 'object',
         properties: {
           name: { type: 'string' },
           phone: { type: 'string', description: '10-digit phone' },
-          address: { type: 'string', description: 'Full delivery address' },
-          email: { type: 'string' },
-          pincode: { type: 'string' },
+          email: { type: 'string', description: 'Email for the order confirmation' },
+          address: { type: 'string', description: 'Street address / house, area' },
+          city: { type: 'string' },
+          state: { type: 'string' },
+          pincode: { type: 'string', description: '6-digit Indian pincode' },
           payment: { type: 'string', enum: ['cod', 'prepaid'] },
         },
-        required: ['name', 'phone', 'address', 'payment'],
+        required: ['name', 'phone', 'email', 'address', 'city', 'state', 'pincode', 'payment'],
       },
     },
   },

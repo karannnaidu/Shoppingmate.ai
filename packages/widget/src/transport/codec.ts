@@ -75,9 +75,11 @@ export type HostAction =
 export type CheckoutDetails = {
   name: string;
   phone: string;
+  email: string;
   address: string;
-  email?: string;
-  pincode?: string;
+  city: string;
+  state: string;
+  pincode: string;
   payment: 'cod' | 'prepaid';
 };
 
@@ -109,7 +111,11 @@ function isValidHostAction(a: any): a is HostAction {
         !!a.details &&
         typeof a.details.name === 'string' &&
         typeof a.details.phone === 'string' &&
+        typeof a.details.email === 'string' &&
         typeof a.details.address === 'string' &&
+        typeof a.details.city === 'string' &&
+        typeof a.details.state === 'string' &&
+        typeof a.details.pincode === 'string' &&
         (a.details.payment === 'cod' || a.details.payment === 'prepaid')
       );
     default:

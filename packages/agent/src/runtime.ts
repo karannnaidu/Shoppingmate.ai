@@ -634,9 +634,11 @@ function toHostAction(name: string, args: Record<string, unknown>): HostAction {
         details: {
           name: String(args.name ?? ''),
           phone: String(args.phone ?? ''),
+          email: String(args.email ?? ''),
           address: String(args.address ?? ''),
-          email: typeof args.email === 'string' ? args.email : undefined,
-          pincode: typeof args.pincode === 'string' ? args.pincode : undefined,
+          city: String(args.city ?? ''),
+          state: String(args.state ?? ''),
+          pincode: String(args.pincode ?? ''),
           payment: args.payment === 'prepaid' ? 'prepaid' : 'cod',
         },
       };
