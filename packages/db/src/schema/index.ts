@@ -10,3 +10,4 @@ export * from './dashboard.js';
 export * from './siteGraph.js';
 export * from './conversationSessions.js';
 export * from './recommendationEvents.js';
+export * from './consultationRequests.js';
