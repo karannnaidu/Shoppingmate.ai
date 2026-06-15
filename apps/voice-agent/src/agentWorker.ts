@@ -24,7 +24,7 @@ import {
   type SessionStore,
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
-import { db, schema } from '@shoppingmate/db';
+import { db, schema, submitConsultationRequest } from '@shoppingmate/db';
 import { childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
@@ -367,6 +367,16 @@ const agentDefinition = defineAgent({
           .values({ merchantId: merchant.id, metricName: name, tags })
           .onConflictDoNothing();
       },
+      submitConsultation: (req) =>
+        submitConsultationRequest({
+          merchantId: req.merchantId,
+          sessionId: req.sessionId,
+          name: req.name,
+          age: req.age,
+          condition: req.condition,
+          phoneCountryCode: req.phoneCountryCode,
+          phone: req.phone,
+        }),
       loadAdapter: (m) =>
         getAdapter(m, {
           transport: new NoOpWSTransport(),

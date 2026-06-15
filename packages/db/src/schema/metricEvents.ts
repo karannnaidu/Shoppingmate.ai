@@ -97,4 +97,5 @@ export const metricNames = {
   voiceConversation: 'voiceConversation',
   cartAdd: 'cart.add',
   checkoutReached: 'checkout.reached',
+  consultationRequested: 'consultation.requested',
 } as const;

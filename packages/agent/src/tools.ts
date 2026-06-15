@@ -82,6 +82,34 @@ const CALMOSIS_CART_TOOLS: ToolDef[] = [
   },
 ];
 
+// Calmosis-only: submit a doctor-consultation request. A SERVER-SIDE tool
+// (not a host action) — runTurn validates + persists + emails it.
+const CALMOSIS_CONSULT_TOOL: ToolDef = {
+  type: 'function',
+  function: {
+    name: 'consultation.request',
+    description:
+      "Submit a request for a complimentary doctor/practitioner consultation. Call this ONLY after you have collected the visitor's name, age, and a 10-digit phone number (and asked whether it is an Indian number for the country code). Condition is optional — never insist on it.",
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: "Visitor's name" },
+        age: { type: 'integer', minimum: 1, maximum: 120 },
+        phone: { type: 'string', description: '10-digit phone number (digits only)' },
+        phone_country_code: {
+          type: 'string',
+          description: 'e.g. "+91" for India. Defaults to +91.',
+        },
+        condition: {
+          type: 'string',
+          description: 'Optional — the concern they want help with. Omit if not shared.',
+        },
+      },
+      required: ['name', 'age', 'phone'],
+    },
+  },
+};
+
 export function buildToolSurface(merchant: Merchant): ToolDef[] {
   const productTools: ToolDef[] = [
     {
@@ -193,7 +221,7 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
     : [...productTools, ...checkoutTools];
   if (merchant.siteGraphEnabled) {
     const siteTools = isCalmosisStitch(merchant)
-      ? [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS]
+      ? [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS, CALMOSIS_CONSULT_TOOL]
       : SITE_NAV_TOOLS;
     return [...base, ...siteTools];
   }

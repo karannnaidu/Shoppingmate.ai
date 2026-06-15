@@ -22,6 +22,16 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Diagnostics')).toBeNull();
   });
 
+  it('shows Consultations only for the Calmosis tenant', () => {
+    render(<Sidebar pathname="/app" merchantId="SM-2SCCLZ" />);
+    expect(screen.getByText('Consultations')).toBeTruthy();
+  });
+
+  it('hides Consultations for other tenants', () => {
+    render(<Sidebar pathname="/app" merchantId="SM-OTHER" />);
+    expect(screen.queryByText('Consultations')).toBeNull();
+  });
+
   it('marks current path active', () => {
     render(<Sidebar pathname="/app/billing" />);
     const billingLink = screen.getByText('Billing').closest('a');

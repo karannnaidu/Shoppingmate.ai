@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { redactPii, segmentSay, stripPrices } from './postprocess.js';
+import { redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
 
 describe('stripPrices()', () => {
   it.each([
@@ -41,6 +41,26 @@ describe('redactPii()', () => {
     ['size 10 fits, 12 reviews', 'size 10 fits, 12 reviews'], // not PII
   ])('redacts %s', (input, expected) => {
     expect(redactPii(input)).toBe(expected);
+  });
+});
+
+describe('stripToolSyntax', () => {
+  it('removes a leaked dotted tool call with JSON args', () => {
+    const out = stripToolSyntax(
+      'I will take you there now. navigation.site.navigate({"url": "https://x.com/contact"})',
+    );
+    expect(out).toBe('I will take you there now.');
+  });
+  it('removes a bare tool call', () => {
+    expect(stripToolSyntax('Sure. cart.add({"sku":"green-mantra"}) Done!')).toBe('Sure. Done!');
+  });
+  it('leaves normal prose with parentheses untouched', () => {
+    const s = 'Green Mantra (our calming blend) is a great pick.';
+    expect(stripToolSyntax(s)).toBe(s);
+  });
+  it('leaves a sentence that ends in a period untouched', () => {
+    const s = 'You can consult our practitioner.';
+    expect(stripToolSyntax(s)).toBe(s);
   });
 });
 

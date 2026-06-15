@@ -27,7 +27,8 @@
   "dependencies": {
     "@shoppingmate/shared": "workspace:*",
     "drizzle-orm": "^0.36.4",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.5",
+    "resend": "^4.0.0"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.10",

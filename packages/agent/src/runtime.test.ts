@@ -243,6 +243,39 @@ describe('runTurn() — happy path', () => {
     expect(says.join(' ')).toMatch(/the price on the card/);
   });
 
+  it('lets Calmosis speak the Bliss Club membership price (₹299) — it has no card', async () => {
+    vi.mocked(chatTools).mockResolvedValueOnce({
+      text: 'Bliss Club is ₹299 for 6 months — great value.',
+      toolCalls: [],
+      stopReason: 'stop',
+      inputTokens: 30,
+      outputTokens: 8,
+    });
+    const calmosis = {
+      id: 'SM-2SCCLZ',
+      domain: 'calmosis.com',
+      name: 'Calmosis',
+      personaId: 'calmosis-clinician',
+      adapterType: 'dom',
+      siteGraphEnabled: true,
+    } as unknown as Merchant;
+    const events = [];
+    for await (const ev of runTurn(deps, calmosis, baseSession({ merchantId: 'SM-2SCCLZ' }), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'how much is bliss club?',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+    const says = events
+      .filter((e) => e.type === 'say')
+      .map((e) => (e as { text: string }).text)
+      .join(' ');
+    expect(says).toMatch(/₹299/);
+    expect(says).not.toMatch(/the price on the card/);
+  });
+
   it('records agent.tool.retry_exhausted after 3 same-args invocations', async () => {
     const sameCall = {
       id: 'c1',
@@ -559,5 +592,131 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       { type: 'user_text', sessionId: 's1', text: 'checkout please', mode: 'voice' },
     )) { /* drain */ }
     expect(metrics.some((m) => m.name === 'checkout.reached' && m.tags.source === 'navigate')).toBe(true);
+  });
+});
+
+describe('runTurn() — consultation.request', () => {
+  it('validates, calls submitConsultation with merged ids, and emits the metric', async () => {
+    vi.mocked(chatTools)
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'consultation.request',
+            argumentsJson: JSON.stringify({ name: 'Karan', age: 32, phone: '98765 43210' }),
+          },
+        ],
+        stopReason: 'tool_calls',
+        inputTokens: 10,
+        outputTokens: 5,
+      })
+      .mockResolvedValueOnce({
+        text: 'Done — our practitioner will reach out.',
+        toolCalls: [],
+        stopReason: 'stop',
+        inputTokens: 10,
+        outputTokens: 5,
+      });
+    const submitConsultation = vi.fn(async () => ({ ok: true as const }));
+    const recordMetric = vi.fn(async () => undefined);
+    const localDeps: RunTurnDeps = { ...deps, submitConsultation, recordMetric };
+    const events: AgentEvent[] = [];
+    for await (const ev of runTurn(localDeps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'book a doctor consult — Karan, 32, 9876543210',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+
+    expect(submitConsultation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Karan',
+        age: 32,
+        phone: '9876543210',
+        phoneCountryCode: '+91',
+        condition: null,
+        merchantId: 'm',
+        sessionId: 's-1',
+      }),
+    );
+    expect(recordMetric).toHaveBeenCalledWith('consultation.requested', expect.any(Object));
+    const tr = events.find(
+      (e) => e.type === 'tool_result' && (e as { toolName?: string }).toolName === 'consultation.request',
+    );
+    expect(tr).toMatchObject({ ok: true });
+  });
+
+  it('re-asks (ok:false) on invalid phone without calling submit', async () => {
+    vi.mocked(chatTools)
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'consultation.request',
+            argumentsJson: JSON.stringify({ name: 'Karan', age: 32, phone: '123' }),
+          },
+        ],
+        stopReason: 'tool_calls',
+        inputTokens: 10,
+        outputTokens: 5,
+      })
+      .mockResolvedValueOnce({
+        text: 'That number is not 10 digits — can you recheck?',
+        toolCalls: [],
+        stopReason: 'stop',
+        inputTokens: 10,
+        outputTokens: 5,
+      });
+    const submitConsultation = vi.fn(async () => ({ ok: true as const }));
+    const localDeps: RunTurnDeps = { ...deps, submitConsultation };
+    const events: AgentEvent[] = [];
+    for await (const ev of runTurn(localDeps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'book a consult',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+    expect(submitConsultation).not.toHaveBeenCalled();
+    const tr = events.find(
+      (e) => e.type === 'tool_result' && (e as { toolName?: string }).toolName === 'consultation.request',
+    );
+    expect(tr).toMatchObject({ ok: false });
+  });
+
+  it('returns consultation_not_wired when no submitConsultation dep is provided', async () => {
+    vi.mocked(chatTools)
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'consultation.request',
+            argumentsJson: JSON.stringify({ name: 'Karan', age: 32, phone: '9876543210' }),
+          },
+        ],
+        stopReason: 'tool_calls',
+        inputTokens: 10,
+        outputTokens: 5,
+      })
+      .mockResolvedValueOnce({ text: 'ok', toolCalls: [], stopReason: 'stop', inputTokens: 1, outputTokens: 1 });
+    const events: AgentEvent[] = [];
+    for await (const ev of runTurn(deps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'book a consult',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+    const tr = events.find(
+      (e) => e.type === 'tool_result' && (e as { toolName?: string }).toolName === 'consultation.request',
+    );
+    expect(tr).toMatchObject({ ok: false });
   });
 });

@@ -87,6 +87,14 @@ describe('buildToolSurface()', () => {
     expect(names).toContain('cart.add');
     expect(names).toContain('coupons.apply');
   });
+
+  it('exposes consultation.request only on the Calmosis surface', () => {
+    const calmosis = { id: 'SM-2SCCLZ', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
+    expect(buildToolSurface(calmosis).map((t) => t.function.name)).toContain('consultation.request');
+
+    const otherSiteGraph = { id: 'M-OTHER', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
+    expect(buildToolSurface(otherSiteGraph).map((t) => t.function.name)).not.toContain('consultation.request');
+  });
 });
 
 function makeAdapter(overrides: Partial<Adapter> = {}): Adapter {
