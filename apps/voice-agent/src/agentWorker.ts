@@ -506,6 +506,15 @@ const agentDefinition = defineAgent({
         captureChain = captureChain
           .then(() => audioSource.captureFrame(frame))
           .catch((err) => log.warn({ err }, 'captureFrame failed'));
+      } else if (e.type === 'interrupted') {
+        // Visitor barged in — drop bot audio still queued in the AudioSource so
+        // Sage stops talking at once instead of finishing the buffered reply.
+        try {
+          audioSource.clearQueue();
+        } catch (err) {
+          log.warn({ err }, 'clearQueue on interrupt failed');
+        }
+        captureChain = Promise.resolve();
       } else if (e.type === 'error') {
         log.error({ err: e.error }, 'gemini transport error');
       }

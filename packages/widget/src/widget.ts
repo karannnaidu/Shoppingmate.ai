@@ -2,6 +2,7 @@ import { createSTT } from './audio/stt.js';
 import { createTTS } from './audio/tts.js';
 import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
 import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
+import { type Ambience, createAmbience } from './audio/ambience.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
 import { startActivityTracker } from './host/activity.js';
 import { executeHostAction } from './host/actions.js';
@@ -53,6 +54,10 @@ class WidgetElement extends HTMLElement {
   private stopActivityTracker: (() => void) | null = null;
   private inviteTimer: ReturnType<typeof setTimeout> | null = null;
   private stopDrag: (() => void) | null = null;
+  // Subtle office room tone during a live call. Configured in connectedCallback
+  // from the data-ambience attribute ("off" disables). The switch the user asked
+  // for: set data-ambience="off" on the widget element, or pass false here.
+  private ambience: Ambience = createAmbience(false);
 
   connectedCallback() {
     if (this.shadowRoot) return;
@@ -64,6 +69,8 @@ class WidgetElement extends HTMLElement {
     }
     this.merchantId = id;
     this.apiBase = api;
+    // Office ambience during calls — on by default, disabled with data-ambience="off".
+    this.ambience = createAmbience(this.getAttribute('data-ambience') !== 'off');
     const sr = this.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = SHADOW_CSS;
@@ -104,6 +111,7 @@ class WidgetElement extends HTMLElement {
   disconnectedCallback() {
     this.socket?.close();
     this.voiceMode.stop();
+    this.ambience.stop();
     this.stopActivityTracker?.();
     if (this.inviteTimer) clearTimeout(this.inviteTimer);
     this.stopDrag?.();
@@ -296,6 +304,7 @@ class WidgetElement extends HTMLElement {
       onMute: (next) => this.voiceMode.setMuted(next),
       onEnd: () => {
         this.voiceMode.stop();
+        this.ambience.stop();
         this.store.dispatch({ type: 'set_mode', mode: 'pill' });
       },
       onChat: () => {
@@ -326,6 +335,7 @@ class WidgetElement extends HTMLElement {
     }
     this.store.dispatch({ type: 'set_mode', mode: 'call' });
     this.voiceMode.start();
+    this.ambience.start();
   }
 
   private userText(text: string, mode: 'voice' | 'text') {

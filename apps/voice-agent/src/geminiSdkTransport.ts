@@ -37,24 +37,34 @@ export function createGeminiSdkTransport(): GeminiTransport {
           // empty configs and let the server auto-detect.
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          // Tighten VAD so Sage replies the instant the visitor stops talking.
-          // Defaults are LOW/LOW with silenceDurationMs ~1000ms, which produces
-          // a noticeable 3–5s gap after greetings (visitor stops, server waits
-          // a full second to commit end-of-speech, then first-token latency on
-          // top). HIGH sensitivity + 350ms silence shaves ~700ms off turns and
-          // still doesn't trigger on natural mid-sentence pauses.
+          // VAD tuning balances two goals: don't trigger on background noise
+          // (a group of friends talking near the visitor) while still ending the
+          // visitor's turn quickly. START sensitivity is LOW so ambient chatter /
+          // room noise does NOT register as the visitor speaking — the bot stays
+          // focused on the person it's conversing with and isn't falsely
+          // interrupted. END stays HIGH + 500ms silence so the turn still commits
+          // promptly once the visitor actually finishes. (Was START=HIGH, which
+          // made the bot over-sensitive to background voices — 2026-06-15 report.)
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
-              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
               endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
               prefixPaddingMs: 20,
-              silenceDurationMs: 350,
+              silenceDurationMs: 500,
             },
           },
         },
         callbacks: {
           onmessage: (msg) => {
+            // Barge-in: when the visitor talks over Sage, Gemini's server VAD
+            // flags the turn interrupted and stops generating. Surface it so the
+            // bridge can flush any bot audio still queued locally — otherwise the
+            // already-buffered reply keeps playing and the bot "doesn't hear the
+            // visitor out" (2026-06-15 report).
+            if (msg.serverContent?.interrupted) {
+              emit({ type: 'interrupted' });
+            }
             const inputXcript = msg.serverContent?.inputTranscription?.text;
             if (inputXcript) inputBuf += inputXcript;
             const outputXcript = msg.serverContent?.outputTranscription?.text;
