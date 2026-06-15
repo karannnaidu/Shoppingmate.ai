@@ -10,6 +10,7 @@ import { Redis } from 'ioredis';
 import {
   NoOpWSTransport,
   type SessionState,
+  createConversationRecorder,
   createSession,
   decodeWidgetMessage,
   encodeAgentEvent,
@@ -18,7 +19,7 @@ import {
   runTurn,
   saveSession,
 } from '@shoppingmate/agent';
-import type { HostAction, HostActionResult } from '@shoppingmate/agent';
+import type { ConversationRecorder, HostAction, HostActionResult } from '@shoppingmate/agent';
 import { conversionRoute } from './routes/conversion.js';
 import { dashboardAttributionRoute } from './routes/dashboard-attribution.js';
 import { healthRoute } from './routes/health.js';
@@ -101,6 +102,11 @@ const pendingHostActions = new Map<
 >();
 let hostActionCounter = 0;
 
+// Per-session conversation recorders. Accumulate visitor/bot turns + funnel
+// flags across a session so we can emit one conversationCompleted metric (with
+// tags.transcript) on session_end — the writer the dashboard readers expect.
+const recorders = new Map<string, ConversationRecorder>();
+
 mountAgentWs(server, {
   onMessage: async (sessionId, merchantId, raw, send) => {
     const msg = decodeWidgetMessage(raw);
@@ -149,6 +155,14 @@ mountAgentWs(server, {
       if (sessionPending) {
         for (const entry of sessionPending.values()) clearTimeout(entry.timer);
         pendingHostActions.delete(sessionId);
+      }
+      const rec = recorders.get(sessionId);
+      if (rec) {
+        recorders.delete(sessionId);
+        const tags = rec.finish({ mode: 'text', nowMs: Date.now() });
+        db.insert(schema.metricEvents)
+          .values({ merchantId, metricName: 'conversationCompleted', tags })
+          .catch((err) => logger.error({ err, sessionId }, 'conversationCompleted emit failed'));
       }
       send(encodeAgentEvent({ type: 'session_closed', reason: 'user' }));
       return;
@@ -222,7 +236,22 @@ mountAgentWs(server, {
       dispatchHostAction,
     };
 
+    let recorder = recorders.get(sessionId);
+    if (!recorder) {
+      recorder = createConversationRecorder({ sessionId, startMs: Date.now() });
+      recorders.set(sessionId, recorder);
+    }
+    if (msg.type === 'user_text') recorder.addTurn('user', msg.text);
+
     for await (const ev of runTurn(deps, merchant, session, msg)) {
+      if (ev.type === 'say' && ev.text) recorder.addTurn('agent', ev.text);
+      if (ev.type === 'host_action_request') {
+        if (ev.action.type === 'cart_add') recorder.markCartAdd();
+        if (ev.action.type === 'navigate' && String(ev.action.path).includes('/checkout')) {
+          recorder.markCheckoutReached();
+        }
+      }
+      if (ev.type === 'checkout_redirect') recorder.markCheckoutReached();
       send(encodeAgentEvent(ev));
     }
   },
