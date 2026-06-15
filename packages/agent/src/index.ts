@@ -34,7 +34,7 @@ export type {
   WidgetMessage,
 } from './types.js';
 export { buildToolSurface, dispatchTool, type ToolResultEnvelope } from './tools.js';
-export { redactPii, segmentSay, stripPrices, type PriceHit } from './postprocess.js';
+export { redactPii, segmentSay, stripPrices, stripToolSyntax, type PriceHit } from './postprocess.js';
 export { NoOpWSTransport } from './transport-noop.js';
 export { replaySession } from './replay.js';
 export {

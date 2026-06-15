@@ -20,6 +20,7 @@ import {
   loadSession,
   runTurn,
   saveSession as saveSessionAgent,
+  stripToolSyntax,
   type RecommendationStore,
   type SessionStore,
 } from '@shoppingmate/agent';
@@ -481,10 +482,18 @@ const agentDefinition = defineAgent({
         // Stream caption updates while the turn is still in progress. Widget
         // replaces the active agent bubble in place so text scrolls alongside
         // the audio instead of appearing only when Sage stops talking.
-        dataChannel.publish({ type: 'say_partial', text: e.text });
+        // Gemini owns this text autonomously and (despite the prompt rule)
+        // sometimes leaks tool-call syntax like `cart.add(sku='peace-mantra')`
+        // — strip it before it reaches the caption. The prompt-only defense has
+        // regressed before; this is the durable guard for the visible leak.
+        const partial = stripToolSyntax(e.text);
+        if (partial.trim().length > 0) dataChannel.publish({ type: 'say_partial', text: partial });
       } else if (e.type === 'bot_text' && e.text.trim().length > 0) {
-        dataChannel.publish({ type: 'say', text: e.text });
-        recorder.addTurn('agent', e.text);
+        const clean = stripToolSyntax(e.text);
+        if (clean.trim().length > 0) {
+          dataChannel.publish({ type: 'say', text: clean });
+          recorder.addTurn('agent', clean);
+        }
       } else if (e.type === 'audio_out') {
         const samples = e.bytes.length / 2;
         const seconds = samples / 24_000;
