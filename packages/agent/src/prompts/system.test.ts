@@ -124,9 +124,10 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).toMatch(/read back/i);
   });
 
-  it('has selling style: self-intro, upsell, and native coupon phrasing', () => {
+  it('opens proactively, leads the conversation, upsells, and offers coupons', () => {
     const p = buildSystemPrompt(calmosis);
-    expect(p).toMatch(/SELLING STYLE/);
+    expect(p).toMatch(/OPENING/);
+    expect(p).toMatch(/LEAD THE CONVERSATION/i);
     expect(p).toMatch(/upsell/i);
     expect(p).toMatch(/COUPONS/);
   });
