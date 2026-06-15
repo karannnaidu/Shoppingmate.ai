@@ -62,6 +62,21 @@ export function redactPii(input: string): string {
     .replace(PHONE_RE, '[redacted]');
 }
 
+// Strip any leaked tool-call syntax from model speech, e.g.
+// `site.navigate({"path":"/x"})` or `navigation.site.navigate({"url":...})`.
+// Matches a DOTTED identifier (namespace.method — all our tools are dotted)
+// immediately followed by a parenthesised arg list. Requiring the dot keeps
+// ordinary prose like "Green Mantra (our blend)" untouched.
+const TOOL_SYNTAX_RE = /\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\s*\((?:[^()]|\{[^}]*\})*\)/g;
+
+export function stripToolSyntax(input: string): string {
+  return input
+    .replace(TOOL_SYNTAX_RE, '')
+    .replace(/ {2,}/g, ' ')
+    .replace(/\s+([.,!?])/g, '$1')
+    .trim();
+}
+
 export function segmentSay(input: string): string[] {
   return input
     .split(/\n{2,}/)
