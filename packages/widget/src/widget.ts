@@ -18,6 +18,10 @@ import { renderPill } from './ui/pill.js';
 
 const TAG = 'shoppingmate-widget';
 
+// Merchants that get the proactive "incoming call" launcher invite.
+const DEMO_MERCHANT_ID = 'SM-XPK2EN';
+const CALMOSIS_MERCHANT_ID = 'SM-2SCCLZ';
+
 const POSITION_CLASSES = new Set([
   'bottom-right',
   'bottom-left',
@@ -172,13 +176,11 @@ class WidgetElement extends HTMLElement {
       onStatus: (status) => this.store.dispatch({ type: 'set_connection', status }),
     });
 
-    const DEMO_MERCHANT_ID = 'SM-XPK2EN';
-    if (this.merchantId === DEMO_MERCHANT_ID) {
-      // Proactive "incoming call" invite. After a few seconds of silent
-      // browsing the launcher flips to the INCOMING CALL treatment (magenta
-      // caption + green Accept). Accepting starts the call AND requests the
-      // guided tour — preserving the old soft-prompt's tour_request behavior,
-      // now folded into the pill instead of a separate body-mounted bubble.
+    // Proactive "incoming call" invite. After a few seconds of silent browsing
+    // the launcher flips to the INCOMING CALL treatment (magenta caption + green
+    // Accept) to entice the visitor to start a call. Enabled for the demo and
+    // for Calmosis (first paid client — drives conversion on ad traffic).
+    if (this.merchantId === DEMO_MERCHANT_ID || this.merchantId === CALMOSIS_MERCHANT_ID) {
       this.inviteTimer = setTimeout(() => {
         if (this.store.get().voiceState === 'idle' && this.store.get().mode === 'pill') {
           this.store.dispatch({ type: 'set_invited', invited: true });
@@ -311,7 +313,11 @@ class WidgetElement extends HTMLElement {
     // (preserves the retired soft-prompt's tour_request). Clear the invite so
     // the launcher leaves the INCOMING CALL state as the call begins.
     if (this.store.get().invited) {
-      this.publishWidgetMessage({ type: 'tour_request' });
+      // The guided tour is demo-only. Real merchants (Calmosis) accept the
+      // invite straight into a normal call — no tour_request.
+      if (this.merchantId === DEMO_MERCHANT_ID) {
+        this.publishWidgetMessage({ type: 'tour_request' });
+      }
       this.store.dispatch({ type: 'set_invited', invited: false });
     }
     if (this.inviteTimer) {
