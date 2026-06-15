@@ -31,9 +31,32 @@ Proven with a diagnostic: `getDashboardSession` returned the mock when imported 
 
 ## Phase 1–5 — New feature verification
 
-(Filled in as each phase lands; see plan `docs/superpowers/plans/2026-06-15-calmosis-brand-dashboard.md`.)
+All implemented and committed. Test evidence (canonical per-package configs):
 
-## Live smoke (requires DB creds + a live bot session)
+- **Changed backend packages** (`npx vitest run packages/agent packages/db apps/api apps/voice-agent`): **232 passed / 232**.
+  - `conversationRecorder` (3), funnel-metric runtime test (checkout.reached on /checkout nav), COD conversion route test — all green.
+- **Web dashboard** (`cd web && pnpm vitest run`): **78 passed / 78** (was 73 after Phase 0; +5 new: audit-repo, funnel-repo, /api/live ×2, Sidebar Audit link).
+- **Builds**: `@shoppingmate/db`, `@shoppingmate/agent`, `@shoppingmate/api`, `@shoppingmate/voice-agent` all `tsc` clean; `web` `tsc --noEmit` clean.
+
+Delivered:
+- `conversationCompleted` now emitted from voice (`agentWorker.ts`) + text (`apps/api/src/index.ts`) with transcript/outcome/duration/turns/funnel tags → lights up Conversations page, transcript drill-down, Conversations KPI.
+- Funnel metrics `cart.add` + `checkout.reached` emitted at the shared runtime dispatch chokepoint (both voice + text inherit).
+- `match_source='cod'` accepted by `/v1/conversion` for Calmosis bot-driven COD orders.
+- `/app/audit` conversions ledger page + transcript links; bot-driven funnel card + live-now panel on Home; `/api/live` polling endpoint.
+
+### Note on test-runner configs
+
+Running `npx vitest run` at the **repo root** shows failures that are NOT product bugs:
+- `packages/widget/src/host/activity.test.ts` — 2 happy-dom **timeouts** (environmental/flaky), pre-existing at HEAD; widget files untouched by this work.
+- Web route tests fail under the root config because the `@`-alias fix lives in `web/vitest.config.ts`, not the root config. Run web tests with `cd web && pnpm vitest run` (78/78 green).
+
+Use per-package test commands (above) as the source of truth.
+
+### Git-state incident (resolved)
+
+While running a diagnostic stash, a `git stash pop` (no arg) accidentally applied an unrelated pre-existing stash (`stash@{0}: On bucket-b-demo: task16-cleanup-leftover-noise`) on top of committed work, injecting conflict markers into several files. Resolved by restoring all affected files to HEAD (the tested, known-good state). The `task16` stash was left intact in the stash list — it contains old, never-committed "barge-in / cutPlayback" voice-agent work the user can recover deliberately if wanted. No committed work was lost; post-recovery builds + tests are green.
+
+## Live smoke (requires DB creds + a live bot session — operator)
 
 1. Drive a Calmosis bot conversation: recommend → cart.add → checkout nav → COD order.
 2. `node apps/api/scripts/check-calmosis-metrics.mjs <merchantId>` → expect `conversationCompleted`, `cart.add`, `checkout.reached`.
