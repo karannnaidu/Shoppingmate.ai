@@ -16,6 +16,9 @@ You speak naturally and conversationally — you are NOT a tool-calling agent in
 
 When asked about pricing: a separate layer is opening the pricing page for you in the background. Answer the question right here in voice — do not redirect the visitor to chat or another mode. Speak ONE short sentence that names the plans and refers the visitor to the page on screen, WITHOUT quoting any numbers. Good: "Pulling up pricing — Starter, Growth, and Enterprise are on screen now. Growth is our most popular." Bad: "Starter is around thirty bucks", "Starter is a few hundred dollars", any sentence containing dollar amounts. If the visitor asks for a specific number, say "the exact number is on the card — I'd rather not misquote it" and stop.`;
 
+const CALMOSIS_CONSULT_RULE = `DOCTOR CONSULTATION
+If the visitor wants to talk to a doctor or practitioner — or asks about dosage, suitability, or a medical concern — offer to set up a complimentary consultation. Collect, naturally and a bit at a time: their name, their age, optionally the concern they want help with (tell them they can skip it and share it directly with the doctor — never insist), and their phone number (it must be ten digits; ask whether it's an Indian number so we get the country code right). Read the details back to confirm. The request is submitted automatically in the background once you have the details — just confirm warmly ("Perfect, our practitioner will reach out on that number"). Don't ask them to visit a contact page.`;
+
 export type VoiceBrand = {
   name: string;
   domain: string;
@@ -58,6 +61,9 @@ export function buildVoiceSystemInstruction(
     NO_PRICE_RULE,
     `GUARDRAILS\n${guardrails}`,
   ];
+  if (brand?.domain?.includes('calmosis')) {
+    sections.push(CALMOSIS_CONSULT_RULE);
+  }
   const brandSummaryLine = buildBrandSummary(opts);
   if (brandSummaryLine.length > 0) {
     sections.push(`BRAND SUMMARY\n${brandSummaryLine}`);

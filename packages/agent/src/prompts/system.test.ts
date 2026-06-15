@@ -78,6 +78,45 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     // Must NOT carry the "you cannot add to cart" lie-guard (Calmosis CAN add now).
     expect(p).not.toMatch(/cannot add .*cart/i);
   });
+
+  it('explains Bliss Club fully and correctly (10% not 20%, real benefits, ₹299/6mo)', () => {
+    const p = buildSystemPrompt(calmosis);
+    // Authoritative benefits — the bot must be able to actually describe it.
+    expect(p).toMatch(/10%/);
+    expect(p).toMatch(/free delivery/i);
+    expect(p).toMatch(/early access/i);
+    expect(p).toMatch(/retreat/i);
+    expect(p).toMatch(/299/);
+    expect(p).toMatch(/6 months/i);
+    // The discount is 10% — the old 20% plan is gone; never quote 20%.
+    expect(p).not.toMatch(/20\s*%/);
+  });
+
+  it('exempts Bliss Club from the "show a card / never say the price" rule', () => {
+    const p = buildSystemPrompt(calmosis);
+    // bliss-club is not in the catalog, so products.search/get can't surface a
+    // card — the bot must state the price/benefits directly instead of stalling.
+    expect(p).toMatch(/no product card/i);
+    expect(p).toMatch(/state .*(price|details)/i);
+  });
+
+  it('tells the bot to enroll via cart.add({sku:"bliss-club"})', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/cart\.add\(\{\s*sku:\s*["']bliss-club["']/);
+  });
+
+  it('includes the consultation intake flow and the consultation.request tool', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/DOCTOR CONSULTATION/);
+    expect(p).toMatch(/consultation\.request/);
+    expect(p).toMatch(/10 digits/i);
+    expect(p).toMatch(/\+91/);
+  });
+
+  it('forbids speaking tool/function syntax', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/never speak tool names/i);
+  });
 });
 
 describe('SITE_GRAPH_SLOT injection', () => {
