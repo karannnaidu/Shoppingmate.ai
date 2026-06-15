@@ -76,9 +76,19 @@ const TOOL_SYNTAX_RE = /\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\s*\((?:[^()]|\{[^}]*\}
 // place so the sentence keeps its period.
 const LEAKED_TOKEN_RE = /\b[a-z]+(?:_[a-z]+)+\b:?/gi;
 
+// Leaked tool calls with NO parens, e.g. `site.navigate https://x/shop/`,
+// `products.search sleep-mantra`, `cart.add green-mantra`, or chained like
+// `coupons.apply CALM10 checkout.url`. The model appends the invocation after
+// its natural sentence, so we match an EXACT known tool name (not just any
+// dotted word — that keeps real words like "checkout." intact) and strip from
+// there to the end of the line, including any chained calls / args after it.
+const TOOL_TRAILER_RE =
+  /\b(?:site\.(?:navigate|scroll_to|highlight|click|point_at|demo_click)|products\.(?:search|get)|cart\.(?:add|update|get|open)|coupons?\.apply|checkout\.(?:url|fill|place)|consultation\.request|pricing\.quote)\b.*$/is;
+
 export function stripToolSyntax(input: string): string {
   return input
     .replace(TOOL_SYNTAX_RE, '')
+    .replace(TOOL_TRAILER_RE, '')
     .replace(LEAKED_TOKEN_RE, '')
     .replace(/ {2,}/g, ' ')
     .replace(/\s+([.,!?])/g, '$1')

@@ -85,6 +85,37 @@ describe('stripToolSyntax', () => {
     const s = 'The green-mantra blend is a calm, easy pick.';
     expect(stripToolSyntax(s)).toBe(s);
   });
+  it('strips a no-paren site.navigate trailer (with a URL arg)', () => {
+    expect(
+      stripToolSyntax(
+        "I'm taking you to our shop page now. You can see all of our products there. site.navigate https://calmosis.com/shop/",
+      ),
+    ).toBe("I'm taking you to our shop page now. You can see all of our products there.");
+  });
+  it('strips a glued products.search trailer', () => {
+    expect(
+      stripToolSyntax("I've pulled it up for you.products.search sleep-mantra"),
+    ).toBe("I've pulled it up for you.");
+    expect(stripToolSyntax('Certainly. Here is Peace Mantra.products.search peace-mantra')).toBe(
+      'Certainly. Here is Peace Mantra.',
+    );
+  });
+  it('strips a glued cart.add trailer but keeps the sentence', () => {
+    expect(
+      stripToolSyntax('Sure, I have added Green Mantra to your cart. Anything else?cart.add green-mantra'),
+    ).toBe('Sure, I have added Green Mantra to your cart. Anything else?');
+  });
+  it('strips chained coupons.apply + checkout.url and keeps the word "checkout"', () => {
+    expect(
+      stripToolSyntax(
+        "Certainly. I'm applying the CALM10 discount now and taking you to checkout.coupons.apply CALM10 checkout.url",
+      ),
+    ).toBe("Certainly. I'm applying the CALM10 discount now and taking you to checkout.");
+  });
+  it('leaves the bare word "checkout." in prose untouched', () => {
+    const s = "Great — let's head to checkout.";
+    expect(stripToolSyntax(s)).toBe(s);
+  });
 });
 
 describe('segmentSay()', () => {
