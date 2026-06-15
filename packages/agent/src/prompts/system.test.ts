@@ -130,6 +130,14 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).toMatch(/upsell/i);
     expect(p).toMatch(/COUPONS/);
   });
+
+  it('drives bot checkout completion with a read-back + explicit confirm before placing', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/checkout\.fill/);
+    expect(p).toMatch(/checkout\.place/);
+    expect(p).toMatch(/read the (whole )?order back|READ THE WHOLE ORDER BACK/i);
+    expect(p).toMatch(/only after they say yes|explicit yes/i);
+  });
 });
 
 describe('SITE_GRAPH_SLOT injection', () => {

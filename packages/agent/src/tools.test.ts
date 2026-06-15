@@ -95,6 +95,18 @@ describe('buildToolSurface()', () => {
     const otherSiteGraph = { id: 'M-OTHER', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
     expect(buildToolSurface(otherSiteGraph).map((t) => t.function.name)).not.toContain('consultation.request');
   });
+
+  it('exposes checkout.fill + checkout.place only on the Calmosis surface', () => {
+    const calmosis = { id: 'SM-2SCCLZ', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
+    const names = buildToolSurface(calmosis).map((t) => t.function.name);
+    expect(names).toContain('checkout.fill');
+    expect(names).toContain('checkout.place');
+
+    const otherSiteGraph = { id: 'M-OTHER', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
+    const otherNames = buildToolSurface(otherSiteGraph).map((t) => t.function.name);
+    expect(otherNames).not.toContain('checkout.fill');
+    expect(otherNames).not.toContain('checkout.place');
+  });
 });
 
 function makeAdapter(overrides: Partial<Adapter> = {}): Adapter {

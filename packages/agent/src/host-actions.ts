@@ -11,7 +11,22 @@ export type HostAction =
   | { type: 'open_cart' }
   // Calmosis stitch: set absolute quantity (qty<=0 removes) + apply a coupon.
   | { type: 'cart_set_qty'; sku: string; qty: number }
-  | { type: 'apply_coupon'; code: string };
+  | { type: 'apply_coupon'; code: string }
+  // Brand-agnostic checkout completion (opt-in): the storefront exposes
+  // window.__shoppingmateCheckoutFill__(details) and __shoppingmatePlaceOrder__().
+  // The bot fills the visitor's details, reads the order back for confirmation,
+  // then places it. Brands that don't expose the hooks fall back to navigate.
+  | { type: 'checkout_fill'; details: CheckoutDetails }
+  | { type: 'checkout_place' };
+
+export type CheckoutDetails = {
+  name: string;
+  phone: string;
+  address: string;
+  email?: string;
+  pincode?: string;
+  payment: 'cod' | 'prepaid';
+};
 
 export type HostActionResult =
   | { ok: true }

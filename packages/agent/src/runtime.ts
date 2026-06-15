@@ -339,7 +339,9 @@ export async function* runTurn(
           (call.name === 'cart.add' ||
             call.name === 'cart.open' ||
             call.name === 'cart.update' ||
-            call.name === 'coupon.apply');
+            call.name === 'coupon.apply' ||
+            call.name === 'checkout.fill' ||
+            call.name === 'checkout.place');
         if (call.name === 'consultation.request') {
           const v = validateConsultationRequest(args);
           if (!v.ok) {
@@ -397,6 +399,12 @@ export async function* runTurn(
                   merchantId: merchant.id,
                   sessionId: session.sessionId,
                   source: 'navigate',
+                });
+              }
+              if (action.type === 'checkout_place') {
+                await deps.recordMetric('checkout.placed', {
+                  merchantId: merchant.id,
+                  sessionId: session.sessionId,
                 });
               }
             }
@@ -620,6 +628,20 @@ function toHostAction(name: string, args: Record<string, unknown>): HostAction {
       return { type: 'cart_set_qty', sku: String(args.sku ?? ''), qty: Math.max(0, Number(args.qty) || 0) };
     case 'coupon.apply':
       return { type: 'apply_coupon', code: String(args.code ?? '') };
+    case 'checkout.fill':
+      return {
+        type: 'checkout_fill',
+        details: {
+          name: String(args.name ?? ''),
+          phone: String(args.phone ?? ''),
+          address: String(args.address ?? ''),
+          email: typeof args.email === 'string' ? args.email : undefined,
+          pincode: typeof args.pincode === 'string' ? args.pincode : undefined,
+          payment: args.payment === 'prepaid' ? 'prepaid' : 'cod',
+        },
+      };
+    case 'checkout.place':
+      return { type: 'checkout_place' };
     default:
       throw new Error(`toHostAction: unknown site tool ${name}`);
   }

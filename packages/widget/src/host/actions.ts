@@ -12,7 +12,18 @@ export type HostAction =
   | { type: 'cart_add'; sku: string; qty: number }
   | { type: 'open_cart' }
   | { type: 'cart_set_qty'; sku: string; qty: number }
-  | { type: 'apply_coupon'; code: string };
+  | { type: 'apply_coupon'; code: string }
+  | { type: 'checkout_fill'; details: CheckoutDetails }
+  | { type: 'checkout_place' };
+
+export type CheckoutDetails = {
+  name: string;
+  phone: string;
+  address: string;
+  email?: string;
+  pincode?: string;
+  payment: 'cod' | 'prepaid';
+};
 
 export type HostActionResult =
   | { ok: true }
@@ -40,6 +51,40 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return cartSetQty(action.sku, action.qty);
     case 'apply_coupon':
       return applyCoupon(action.code);
+    case 'checkout_fill':
+      return checkoutFill(action.details);
+    case 'checkout_place':
+      return placeOrder();
+  }
+}
+
+// Brand-agnostic checkout hooks. The storefront opts in by exposing
+// window.__shoppingmateCheckoutFill__(details) → boolean | Promise<boolean>
+// (populate the checkout form) and __shoppingmatePlaceOrder__() →
+// boolean | Promise<boolean> (submit the order). Absent hook → not_found, and
+// the bot falls back to navigating the visitor to the checkout page.
+type CheckoutFillHook = (details: CheckoutDetails) => boolean | Promise<boolean>;
+type PlaceOrderHook = () => boolean | Promise<boolean>;
+
+async function checkoutFill(details: CheckoutDetails): Promise<HostActionResult> {
+  const fn = (window as unknown as { __shoppingmateCheckoutFill__?: CheckoutFillHook })
+    .__shoppingmateCheckoutFill__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    return (await fn(details)) ? { ok: true } : { ok: false, reason: 'not_found' };
+  } catch {
+    return { ok: false, reason: 'not_found' };
+  }
+}
+
+async function placeOrder(): Promise<HostActionResult> {
+  const fn = (window as unknown as { __shoppingmatePlaceOrder__?: PlaceOrderHook })
+    .__shoppingmatePlaceOrder__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    return (await fn()) ? { ok: true } : { ok: false, reason: 'not_found' };
+  } catch {
+    return { ok: false, reason: 'not_found' };
   }
 }
 

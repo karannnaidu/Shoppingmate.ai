@@ -110,6 +110,40 @@ const CALMOSIS_CONSULT_TOOL: ToolDef = {
   },
 };
 
+// Calmosis-only checkout completion (host actions → storefront hooks). The bot
+// fills the visitor's details, reads the order back, then places it on a yes.
+const CALMOSIS_CHECKOUT_TOOLS: ToolDef[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'checkout.fill',
+      description:
+        "Fill the visitor's details into the Calmosis checkout so the order is ready to place. Call this once you've collected their name, phone, full delivery address, and payment choice. Then read the order back (items + address + payment) and ask them to confirm before placing.",
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          phone: { type: 'string', description: '10-digit phone' },
+          address: { type: 'string', description: 'Full delivery address' },
+          email: { type: 'string' },
+          pincode: { type: 'string' },
+          payment: { type: 'string', enum: ['cod', 'prepaid'] },
+        },
+        required: ['name', 'phone', 'address', 'payment'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'checkout.place',
+      description:
+        'Place the order. Call this ONLY after checkout.fill succeeded AND the visitor has explicitly confirmed the order you read back to them. Only say the order is placed if this returns success.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+];
+
 export function buildToolSurface(merchant: Merchant): ToolDef[] {
   const productTools: ToolDef[] = [
     {
@@ -221,7 +255,7 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
     : [...productTools, ...checkoutTools];
   if (merchant.siteGraphEnabled) {
     const siteTools = isCalmosisStitch(merchant)
-      ? [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS, CALMOSIS_CONSULT_TOOL]
+      ? [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS, ...CALMOSIS_CHECKOUT_TOOLS, CALMOSIS_CONSULT_TOOL]
       : SITE_NAV_TOOLS;
     return [...base, ...siteTools];
   }

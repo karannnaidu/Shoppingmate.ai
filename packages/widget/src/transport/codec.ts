@@ -68,7 +68,18 @@ export type HostAction =
   | { type: 'cart_add'; sku: string; qty: number }
   | { type: 'open_cart' }
   | { type: 'cart_set_qty'; sku: string; qty: number }
-  | { type: 'apply_coupon'; code: string };
+  | { type: 'apply_coupon'; code: string }
+  | { type: 'checkout_fill'; details: CheckoutDetails }
+  | { type: 'checkout_place' };
+
+export type CheckoutDetails = {
+  name: string;
+  phone: string;
+  address: string;
+  email?: string;
+  pincode?: string;
+  payment: 'cod' | 'prepaid';
+};
 
 export type HostActionResult =
   | { ok: true }
@@ -89,9 +100,18 @@ function isValidHostAction(a: any): a is HostAction {
     case 'cart_set_qty':
       return typeof a.sku === 'string' && typeof a.qty === 'number';
     case 'open_cart':
+    case 'checkout_place':
       return true;
     case 'apply_coupon':
       return typeof a.code === 'string';
+    case 'checkout_fill':
+      return (
+        !!a.details &&
+        typeof a.details.name === 'string' &&
+        typeof a.details.phone === 'string' &&
+        typeof a.details.address === 'string' &&
+        (a.details.payment === 'cod' || a.details.payment === 'prepaid')
+      );
     default:
       return false;
   }

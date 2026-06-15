@@ -593,6 +593,47 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
     )) { /* drain */ }
     expect(metrics.some((m) => m.name === 'checkout.reached' && m.tags.source === 'navigate')).toBe(true);
   });
+
+  it('places the order via host action and emits checkout.placed (Calmosis)', async () => {
+    const metrics: Array<{ name: string; tags: any }> = [];
+    const actions: any[] = [];
+    const fakeChatTools = vi
+      .fn()
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ id: 'tc1', name: 'checkout.place', argumentsJson: '{}' }],
+      })
+      .mockResolvedValueOnce({ text: 'Your order is placed!', toolCalls: [] });
+    const calmosis = {
+      id: 'SM-2SCCLZ',
+      name: 'Calmosis',
+      domain: 'calmosis.com',
+      personaId: 'calmosis-clinician',
+      adapterType: 'dom',
+      siteGraphEnabled: true,
+    } as any;
+    for await (const _ev of runTurn(
+      {
+        loadAdapter: () => fakeAdapter(),
+        saveSession: async () => {},
+        recordMetric: async (name: string, tags: any) => {
+          metrics.push({ name, tags });
+        },
+        chatToolsImpl: fakeChatTools as any,
+        dispatchHostAction: async (a: any) => {
+          actions.push(a);
+          return { ok: true as const };
+        },
+      } as any,
+      calmosis,
+      makeBaseSession({ merchantId: 'SM-2SCCLZ' }),
+      { type: 'user_text', sessionId: 's1', text: 'place my order', mode: 'voice' },
+    )) {
+      /* drain */
+    }
+    expect(actions.some((a) => a.type === 'checkout_place')).toBe(true);
+    expect(metrics.some((m) => m.name === 'checkout.placed')).toBe(true);
+  });
 });
 
 describe('runTurn() — consultation.request', () => {
