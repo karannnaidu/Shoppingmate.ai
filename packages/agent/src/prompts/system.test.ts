@@ -136,7 +136,7 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).toMatch(/checkout\.fill/);
     expect(p).toMatch(/checkout\.place/);
     expect(p).toMatch(/read the (whole )?order back|READ THE WHOLE ORDER BACK/i);
-    expect(p).toMatch(/only after they say yes|explicit yes/i);
+    expect(p).toMatch(/the moment they say yes|immediately/i);
   });
 });
 
