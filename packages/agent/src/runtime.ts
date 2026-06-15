@@ -3,7 +3,8 @@ import type { Merchant } from '@shoppingmate/db';
 import { type ChatToolsResult, chatTools } from '@shoppingmate/shared';
 import { checkCaps } from './caps.js';
 import type { HostAction, HostActionResult } from './host-actions.js';
-import { redactPii, segmentSay, stripPrices } from './postprocess.js';
+import { redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
+import { validateConsultationRequest } from './consultation.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
 import { type ToolResultEnvelope, buildToolSurface, dispatchTool, isCalmosisStitch } from './tools.js';
 import type {
@@ -95,6 +96,18 @@ export type RunTurnDeps = {
   // when they grow `sku` args), runTurn fire-and-forgets a row through here
   // so attributeOrder can join assisted attribution on Shopify webhooks.
   recommendationStore?: RecommendationStore;
+  // Persist + notify boundary for consultation.request (Calmosis). Wired in
+  // apps/api (text) and apps/voice-agent (voice). When omitted the tool returns
+  // an unsupported envelope (dev guard; never in prod).
+  submitConsultation?: (req: {
+    name: string;
+    age: number;
+    condition: string | null;
+    phoneCountryCode: string;
+    phone: string;
+    merchantId: string;
+    sessionId: string;
+  }) => Promise<{ ok: true } | { ok: false; reason: string }>;
 };
 
 export async function* runTurn(
@@ -218,7 +231,7 @@ export async function* runTurn(
     if (ackFirstFailed) {
       yield { type: 'say', text: 'Hold on a sec…' };
     }
-    const { text: stripped } = stripPrices(ack.text);
+    const { text: stripped } = stripPrices(stripToolSyntax(ack.text));
     for (const segment of segmentSay(stripped)) yield { type: 'say', text: segment };
     await deps.saveSession({
       ...cardTapSession,
@@ -229,11 +242,14 @@ export async function* runTurn(
     return;
   }
 
-  const userText = redactPii(message.text);
+  // Transient PII: the model needs the visitor's raw words this turn (so it can
+  // read a dictated phone number into consultation.request), but we never PERSIST
+  // raw PII — stored history keeps the redacted form.
+  const redactedUserText = redactPii(message.text);
   const history: AnthropicMessage[] = [
     { role: 'system', content: buildSystemPrompt(merchant, promptOpts) },
     ...session.history,
-    { role: 'user', content: userText },
+    { role: 'user', content: message.text },
   ];
 
   yield { type: 'thinking' };
@@ -318,7 +334,30 @@ export async function* runTurn(
             call.name === 'cart.open' ||
             call.name === 'cart.update' ||
             call.name === 'coupon.apply');
-        if (
+        if (call.name === 'consultation.request') {
+          const v = validateConsultationRequest(args);
+          if (!v.ok) {
+            envelope = { ok: false, kind: 'unsupported', reason: v.reason };
+          } else if (!deps.submitConsultation) {
+            envelope = { ok: false, kind: 'unsupported', reason: 'consultation_not_wired' };
+          } else {
+            const res = await deps.submitConsultation({
+              ...v.value,
+              merchantId: merchant.id,
+              sessionId: session.sessionId,
+            });
+            envelope = res.ok
+              ? { ok: true, value: { submitted: true } }
+              : { ok: false, kind: 'unsupported', reason: res.reason };
+            if (res.ok) {
+              await deps.recordMetric('consultation.requested', {
+                merchantId: merchant.id,
+                sessionId: session.sessionId,
+              });
+            }
+          }
+          // NOTE: the shared `agent.tool.invoked` emit below fires for this tool too.
+        } else if (
           call.name === 'site.navigate' ||
           call.name === 'site.scroll_to' ||
           call.name === 'site.highlight' ||
@@ -431,7 +470,7 @@ export async function* runTurn(
   }
 
   const responseText = response?.text ?? '';
-  const { text: stripped, hits } = stripPrices(responseText, new Set(accumulatedAllowedTokens));
+  const { text: stripped, hits } = stripPrices(stripToolSyntax(responseText), new Set(accumulatedAllowedTokens));
   const firstHit = hits[0];
   if (firstHit) {
     await deps.recordMetric(
@@ -458,7 +497,7 @@ export async function* runTurn(
   const finalAssistant: AnthropicMessage = { role: 'assistant', content: responseText };
   const updated: SessionState = {
     ...session,
-    history: [...session.history, { role: 'user', content: userText }, finalAssistant],
+    history: [...session.history, { role: 'user', content: redactedUserText }, finalAssistant],
     turnCount: session.turnCount + 1,
     voiceMs: session.mode === 'voice' ? session.voiceMs + (Date.now() - now) : session.voiceMs,
     totalMs: Date.now() - session.startedAt,
