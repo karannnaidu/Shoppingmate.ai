@@ -92,12 +92,11 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).not.toMatch(/20\s*%/);
   });
 
-  it('exempts Bliss Club from the "show a card / never say the price" rule', () => {
+  it('shows the Bliss Club card via products.get (now in the catalog)', () => {
     const p = buildSystemPrompt(calmosis);
-    // bliss-club is not in the catalog, so products.search/get can't surface a
-    // card — the bot must state the price/benefits directly instead of stalling.
-    expect(p).toMatch(/no product card/i);
-    expect(p).toMatch(/state .*(price|details)/i);
+    // bliss-club now has a product card; the bot brings it up like any product.
+    expect(p).toMatch(/bliss club now has a product card/i);
+    expect(p).toMatch(/products\.get\(\{\s*sku:\s*["']bliss-club["']/);
   });
 
   it('tells the bot to enroll via cart.add({sku:"bliss-club"})', () => {
