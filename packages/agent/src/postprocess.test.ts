@@ -71,6 +71,20 @@ describe('stripToolSyntax', () => {
     const s = 'You can consult our practitioner.';
     expect(stripToolSyntax(s)).toBe(s);
   });
+  it('strips a leaked snake_case tool token (robot_call:) glued to a word', () => {
+    expect(stripToolSyntax('I have added Peace Mantra to your cart.robot_call: robot_call:')).toBe(
+      'I have added Peace Mantra to your cart.',
+    );
+  });
+  it('strips a repeated bare snake_case token', () => {
+    expect(stripToolSyntax('Taking you to checkout now.robot_call: robot_call:')).toBe(
+      'Taking you to checkout now.',
+    );
+  });
+  it('leaves hyphenated product names untouched', () => {
+    const s = 'The green-mantra blend is a calm, easy pick.';
+    expect(stripToolSyntax(s)).toBe(s);
+  });
 });
 
 describe('segmentSay()', () => {

@@ -69,9 +69,17 @@ export function redactPii(input: string): string {
 // ordinary prose like "Green Mantra (our blend)" untouched.
 const TOOL_SYNTAX_RE = /\b[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\s*\((?:[^()]|\{[^}]*\})*\)/g;
 
+// Bare leaked tool TOKENS with no parens, e.g. the Gemini voice-caption form
+// `robot_call:` (often repeated). snake_case identifiers never occur in natural
+// speech, so stripping them is safe; hyphenated product names (green-mantra) and
+// ordinary words are untouched. The leading "." in "cart.robot_call:" is left in
+// place so the sentence keeps its period.
+const LEAKED_TOKEN_RE = /\b[a-z]+(?:_[a-z]+)+\b:?/gi;
+
 export function stripToolSyntax(input: string): string {
   return input
     .replace(TOOL_SYNTAX_RE, '')
+    .replace(LEAKED_TOKEN_RE, '')
     .replace(/ {2,}/g, ' ')
     .replace(/\s+([.,!?])/g, '$1')
     .trim();

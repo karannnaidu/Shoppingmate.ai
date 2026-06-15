@@ -117,6 +117,12 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     const p = buildSystemPrompt(calmosis);
     expect(p).toMatch(/never speak tool names/i);
   });
+
+  it('has cart-accuracy guardrails (no wrong/extra adds, read back the cart)', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/CART ACCURACY/);
+    expect(p).toMatch(/read back/i);
+  });
 });
 
 describe('SITE_GRAPH_SLOT injection', () => {
