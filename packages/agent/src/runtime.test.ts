@@ -243,6 +243,39 @@ describe('runTurn() — happy path', () => {
     expect(says.join(' ')).toMatch(/the price on the card/);
   });
 
+  it('lets Calmosis speak the Bliss Club membership price (₹299) — it has no card', async () => {
+    vi.mocked(chatTools).mockResolvedValueOnce({
+      text: 'Bliss Club is ₹299 for 6 months — great value.',
+      toolCalls: [],
+      stopReason: 'stop',
+      inputTokens: 30,
+      outputTokens: 8,
+    });
+    const calmosis = {
+      id: 'SM-2SCCLZ',
+      domain: 'calmosis.com',
+      name: 'Calmosis',
+      personaId: 'calmosis-clinician',
+      adapterType: 'dom',
+      siteGraphEnabled: true,
+    } as unknown as Merchant;
+    const events = [];
+    for await (const ev of runTurn(deps, calmosis, baseSession({ merchantId: 'SM-2SCCLZ' }), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'how much is bliss club?',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+    const says = events
+      .filter((e) => e.type === 'say')
+      .map((e) => (e as { text: string }).text)
+      .join(' ');
+    expect(says).toMatch(/₹299/);
+    expect(says).not.toMatch(/the price on the card/);
+  });
+
   it('records agent.tool.retry_exhausted after 3 same-args invocations', async () => {
     const sameCall = {
       id: 'c1',

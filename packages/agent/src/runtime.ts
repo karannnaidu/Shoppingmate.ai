@@ -260,6 +260,12 @@ export async function* runTurn(
   const collectedCards: CardItem[] = [];
   const toolCallCounts = new Map<string, number>();
   const accumulatedAllowedTokens: string[] = [...session.allowedSpeechTokens];
+  // Bliss Club is a membership with no product card, so the bot must be allowed
+  // to speak its price (₹299) directly — otherwise stripPrices() rewrites it to
+  // the misleading "the price on the card" (there is no card for the membership).
+  if (isCalmosisStitch(merchant)) {
+    accumulatedAllowedTokens.push('₹299', '299');
+  }
 
   let response: ChatToolsResult | undefined;
   for (let iter = 0; iter < MAX_TOOL_LOOP_ITERATIONS; iter += 1) {

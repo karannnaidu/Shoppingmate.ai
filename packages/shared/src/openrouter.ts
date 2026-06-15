@@ -97,6 +97,11 @@ export async function chatTools(opts: {
   tools: ToolDef[];
   toolChoice?: 'auto' | 'none' | 'required';
   timeoutMs?: number;
+  /** Cap on output tokens per turn. Bounded by default so OpenRouter does not
+   *  reserve credit for the model's full default output (e.g. 64K on Sonnet),
+   *  which 402s the request when the account balance is low. A shopping reply
+   *  plus tool calls fits comfortably under this. */
+  maxTokens?: number;
 }): Promise<ChatToolsResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY missing');
@@ -137,6 +142,7 @@ export async function chatTools(opts: {
         messages: wireMessages,
         tools: wireTools.length > 0 ? wireTools : undefined,
         tool_choice: wireTools.length > 0 ? (opts.toolChoice ?? 'auto') : undefined,
+        max_tokens: opts.maxTokens ?? 2048,
       }),
       signal: controller.signal,
     });

@@ -35,8 +35,17 @@ describe('chatTools()', () => {
     process.env.OPENROUTER_API_KEY = 'test-key';
     server.use(
       http.post('https://openrouter.ai/api/v1/chat/completions', async ({ request }) => {
-        const body = (await request.json()) as { tools: unknown[]; messages: unknown[] };
+        const body = (await request.json()) as {
+          tools: unknown[];
+          messages: unknown[];
+          max_tokens?: number;
+        };
         expect(body.tools).toHaveLength(1);
+        // Must bound max_tokens — otherwise OpenRouter reserves credit for the
+        // model's full default output (64K), 402-ing when the balance is low.
+        expect(typeof body.max_tokens).toBe('number');
+        expect(body.max_tokens).toBeGreaterThan(0);
+        expect(body.max_tokens).toBeLessThanOrEqual(4096);
         return HttpResponse.json({
           choices: [
             {
