@@ -60,6 +60,8 @@ export type BridgeDeps = {
   // Optional sink for recommendation_events. Threaded into RunTurnDeps so the
   // chat tool-loop can fire-and-forget rows when the model names a SKU.
   recommendationStore?: RecommendationStore;
+  // Persist + notify boundary for consultation.request — threaded into RunTurnDeps.
+  submitConsultation?: RunTurnDeps['submitConsultation'];
 };
 
 export type Bridge = {
@@ -108,6 +110,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
           ? (action) => api.dispatchHostAction!(action)
           : undefined,
         recommendationStore: deps.recommendationStore,
+        submitConsultation: deps.submitConsultation,
       };
 
       log.info({ sessionId: deps.sessionId }, 'bridge: starting runTurn');
