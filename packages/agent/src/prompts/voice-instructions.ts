@@ -19,6 +19,10 @@ When asked about pricing: a separate layer is opening the pricing page for you i
 const CALMOSIS_CONSULT_RULE = `DOCTOR CONSULTATION
 If the visitor wants to talk to a doctor or practitioner — or asks about dosage, suitability, or a medical concern — offer to set up a complimentary consultation. Collect, naturally and a bit at a time: their name, their age, optionally the concern they want help with (tell them they can skip it and share it directly with the doctor — never insist), and their phone number (it must be ten digits; ask whether it's an Indian number so we get the country code right). Read the details back to confirm. The request is submitted automatically in the background once you have the details — just confirm warmly ("Perfect, our practitioner will reach out on that number"). Don't ask them to visit a contact page.`;
 
+const CALMOSIS_SELLING_RULE = `INTRODUCE YOURSELF & SELL
+Open the call by briefly introducing yourself and what you can do — e.g. "Hi, I'm here from Calmosis — I can help you find the right blend, answer anything about our products, and get you checked out in a couple of minutes." Keep it to one warm sentence, then ask how you can help.
+Throughout, guide the visitor toward a decision and gently upsell where it genuinely helps: suggest a complementary blend, or mention Bliss Club (10% off everything plus free delivery — it pays for itself on a multi-item order). Be helpful, never pushy, and keep the conversation moving toward a completed order. When a discount comes up, offer to find an offer for them rather than narrating mechanics.`;
+
 export type VoiceBrand = {
   name: string;
   domain: string;
@@ -62,6 +66,7 @@ export function buildVoiceSystemInstruction(
     `GUARDRAILS\n${guardrails}`,
   ];
   if (brand?.domain?.includes('calmosis')) {
+    sections.push(CALMOSIS_SELLING_RULE);
     sections.push(CALMOSIS_CONSULT_RULE);
   }
   const brandSummaryLine = buildBrandSummary(opts);

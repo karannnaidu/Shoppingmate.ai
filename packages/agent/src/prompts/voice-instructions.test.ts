@@ -57,6 +57,17 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).not.toContain('cart.add(');
   });
 
+  it('Calmosis voice instruction introduces itself and drives upsell/conversion', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS['calmosis-clinician']!, {
+      name: 'Calmosis',
+      domain: 'calmosis.com',
+    });
+    expect(out).toMatch(/introduce yourself/i);
+    expect(out).toMatch(/upsell|Bliss Club/i);
+    // anti-priming: still no literal tool-call examples
+    expect(out).not.toContain('coupon.apply(');
+  });
+
   it('demo mode tells the voice model not to recite tool names and to answer pricing in voice', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
     expect(out).toContain('VOICE MODE PRICING + TOOLS');

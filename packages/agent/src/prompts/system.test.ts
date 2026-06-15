@@ -123,6 +123,13 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).toMatch(/CART ACCURACY/);
     expect(p).toMatch(/read back/i);
   });
+
+  it('has selling style: self-intro, upsell, and native coupon phrasing', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/SELLING STYLE/);
+    expect(p).toMatch(/upsell/i);
+    expect(p).toMatch(/COUPONS/);
+  });
 });
 
 describe('SITE_GRAPH_SLOT injection', () => {
