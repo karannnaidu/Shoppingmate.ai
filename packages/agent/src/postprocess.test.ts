@@ -54,6 +54,15 @@ describe('stripToolSyntax', () => {
   it('removes a bare tool call', () => {
     expect(stripToolSyntax('Sure. cart.add({"sku":"green-mantra"}) Done!')).toBe('Sure. Done!');
   });
+  it('removes a python-kwarg style leak (the Gemini voice-caption form)', () => {
+    // The exact shape seen leaking into Calmosis voice captions.
+    expect(stripToolSyntax("Sure, adding Peace Mantra to your cart now. cart.add(sku='peace-mantra')")).toBe(
+      'Sure, adding Peace Mantra to your cart now.',
+    );
+    expect(stripToolSyntax("Certainly. Sleep Mantra has been added. cart.add(sku='sleep-mantra')")).toBe(
+      'Certainly. Sleep Mantra has been added.',
+    );
+  });
   it('leaves normal prose with parentheses untouched', () => {
     const s = 'Green Mantra (our calming blend) is a great pick.';
     expect(stripToolSyntax(s)).toBe(s);
