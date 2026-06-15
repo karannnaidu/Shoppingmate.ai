@@ -15,6 +15,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import {
   NoOpWSTransport,
+  createConversationRecorder,
   decodeWidgetMessage,
   loadSession,
   runTurn,
@@ -202,6 +203,12 @@ const agentDefinition = defineAgent({
       .openSession({ sessionId, merchantId: merchant.id, visitorId })
       .catch((err) => log.warn({ err, sessionId }, 'openSession failed'));
 
+    // Accumulates turns + funnel/outcome flags so we can emit a single
+    // conversationCompleted metric on Disconnect. The dashboard's
+    // conversations-repo / kpi-repo read tags.transcript from that event —
+    // without this emit those pages and the Conversations KPI stay empty.
+    const recorder = createConversationRecorder({ sessionId, startMs: Date.now() });
+
     const kbChunkText = kbChunks.length > 0 ? kbChunks.map((c) => c.text).join('\n\n') : '';
     const siteGraphText = projection?.output ?? '';
     const kbText = [kbChunkText, siteGraphText].filter((s) => s.trim().length > 0).join('\n\n') || undefined;
@@ -384,6 +391,14 @@ const agentDefinition = defineAgent({
         // canonical caption. Forward everything else (host_action_request,
         // cards, persona_swap, checkout_redirect, cap_warning, session_closed).
         if (msg.type === 'say' || msg.type === 'say_partial' || msg.type === 'user_text') return;
+        // Mark funnel/outcome from the bot's host actions for conversationCompleted.
+        if (msg.type === 'host_action_request') {
+          if (msg.action.type === 'cart_add') recorder.markCartAdd();
+          if (msg.action.type === 'navigate' && String(msg.action.path).includes('/checkout')) {
+            recorder.markCheckoutReached();
+          }
+        }
+        if (msg.type === 'checkout_redirect') recorder.markCheckoutReached();
         dataChannel.publish(msg);
       },
       closeRoom: () => {
@@ -431,6 +446,7 @@ const agentDefinition = defineAgent({
         // Phase 1 design: Gemini Live owns voice conversation; the visitor's
         // transcript also goes to the widget for caption display.
         dataChannel.publish({ type: 'user_text', text: e.text });
+        recorder.addTurn('user', e.text);
         // Side-channel: route the visitor's text through the chat tool-loop
         // so host_action tools can navigate / scroll / quote pricing while
         // Gemini speaks naturally over the top. The bridge's `say` events
@@ -458,6 +474,7 @@ const agentDefinition = defineAgent({
         dataChannel.publish({ type: 'say_partial', text: e.text });
       } else if (e.type === 'bot_text' && e.text.trim().length > 0) {
         dataChannel.publish({ type: 'say', text: e.text });
+        recorder.addTurn('agent', e.text);
       } else if (e.type === 'audio_out') {
         const samples = e.bytes.length / 2;
         const seconds = samples / 24_000;
@@ -528,6 +545,20 @@ const agentDefinition = defineAgent({
       sessionStore
         .closeSession({ sessionId })
         .catch((err) => log.warn({ err, sessionId }, 'closeSession failed'));
+      // Emit conversationCompleted (with transcript) so the dashboard's
+      // Conversations page, transcript drill-down, and Conversations KPI light
+      // up. Plus a voiceConversation marker for the voice-ratio KPI. Best-effort.
+      const tags = recorder.finish({ mode: 'voice', nowMs: Date.now() });
+      db.insert(schema.metricEvents)
+        .values({ merchantId: merchant.id, metricName: 'conversationCompleted', tags })
+        .then(() =>
+          db.insert(schema.metricEvents).values({
+            merchantId: merchant.id,
+            metricName: 'voiceConversation',
+            tags: { session_id: sessionId },
+          }),
+        )
+        .catch((err) => log.warn({ err, sessionId }, 'conversationCompleted emit failed'));
       log.info({ sessionId }, 'voice-agent job ended');
     });
   },

@@ -10,7 +10,10 @@ export const metricEvents = pgTable(
       .references(() => merchants.id, { onDelete: 'cascade' }),
     metricName: text('metric_name').notNull(),
     value: numeric('value').notNull().default('1'),
-    tags: jsonb('tags').$type<Record<string, string | number | boolean>>(),
+    // jsonb holds flat counters for most events plus nested payloads for
+    // conversationCompleted (tags.transcript is an array of turn objects, read
+    // by web/src/lib/conversations-repo.ts). Hence Record<string, unknown>.
+    tags: jsonb('tags').$type<Record<string, unknown>>(),
     ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
