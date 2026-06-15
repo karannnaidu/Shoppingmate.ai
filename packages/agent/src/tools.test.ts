@@ -99,6 +99,7 @@ describe('buildToolSurface()', () => {
   it('exposes checkout.fill + checkout.place only on the Calmosis surface', () => {
     const calmosis = { id: 'SM-2SCCLZ', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
     const names = buildToolSurface(calmosis).map((t) => t.function.name);
+    expect(names).toContain('checkout.state');
     expect(names).toContain('checkout.fill');
     expect(names).toContain('checkout.place');
 

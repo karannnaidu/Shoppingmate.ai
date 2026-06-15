@@ -17,7 +17,11 @@ export type HostAction =
   // The bot fills the visitor's details, reads the order back for confirmation,
   // then places it. Brands that don't expose the hooks fall back to navigate.
   | { type: 'checkout_fill'; details: CheckoutDetails }
-  | { type: 'checkout_place' };
+  | { type: 'checkout_place' }
+  // Ask the storefront whether the visitor is logged in AND already has a saved
+  // address. ok:true → use the saved address (skip collecting details); ok:false
+  // → guest path, collect details + checkout_fill first.
+  | { type: 'checkout_state' };
 
 export type CheckoutDetails = {
   name: string;

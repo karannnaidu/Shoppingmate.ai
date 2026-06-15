@@ -14,7 +14,8 @@ export type HostAction =
   | { type: 'cart_set_qty'; sku: string; qty: number }
   | { type: 'apply_coupon'; code: string }
   | { type: 'checkout_fill'; details: CheckoutDetails }
-  | { type: 'checkout_place' };
+  | { type: 'checkout_place' }
+  | { type: 'checkout_state' };
 
 export type CheckoutDetails = {
   name: string;
@@ -57,6 +58,25 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return checkoutFill(action.details);
     case 'checkout_place':
       return placeOrder();
+    case 'checkout_state':
+      return checkoutState();
+  }
+}
+
+// ok:true → the visitor is logged in and has a saved address (bot can skip
+// collecting details and place straight away). ok:false → guest / no address,
+// so the bot collects details and uses checkout_fill. Absent hook → not_found,
+// which the bot also treats as "collect details" (safe default).
+type CheckoutStateHook = () => boolean | Promise<boolean>;
+
+async function checkoutState(): Promise<HostActionResult> {
+  const fn = (window as unknown as { __shoppingmateCheckoutState__?: CheckoutStateHook })
+    .__shoppingmateCheckoutState__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    return (await fn()) ? { ok: true } : { ok: false, reason: 'not_found' };
+  } catch {
+    return { ok: false, reason: 'not_found' };
   }
 }
 

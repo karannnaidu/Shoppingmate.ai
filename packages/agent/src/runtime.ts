@@ -341,7 +341,8 @@ export async function* runTurn(
             call.name === 'cart.update' ||
             call.name === 'coupon.apply' ||
             call.name === 'checkout.fill' ||
-            call.name === 'checkout.place');
+            call.name === 'checkout.place' ||
+            call.name === 'checkout.state');
         if (call.name === 'consultation.request') {
           const v = validateConsultationRequest(args);
           if (!v.ok) {
@@ -644,6 +645,8 @@ function toHostAction(name: string, args: Record<string, unknown>): HostAction {
       };
     case 'checkout.place':
       return { type: 'checkout_place' };
+    case 'checkout.state':
+      return { type: 'checkout_state' };
     default:
       throw new Error(`toHostAction: unknown site tool ${name}`);
   }

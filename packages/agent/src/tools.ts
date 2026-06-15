@@ -116,6 +116,15 @@ const CALMOSIS_CHECKOUT_TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
+      name: 'checkout.state',
+      description:
+        'Check the visitor before collecting checkout details. Returns success (ok) if they are already signed in AND have a saved delivery address — in that case DO NOT ask for their details; just confirm and call checkout.place. If it returns an error/not ok, they are a guest (or have no saved address): collect their details and use checkout.fill. Call this once, first, when the visitor is ready to check out.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'checkout.fill',
       description:
         "Fill the visitor's details into the Calmosis checkout so the order is ready to place. Call this once you've collected ALL of: name, 10-digit phone, email, full street address, city, state, and 6-digit pincode (plus their COD/prepaid preference). Then read the order back (items + address + payment) and ask them to confirm before placing.",
