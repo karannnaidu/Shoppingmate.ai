@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { InMemorySessionState, type WSTransport, getAdapter } from '@shoppingmate/adapters';
-import { db, schema } from '@shoppingmate/db';
+import { db, schema, submitConsultationRequest } from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
 import { env, logger } from '@shoppingmate/shared';
 import { and, asc, eq } from 'drizzle-orm';
@@ -234,6 +234,24 @@ mountAgentWs(server, {
       },
       loadPromptOpts: async (m: typeof merchant) => loadPromptOpts(m.id),
       dispatchHostAction,
+      submitConsultation: (req: {
+        name: string;
+        age: number;
+        condition: string | null;
+        phoneCountryCode: string;
+        phone: string;
+        merchantId: string;
+        sessionId: string;
+      }) =>
+        submitConsultationRequest({
+          merchantId: req.merchantId,
+          sessionId: req.sessionId,
+          name: req.name,
+          age: req.age,
+          condition: req.condition,
+          phoneCountryCode: req.phoneCountryCode,
+          phone: req.phone,
+        }),
     };
 
     let recorder = recorders.get(sessionId);
