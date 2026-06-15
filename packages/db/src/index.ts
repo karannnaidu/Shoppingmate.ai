@@ -7,5 +7,8 @@ export * as schema from './schema/index.js';
 export * from './schema/index.js';
 export { searchProducts, getProduct } from './repos/catalogRepo.js';
 export { selectorCacheRepo } from './repos/selectorCacheRepo.js';
+export { createConsultationRequest } from './repos/consultationRepo.js';
+export { submitConsultationRequest } from './notify/submitConsultation.js';
+export type { SubmitConsultationArgs } from './notify/submitConsultation.js';
 
 export const repos = { catalog, selectorCache: selectorCacheRepo };
