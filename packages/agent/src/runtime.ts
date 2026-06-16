@@ -15,7 +15,10 @@ import type {
   WidgetMessage,
 } from './types.js';
 
-const SONNET_MODEL = 'anthropic/claude-sonnet-4.6';
+// Default chat model. Override via OPENROUTER_MODEL to cut cost (e.g.
+// 'anthropic/claude-haiku-4.5') without a code change; a session may still carry
+// its own per-session override (smoke runs).
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
 const MAX_TOOL_LOOP_ITERATIONS = 8;
 const RETRY_LIMIT_PER_TOOL = 3;
 
@@ -123,7 +126,7 @@ export async function* runTurn(
   const callChatTools = deps.chatToolsImpl ?? chatTools;
   const promptOpts = deps.loadPromptOpts ? await deps.loadPromptOpts(merchant) : {};
   // Default to Sonnet; a session may carry a cheap-model override for smoke runs.
-  const turnModel = session.model ?? SONNET_MODEL;
+  const turnModel = session.model ?? DEFAULT_MODEL;
   const now = Date.now();
   const cap = checkCaps(session, session.mode, now);
 
