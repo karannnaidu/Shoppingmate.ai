@@ -73,4 +73,8 @@ export type SessionState = {
   // at the openSession call-site, which never matches a real Shopify cart
   // attribute so attribution naturally skips these sessions.
   visitorId?: string;
+  // Optional per-session model override for cheap smoke runs (e.g. Haiku). Set
+  // by the API only when a frame carries a valid SMOKE_SECRET; absent for real
+  // visitors, who always get the default SONNET_MODEL.
+  model?: string;
 };

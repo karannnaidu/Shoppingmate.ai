@@ -186,6 +186,19 @@ mountAgentWs(server, {
       });
     }
 
+    // Cheap-model override for smoke runs ONLY — applied when a frame carries a
+    // valid SMOKE_SECRET. Real visitors never send it, so they keep SONNET.
+    if (process.env.SMOKE_SECRET) {
+      try {
+        const rawObj = JSON.parse(raw.toString()) as { smokeSecret?: string; model?: string };
+        if (rawObj.smokeSecret === process.env.SMOKE_SECRET && typeof rawObj.model === 'string') {
+          session.model = rawObj.model;
+        }
+      } catch {
+        /* not JSON / no override */
+      }
+    }
+
     if (msg.type === 'session_resume') {
       for (const ev of replaySession(session)) send(encodeAgentEvent(ev));
       send(encodeAgentEvent({ type: 'end_of_turn' }));

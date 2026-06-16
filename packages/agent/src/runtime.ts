@@ -122,6 +122,8 @@ export async function* runTurn(
 
   const callChatTools = deps.chatToolsImpl ?? chatTools;
   const promptOpts = deps.loadPromptOpts ? await deps.loadPromptOpts(merchant) : {};
+  // Default to Sonnet; a session may carry a cheap-model override for smoke runs.
+  const turnModel = session.model ?? SONNET_MODEL;
   const now = Date.now();
   const cap = checkCaps(session, session.mode, now);
 
@@ -186,7 +188,7 @@ export async function* runTurn(
       ],
     };
     const ackArgs = {
-      model: SONNET_MODEL,
+      model: turnModel,
       messages: [
         { role: 'system' as const, content: buildSystemPrompt(merchant, promptOpts) },
         ...cardTapSession.history,
@@ -272,7 +274,7 @@ export async function* runTurn(
     let attemptResult: ChatToolsResult | undefined;
     let firstFailed = false;
     try {
-      attemptResult = await callChatTools({ model: SONNET_MODEL, messages: history, tools });
+      attemptResult = await callChatTools({ model: turnModel, messages: history, tools });
     } catch (err1) {
       const e1 = err1 as Error;
       firstFailed = true;
@@ -283,7 +285,7 @@ export async function* runTurn(
         retryCount: 0,
       });
       try {
-        attemptResult = await callChatTools({ model: SONNET_MODEL, messages: history, tools });
+        attemptResult = await callChatTools({ model: turnModel, messages: history, tools });
       } catch (err2) {
         const e2 = err2 as Error;
         await deps.recordMetric('agent.sonnet.error', {
