@@ -127,7 +127,7 @@ const CALMOSIS_CHECKOUT_TOOLS: ToolDef[] = [
     function: {
       name: 'checkout.fill',
       description:
-        "Fill the visitor's details into the Calmosis checkout so the order is ready to place. Call this once you've collected ALL of: name, 10-digit phone, email, full street address, city, state, and 6-digit pincode (plus their COD/prepaid preference). Then read the order back (items + address + payment) and ask them to confirm before placing.",
+        "Fill the visitor's details into the Calmosis checkout so the order is ready to place. Call this once you've collected ALL of: name, 10-digit phone, email, full street address, city, state, and 6-digit pincode. Do NOT ask whether they want Cash on Delivery or to pay online — they pick that on the secure payment page. Then read the order back (items + address) and ask them to confirm before placing.",
       parameters: {
         type: 'object',
         properties: {
@@ -138,9 +138,8 @@ const CALMOSIS_CHECKOUT_TOOLS: ToolDef[] = [
           city: { type: 'string' },
           state: { type: 'string' },
           pincode: { type: 'string', description: '6-digit Indian pincode' },
-          payment: { type: 'string', enum: ['cod', 'prepaid'] },
         },
-        required: ['name', 'phone', 'email', 'address', 'city', 'state', 'pincode', 'payment'],
+        required: ['name', 'phone', 'email', 'address', 'city', 'state', 'pincode'],
       },
     },
   },
