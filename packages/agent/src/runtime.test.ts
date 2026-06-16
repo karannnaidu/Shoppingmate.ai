@@ -1,6 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type RunTurnDeps, runTurn } from './runtime.js';
+import { type RunTurnDeps, pickTurnModel, runTurn } from './runtime.js';
 import type { AgentEvent, SessionState } from './types.js';
 
 vi.mock('@shoppingmate/shared', async (orig) => ({
@@ -633,6 +633,28 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
     }
     expect(actions.some((a) => a.type === 'checkout_place')).toBe(true);
     expect(metrics.some((m) => m.name === 'checkout.placed')).toBe(true);
+  });
+});
+
+describe('pickTurnModel — cost/quality hybrid', () => {
+  const orig = { ...process.env };
+  afterEach(() => {
+    process.env = { ...orig };
+  });
+  it('uses the cheap model for general chat and the precise model for checkout turns', () => {
+    process.env.OPENROUTER_MODEL = 'cheap/x';
+    process.env.OPENROUTER_CHECKOUT_MODEL = 'precise/y';
+    const m = (text: string) => ({ type: 'user_text', sessionId: 's', text, mode: 'text' }) as never;
+    expect(pickTurnModel(m('tell me about sleep mantra'), undefined)).toBe('cheap/x');
+    expect(pickTurnModel(m('my pincode is 560038'), undefined)).toBe('precise/y');
+    expect(pickTurnModel(m('email is a@b.com'), undefined)).toBe('precise/y');
+    expect(pickTurnModel(m('please check out'), undefined)).toBe('precise/y');
+  });
+  it('a per-session override (smoke) always wins', () => {
+    process.env.OPENROUTER_MODEL = 'cheap/x';
+    process.env.OPENROUTER_CHECKOUT_MODEL = 'precise/y';
+    const m = { type: 'user_text', sessionId: 's', text: 'pincode 560038', mode: 'text' } as never;
+    expect(pickTurnModel(m, 'smoke/z')).toBe('smoke/z');
   });
 });
 

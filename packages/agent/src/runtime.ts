@@ -15,10 +15,19 @@ import type {
   WidgetMessage,
 } from './types.js';
 
-// Default chat model. Override via OPENROUTER_MODEL to cut cost (e.g.
-// 'anthropic/claude-haiku-4.5') without a code change; a session may still carry
-// its own per-session override (smoke runs).
-const DEFAULT_MODEL = process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
+// Cost/quality hybrid. General chat uses the cheap model (OPENROUTER_MODEL, e.g.
+// Haiku); checkout turns — where the visitor dictates contact details that must
+// be captured accurately — use the precise model (OPENROUTER_CHECKOUT_MODEL,
+// default Sonnet). A per-session override (smoke runs) takes precedence so
+// smoke stays cheap. Both env-overridable; no code change to retune.
+const CHECKOUT_SIGNAL = /\b\d{6,}\b|@[\w.-]+\.\w|\b(check\s?out|place (the |my )?order|delivery address|pin\s?code)\b/i;
+
+export function pickTurnModel(message: WidgetMessage, sessionModel: string | undefined): string {
+  if (sessionModel) return sessionModel;
+  const cheap = process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
+  const precise = process.env.OPENROUTER_CHECKOUT_MODEL ?? 'anthropic/claude-sonnet-4.6';
+  return message.type === 'user_text' && CHECKOUT_SIGNAL.test(message.text) ? precise : cheap;
+}
 const MAX_TOOL_LOOP_ITERATIONS = 8;
 const RETRY_LIMIT_PER_TOOL = 3;
 
@@ -126,7 +135,7 @@ export async function* runTurn(
   const callChatTools = deps.chatToolsImpl ?? chatTools;
   const promptOpts = deps.loadPromptOpts ? await deps.loadPromptOpts(merchant) : {};
   // Default to Sonnet; a session may carry a cheap-model override for smoke runs.
-  const turnModel = session.model ?? DEFAULT_MODEL;
+  const turnModel = pickTurnModel(message, session.model);
   const now = Date.now();
   const cap = checkCaps(session, session.mode, now);
 
