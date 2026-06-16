@@ -1,7 +1,11 @@
-const TURN_WARN_AT = 13;
-const TURN_TRIP_AT = 16;
-const VOICE_SECONDS_TRIP = 180;
-const WALL_CLOCK_TRIP_MS = 25 * 60 * 1000;
+// Caps are a cost-control backstop, sized so a real transactional flow (a voice
+// checkout where the visitor dictates name + phone + email spelled out + address
+// + corrections + confirmation) can COMPLETE. The old 16-turn / 180-second limits
+// tripped mid-checkout and the visitor lost everything on reload.
+const TURN_WARN_AT = 26;
+const TURN_TRIP_AT = 30;
+const VOICE_SECONDS_TRIP = 360; // 6 minutes of actual speech
+const WALL_CLOCK_TRIP_MS = 30 * 60 * 1000;
 
 export type CapTrip = { cap: 'turns' | 'voice_seconds' | 'wall_clock' };
 export type CapWarn = { cap: 'turns'; remaining: number };
