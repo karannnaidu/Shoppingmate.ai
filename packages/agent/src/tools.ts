@@ -70,6 +70,15 @@ const CALMOSIS_CART_TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
+      name: 'cart.clear',
+      description:
+        "Empty the visitor's ENTIRE cart — removes ALL items at once. Use when the visitor says 'clear my cart', 'empty the cart', 'remove everything', or 'start over'. To remove just ONE product, use cart.update with qty 0 instead.",
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'coupon.apply',
       description:
         'Apply a discount/coupon code to the order (e.g. CALM10). The discount is reflected at checkout. Only claim it worked if this returns success.',

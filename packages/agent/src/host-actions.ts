@@ -11,6 +11,8 @@ export type HostAction =
   | { type: 'open_cart' }
   // Calmosis stitch: set absolute quantity (qty<=0 removes) + apply a coupon.
   | { type: 'cart_set_qty'; sku: string; qty: number }
+  // Calmosis stitch: empty the entire cart (window.__shoppingmateClearCart__).
+  | { type: 'cart_clear' }
   | { type: 'apply_coupon'; code: string }
   // Brand-agnostic checkout completion (opt-in): the storefront exposes
   // window.__shoppingmateCheckoutFill__(details) and __shoppingmatePlaceOrder__().

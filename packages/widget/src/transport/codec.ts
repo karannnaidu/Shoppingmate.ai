@@ -68,6 +68,7 @@ export type HostAction =
   | { type: 'cart_add'; sku: string; qty: number }
   | { type: 'open_cart' }
   | { type: 'cart_set_qty'; sku: string; qty: number }
+  | { type: 'cart_clear' }
   | { type: 'apply_coupon'; code: string }
   | { type: 'checkout_fill'; details: CheckoutDetails }
   | { type: 'checkout_place' }
@@ -103,6 +104,7 @@ function isValidHostAction(a: any): a is HostAction {
     case 'cart_set_qty':
       return typeof a.sku === 'string' && typeof a.qty === 'number';
     case 'open_cart':
+    case 'cart_clear':
     case 'checkout_place':
     case 'checkout_state':
       return true;

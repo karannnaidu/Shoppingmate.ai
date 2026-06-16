@@ -353,6 +353,7 @@ export async function* runTurn(
           (call.name === 'cart.add' ||
             call.name === 'cart.open' ||
             call.name === 'cart.update' ||
+            call.name === 'cart.clear' ||
             call.name === 'coupon.apply' ||
             call.name === 'checkout.fill' ||
             call.name === 'checkout.place' ||
@@ -641,6 +642,8 @@ function toHostAction(name: string, args: Record<string, unknown>): HostAction {
       return { type: 'open_cart' };
     case 'cart.update':
       return { type: 'cart_set_qty', sku: String(args.sku ?? ''), qty: Math.max(0, Number(args.qty) || 0) };
+    case 'cart.clear':
+      return { type: 'cart_clear' };
     case 'coupon.apply':
       return { type: 'apply_coupon', code: String(args.code ?? '') };
     case 'checkout.fill':

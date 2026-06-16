@@ -12,6 +12,7 @@ export type HostAction =
   | { type: 'cart_add'; sku: string; qty: number }
   | { type: 'open_cart' }
   | { type: 'cart_set_qty'; sku: string; qty: number }
+  | { type: 'cart_clear' }
   | { type: 'apply_coupon'; code: string }
   | { type: 'checkout_fill'; details: CheckoutDetails }
   | { type: 'checkout_place' }
@@ -52,6 +53,8 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return openCart();
     case 'cart_set_qty':
       return cartSetQty(action.sku, action.qty);
+    case 'cart_clear':
+      return clearCart();
     case 'apply_coupon':
       return applyCoupon(action.code);
     case 'checkout_fill':
@@ -138,7 +141,20 @@ function openCart(): HostActionResult {
 }
 
 type CartSetQtyHook = (sku: string, qty: number) => boolean;
+type ClearCartHook = () => boolean;
 type ApplyCouponHook = (code: string) => Promise<boolean>;
+
+// Empty the entire storefront cart via window.__shoppingmateClearCart__.
+// Absent hook → not_found.
+function clearCart(): HostActionResult {
+  const fn = (window as unknown as { __shoppingmateClearCart__?: ClearCartHook }).__shoppingmateClearCart__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    return fn() ? { ok: true } : { ok: false, reason: 'not_found' };
+  } catch {
+    return { ok: false, reason: 'not_found' };
+  }
+}
 
 function cartSetQty(sku: string, qty: number): HostActionResult {
   const fn = (window as unknown as { __shoppingmateCartSetQty__?: CartSetQtyHook }).__shoppingmateCartSetQty__;
