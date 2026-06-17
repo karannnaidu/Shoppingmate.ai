@@ -60,6 +60,9 @@ export function formRead(fields?: string[], hints?: Map<string, string>): HostAc
   }
   const controls = document.querySelectorAll<HTMLElement>('input, textarea, select');
   for (const el of controls) {
+    // Never surface sensitive/non-visible fields to the model on a bare read.
+    const type = (el.getAttribute('type') ?? '').toLowerCase();
+    if (type === 'password' || type === 'hidden') continue;
     const name = el.getAttribute('name') ?? el.id;
     if (name) values[name] = readFieldValue(el);
   }

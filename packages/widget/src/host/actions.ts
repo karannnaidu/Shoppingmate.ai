@@ -34,7 +34,7 @@ export type CheckoutDetails = {
 
 export type HostActionResult =
   | { ok: true; values?: Record<string, string>; filled?: Array<{ field: string; ok: boolean; value: string }> }
-  | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' };
+  | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
 
 export async function executeHostAction(action: HostAction): Promise<HostActionResult> {
   switch (action.type) {
