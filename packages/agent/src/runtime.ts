@@ -21,12 +21,30 @@ import type {
 // default Sonnet). A per-session override (smoke runs) takes precedence so
 // smoke stays cheap. Both env-overridable; no code change to retune.
 const CHECKOUT_SIGNAL = /\b\d{6,}\b|@[\w.-]+\.\w|\b(check\s?out|place (the |my )?order|delivery address|pin\s?code)\b/i;
+// Tools that only fire during the checkout flow — calling one means we're in
+// checkout, so the session sticks to the precise model from then on.
+const CHECKOUT_FLOW_TOOLS = new Set([
+  'page.fill',
+  'page.read',
+  'page.click',
+  'checkout.fill',
+  'checkout.place',
+  'checkout.state',
+]);
 
-export function pickTurnModel(message: WidgetMessage, sessionModel: string | undefined): string {
+export function pickTurnModel(
+  message: WidgetMessage,
+  sessionModel: string | undefined,
+  inCheckout?: boolean,
+): string {
   if (sessionModel) return sessionModel;
   const cheap = process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
   const precise = process.env.OPENROUTER_CHECKOUT_MODEL ?? 'anthropic/claude-sonnet-4.6';
-  return message.type === 'user_text' && CHECKOUT_SIGNAL.test(message.text) ? precise : cheap;
+  // Sticky: once in checkout, stay precise so free-form corrections (which match
+  // no keyword) are still captured accurately. Otherwise gate on the signal.
+  const isCheckoutTurn =
+    inCheckout === true || (message.type === 'user_text' && CHECKOUT_SIGNAL.test(message.text));
+  return isCheckoutTurn ? precise : cheap;
 }
 const MAX_TOOL_LOOP_ITERATIONS = 8;
 const RETRY_LIMIT_PER_TOOL = 3;
@@ -135,7 +153,10 @@ export async function* runTurn(
   const callChatTools = deps.chatToolsImpl ?? chatTools;
   const promptOpts = deps.loadPromptOpts ? await deps.loadPromptOpts(merchant) : {};
   // Default to Sonnet; a session may carry a cheap-model override for smoke runs.
-  const turnModel = pickTurnModel(message, session.model);
+  const turnModel = pickTurnModel(message, session.model, session.inCheckout);
+  // Becomes true once we're in checkout (this turn or earlier) so the next turn
+  // — including a free-form correction — also gets the precise model.
+  let usedCheckoutFlowTool = false;
   const now = Date.now();
   const cap = checkCaps(session, session.mode, now);
 
@@ -361,6 +382,7 @@ export async function* runTurn(
             call.name === 'page.fill' ||
             call.name === 'page.read' ||
             call.name === 'page.click');
+        if (CHECKOUT_FLOW_TOOLS.has(call.name)) usedCheckoutFlowTool = true;
         if (call.name === 'consultation.request') {
           const v = validateConsultationRequest(args);
           if (!v.ok) {
@@ -536,6 +558,10 @@ export async function* runTurn(
     totalMs: Date.now() - session.startedAt,
     lastTurnAt: Date.now(),
     allowedSpeechTokens: accumulatedAllowedTokens,
+    inCheckout:
+      session.inCheckout === true ||
+      usedCheckoutFlowTool ||
+      (message.type === 'user_text' && CHECKOUT_SIGNAL.test(message.text)),
   };
   await deps.saveSession(updated);
   yield { type: 'end_of_turn' };

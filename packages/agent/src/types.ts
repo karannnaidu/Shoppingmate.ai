@@ -77,4 +77,9 @@ export type SessionState = {
   // by the API only when a frame carries a valid SMOKE_SECRET; absent for real
   // visitors, who always get the default SONNET_MODEL.
   model?: string;
+  // Sticky once the visitor enters the checkout flow (a checkout-signal turn or
+  // a checkout/page tool call). Keeps subsequent turns — including free-form
+  // corrections that match no keyword — on the precise model so contact details
+  // are captured and re-filled accurately. See pickTurnModel.
+  inCheckout?: boolean;
 };

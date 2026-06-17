@@ -147,6 +147,19 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).not.toMatch(/checkout\.fill/);
     expect(p).not.toMatch(/checkout\.place/);
   });
+
+  it('confirms details with the visitor BEFORE writing them to the checkout page', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/CONFIRM BEFORE YOU FILL/i);
+    expect(p).toMatch(/do not call page\.fill until/i);
+  });
+
+  it('tells the bot to always use the visitor’s latest corrected value', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/CORRECTIONS/i);
+    expect(p).toMatch(/LATEST value/i);
+    expect(p).toMatch(/never fill or submit a value the visitor has just changed/i);
+  });
 });
 
 describe('SITE_GRAPH_SLOT injection', () => {

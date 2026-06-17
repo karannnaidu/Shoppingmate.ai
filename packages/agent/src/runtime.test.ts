@@ -656,6 +656,15 @@ describe('pickTurnModel — cost/quality hybrid', () => {
     const m = { type: 'user_text', sessionId: 's', text: 'pincode 560038', mode: 'text' } as never;
     expect(pickTurnModel(m, 'smoke/z')).toBe('smoke/z');
   });
+  it('stays on the precise model once in checkout, even for non-signal correction turns', () => {
+    process.env.OPENROUTER_MODEL = 'cheap/x';
+    process.env.OPENROUTER_CHECKOUT_MODEL = 'precise/y';
+    const m = (text: string) => ({ type: 'user_text', sessionId: 's', text, mode: 'text' }) as never;
+    // A correction like "no, make it Pune" matches no CHECKOUT_SIGNAL keyword,
+    // so without stickiness it would drop to the cheap model and botch the edit.
+    expect(pickTurnModel(m('no, make it Pune'), undefined, false)).toBe('cheap/x');
+    expect(pickTurnModel(m('no, make it Pune'), undefined, true)).toBe('precise/y');
+  });
 });
 
 describe('runTurn() — consultation.request', () => {
