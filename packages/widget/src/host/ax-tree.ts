@@ -205,16 +205,40 @@ function fieldNames(el: HTMLElement): string[] {
   return names;
 }
 
+// Real forms label fields with vocabulary that differs from the intent the bot
+// uses ("Phone" vs placeholder "10-digit mobile number"; "Pincode" vs "6-digit
+// PIN code"). Map each token to a canonical concept so synonyms match. Built
+// once from the groups below.
+const SYNONYM_GROUPS: string[][] = [
+  ['phone', 'mobile', 'cell', 'contact', 'phonenumber', 'tel', 'whatsapp'],
+  ['pincode', 'pin', 'postal', 'postcode', 'zip', 'zipcode'],
+  ['name', 'fullname'],
+  ['email', 'mail', 'emailaddress'],
+  ['address', 'street', 'addr', 'address1'],
+  ['city', 'town'],
+  ['state', 'province', 'region'],
+  ['landmark', 'apartment', 'flat', 'floor'],
+];
+const CANONICAL = new Map<string, string>();
+for (const group of SYNONYM_GROUPS) {
+  for (const t of group) CANONICAL.set(t, group[0]);
+}
+function canon(token: string): string {
+  return CANONICAL.get(token) ?? token;
+}
+
 function scoreField(el: HTMLElement, intentTokens: Set<string>): number {
+  const wantedTokens = new Set([...intentTokens].map(canon));
   let best = 0;
   for (const raw of fieldNames(el)) {
-    const nameTokens = tokenize(raw);
+    const nameTokens = new Set([...tokenize(raw)].map(canon));
     if (nameTokens.size === 0) continue;
     let intersect = 0;
-    for (const t of intentTokens) if (nameTokens.has(t)) intersect++;
+    for (const t of wantedTokens) if (nameTokens.has(t)) intersect++;
     if (intersect === 0) continue;
-    // Coverage of the intent's tokens (so "pincode" fully matches a "pincode" field).
-    const coverage = intersect / intentTokens.size;
+    // Coverage of the intent's tokens (so "pincode" fully matches a "pincode"
+    // field, and "phone" matches a "mobile number" field via synonyms).
+    const coverage = intersect / wantedTokens.size;
     if (coverage > best) best = coverage;
   }
   return best;

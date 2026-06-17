@@ -34,6 +34,14 @@ describe('resolveField', () => {
     document.body.innerHTML = '<div>no inputs</div>';
     expect(resolveField('Email')).toBeNull();
   });
+  it('matches "Phone" to a "10-digit mobile number" placeholder via synonyms', () => {
+    document.body.innerHTML = '<input id="mob" placeholder="10-digit mobile number" />';
+    expect(resolveField('Phone')?.id).toBe('mob');
+  });
+  it('matches "Pincode" to an "Enter 6-digit PIN code" placeholder via synonyms', () => {
+    document.body.innerHTML = '<input id="pin" placeholder="Enter 6-digit PIN code" />';
+    expect(resolveField('Pincode')?.id).toBe('pin');
+  });
 });
 
 describe('formFill', () => {
