@@ -1,6 +1,7 @@
 import { resolveIntent } from './ax-tree.js';
 import { hideCursor, moveCursorTo, pulseCursorClick } from './cursor.js';
 import { showPulseRing } from './overlay.js';
+import { formFill, formRead } from './form-control.js';
 
 export type HostAction =
   | { type: 'navigate'; path: string }
@@ -16,7 +17,9 @@ export type HostAction =
   | { type: 'apply_coupon'; code: string }
   | { type: 'checkout_fill'; details: CheckoutDetails }
   | { type: 'checkout_place' }
-  | { type: 'checkout_state' };
+  | { type: 'checkout_state' }
+  | { type: 'form_fill'; fields: Array<{ field: string; value: string }> }
+  | { type: 'form_read'; fields?: string[] };
 
 export type CheckoutDetails = {
   name: string;
@@ -30,7 +33,7 @@ export type CheckoutDetails = {
 };
 
 export type HostActionResult =
-  | { ok: true }
+  | { ok: true; values?: Record<string, string>; filled?: Array<{ field: string; ok: boolean; value: string }> }
   | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' };
 
 export async function executeHostAction(action: HostAction): Promise<HostActionResult> {
@@ -63,6 +66,10 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return placeOrder();
     case 'checkout_state':
       return checkoutState();
+    case 'form_fill':
+      return formFill(action.fields);
+    case 'form_read':
+      return formRead(action.fields);
   }
 }
 

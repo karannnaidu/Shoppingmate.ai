@@ -72,7 +72,9 @@ export type HostAction =
   | { type: 'apply_coupon'; code: string }
   | { type: 'checkout_fill'; details: CheckoutDetails }
   | { type: 'checkout_place' }
-  | { type: 'checkout_state' };
+  | { type: 'checkout_state' }
+  | { type: 'form_fill'; fields: Array<{ field: string; value: string }> }
+  | { type: 'form_read'; fields?: string[] };
 
 export type CheckoutDetails = {
   name: string;
@@ -86,7 +88,7 @@ export type CheckoutDetails = {
 };
 
 export type HostActionResult =
-  | { ok: true }
+  | { ok: true; values?: Record<string, string>; filled?: Array<{ field: string; ok: boolean; value: string }> }
   | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
 
 function isValidHostAction(a: any): a is HostAction {
@@ -122,6 +124,13 @@ function isValidHostAction(a: any): a is HostAction {
         typeof a.details.pincode === 'string' &&
         (a.details.payment === 'cod' || a.details.payment === 'prepaid')
       );
+    case 'form_fill':
+      return (
+        Array.isArray(a.fields) &&
+        a.fields.every((f: any) => f && typeof f.field === 'string' && typeof f.value === 'string')
+      );
+    case 'form_read':
+      return a.fields === undefined || Array.isArray(a.fields);
     default:
       return false;
   }

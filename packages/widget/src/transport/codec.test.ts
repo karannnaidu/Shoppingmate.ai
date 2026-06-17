@@ -43,4 +43,33 @@ describe('decodeAgentEvent — host_action_request validation', () => {
       decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'b', action: { type: 'bogus' } })),
     ).toBeNull();
   });
+
+  it('decodes form_fill and form_read host actions', () => {
+    expect(
+      decodeAgentEvent(
+        JSON.stringify({
+          type: 'host_action_request',
+          callId: 'q1',
+          action: { type: 'form_fill', fields: [{ field: 'Email', value: 'a@b.com' }] },
+        }),
+      ),
+    ).not.toBeNull();
+    expect(
+      decodeAgentEvent(
+        JSON.stringify({ type: 'host_action_request', callId: 'q2', action: { type: 'form_read' } }),
+      ),
+    ).not.toBeNull();
+  });
+
+  it('rejects form_fill with a malformed fields array', () => {
+    expect(
+      decodeAgentEvent(
+        JSON.stringify({
+          type: 'host_action_request',
+          callId: 'q3',
+          action: { type: 'form_fill', fields: [{ field: 'Email' }] },
+        }),
+      ),
+    ).toBeNull();
+  });
 });
