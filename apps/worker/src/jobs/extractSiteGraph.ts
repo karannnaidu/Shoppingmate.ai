@@ -145,6 +145,9 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
     }
 
     for (const media of extracted.media) {
+      // Skip media the extractor returned without a URL — createHash().update(null)
+      // throws ("data argument ... Received null") and would fail the whole extract.
+      if (!media.mediaUrl || typeof media.mediaUrl !== 'string') continue;
       const hash = createHash('sha256').update(media.mediaUrl).digest('hex').slice(0, 16);
       if (seenHashes.has(hash)) continue;
       seenHashes.add(hash);
