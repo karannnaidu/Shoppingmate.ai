@@ -99,9 +99,12 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).toMatch(/products\.get\(\{\s*sku:\s*["']bliss-club["']/);
   });
 
-  it('tells the bot to enroll via cart.add({sku:"bliss-club"})', () => {
+  it('tells the bot to enroll via page.click (Join Bliss Club), not cart.add', () => {
     const p = buildSystemPrompt(calmosis);
-    expect(p).toMatch(/cart\.add\(\{\s*sku:\s*["']bliss-club["']/);
+    // New: Bliss Club is added via the store's own button, not cart.add.
+    expect(p).toMatch(/page\.click\(\{intent:\s*["']Join Bliss Club["']\}/);
+    // Must NOT use cart.add for the membership itself.
+    expect(p).not.toMatch(/cart\.add\(\{\s*sku:\s*["']bliss-club["']/);
   });
 
   it('includes the consultation intake flow and the consultation.request tool', () => {
@@ -131,14 +134,18 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).toMatch(/COUPONS/);
   });
 
-  it('drives bot checkout completion with a read-back + explicit confirm before placing', () => {
+  it('drives bot checkout completion via page.fill + read-back + ask-before-click', () => {
     const p = buildSystemPrompt(calmosis);
-    expect(p).toMatch(/checkout\.state/);
-    expect(p).toMatch(/saved (delivery )?address/i);
-    expect(p).toMatch(/checkout\.fill/);
-    expect(p).toMatch(/checkout\.place/);
-    expect(p).toMatch(/read the (whole )?order back|READ THE WHOLE ORDER BACK/i);
-    expect(p).toMatch(/the moment they say yes|immediately/i);
+    // New flow: navigate → page.fill → read-back the returned values → ask before clicking.
+    expect(p).toMatch(/page\.fill/);
+    expect(p).toMatch(/page\.click/);
+    expect(p).toMatch(/ACTUALLY in the form|read THOSE back/i);
+    expect(p).toMatch(/Shall I click Continue to Payment|ask before submit/i);
+    expect(p).toMatch(/NEVER auto-click/i);
+    // Must NOT use the old checkout.state / checkout.fill / checkout.place flow.
+    expect(p).not.toMatch(/checkout\.state/);
+    expect(p).not.toMatch(/checkout\.fill/);
+    expect(p).not.toMatch(/checkout\.place/);
   });
 });
 
