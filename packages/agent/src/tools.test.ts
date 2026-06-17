@@ -96,6 +96,14 @@ describe('buildToolSurface()', () => {
     expect(buildToolSurface(otherSiteGraph).map((t) => t.function.name)).not.toContain('consultation.request');
   });
 
+  it('Calmosis surface includes page.fill / page.read / page.click', () => {
+    const calmosis = { id: 'SM-2SCCLZ', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
+    const names = buildToolSurface(calmosis).map((t) => t.function.name);
+    expect(names).toContain('page.fill');
+    expect(names).toContain('page.read');
+    expect(names).toContain('page.click');
+  });
+
   it('exposes checkout.fill + checkout.place only on the Calmosis surface', () => {
     const calmosis = { id: 'SM-2SCCLZ', adapterType: 'dom', siteGraphEnabled: true } as unknown as Merchant;
     const names = buildToolSurface(calmosis).map((t) => t.function.name);

@@ -357,7 +357,10 @@ export async function* runTurn(
             call.name === 'coupon.apply' ||
             call.name === 'checkout.fill' ||
             call.name === 'checkout.place' ||
-            call.name === 'checkout.state');
+            call.name === 'checkout.state' ||
+            call.name === 'page.fill' ||
+            call.name === 'page.read' ||
+            call.name === 'page.click');
         if (call.name === 'consultation.request') {
           const v = validateConsultationRequest(args);
           if (!v.ok) {
@@ -618,7 +621,7 @@ function formatPrice(cents: number, currency: string): string {
   return `${currency} ${amount}`;
 }
 
-function toHostAction(name: string, args: Record<string, unknown>): HostAction {
+export function toHostAction(name: string, args: Record<string, unknown>): HostAction {
   switch (name) {
     case 'site.navigate':
       return { type: 'navigate', path: String(args.path ?? '') };
@@ -644,6 +647,23 @@ function toHostAction(name: string, args: Record<string, unknown>): HostAction {
       return { type: 'cart_set_qty', sku: String(args.sku ?? ''), qty: Math.max(0, Number(args.qty) || 0) };
     case 'cart.clear':
       return { type: 'cart_clear' };
+    case 'page.fill':
+      return {
+        type: 'form_fill',
+        fields: Array.isArray(args.fields)
+          ? (args.fields as Array<Record<string, unknown>>).map((f) => ({
+              field: String(f.field ?? ''),
+              value: String(f.value ?? ''),
+            }))
+          : [],
+      };
+    case 'page.read':
+      return {
+        type: 'form_read',
+        fields: Array.isArray(args.fields) ? (args.fields as unknown[]).map((s) => String(s)) : undefined,
+      };
+    case 'page.click':
+      return { type: 'click', intent: String(args.intent ?? '') };
     case 'coupon.apply':
       return { type: 'apply_coupon', code: String(args.code ?? '') };
     case 'checkout.fill':

@@ -1,6 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type RunTurnDeps, pickTurnModel, runTurn } from './runtime.js';
+import { type RunTurnDeps, pickTurnModel, runTurn, toHostAction } from './runtime.js';
 import type { AgentEvent, SessionState } from './types.js';
 
 vi.mock('@shoppingmate/shared', async (orig) => ({
@@ -781,5 +781,21 @@ describe('runTurn() — consultation.request', () => {
       (e) => e.type === 'tool_result' && (e as { toolName?: string }).toolName === 'consultation.request',
     );
     expect(tr).toMatchObject({ ok: false });
+  });
+});
+
+describe('toHostAction (page-control mapping)', () => {
+  it('maps page.fill to form_fill with normalised fields', () => {
+    const a = toHostAction('page.fill', { fields: [{ field: 'Email', value: 'a@b.com' }] });
+    expect(a).toEqual({ type: 'form_fill', fields: [{ field: 'Email', value: 'a@b.com' }] });
+  });
+  it('maps page.read to form_read', () => {
+    expect(toHostAction('page.read', {})).toEqual({ type: 'form_read', fields: undefined });
+  });
+  it('maps page.click to the click host action', () => {
+    expect(toHostAction('page.click', { intent: 'Continue to Payment' })).toEqual({
+      type: 'click',
+      intent: 'Continue to Payment',
+    });
   });
 });

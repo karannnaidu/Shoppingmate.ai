@@ -163,6 +163,58 @@ const CALMOSIS_CHECKOUT_TOOLS: ToolDef[] = [
   },
 ];
 
+// Generic page-control tools (host actions → live DOM). page.click reuses the
+// widget's existing `click` host action; page.fill/read use form_fill/form_read.
+const PAGE_CONTROL_TOOLS: ToolDef[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'page.fill',
+      description:
+        "Fill fields in the form currently on the visitor's screen, then return the values ACTUALLY in those fields (the read-back). Use the visitor's most recent values. Field names are human labels (e.g. 'Full name', 'Phone', 'Email', 'Address', 'City', 'State', 'Pincode'). After calling, read the returned values back to the visitor to confirm — never your own memory.",
+      parameters: {
+        type: 'object',
+        properties: {
+          fields: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { field: { type: 'string' }, value: { type: 'string' } },
+              required: ['field', 'value'],
+            },
+          },
+        },
+        required: ['fields'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'page.read',
+      description:
+        'Read the current values of fields in the form on screen (omit fields to read all). Use to verify what is actually filled before confirming.',
+      parameters: {
+        type: 'object',
+        properties: { fields: { type: 'array', items: { type: 'string' } } },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'page.click',
+      description:
+        "Click a button or control on the page by describing it (e.g. 'Continue to Payment', 'Join Bliss Club'). Use to press the store's own buttons — ALWAYS ask the visitor before clicking a submit/checkout button.",
+      parameters: {
+        type: 'object',
+        properties: { intent: { type: 'string' } },
+        required: ['intent'],
+      },
+    },
+  },
+];
+
 export function buildToolSurface(merchant: Merchant): ToolDef[] {
   const productTools: ToolDef[] = [
     {
@@ -274,7 +326,7 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
     : [...productTools, ...checkoutTools];
   if (merchant.siteGraphEnabled) {
     const siteTools = isCalmosisStitch(merchant)
-      ? [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS, ...CALMOSIS_CHECKOUT_TOOLS, CALMOSIS_CONSULT_TOOL]
+      ? [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS, ...CALMOSIS_CHECKOUT_TOOLS, ...PAGE_CONTROL_TOOLS, CALMOSIS_CONSULT_TOOL]
       : SITE_NAV_TOOLS;
     return [...base, ...siteTools];
   }
