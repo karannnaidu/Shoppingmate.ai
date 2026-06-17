@@ -38,9 +38,31 @@ const SYSTEM = `You are a structured extractor. Given a raw HTML page from an e-
 
 Return ONLY raw JSON. No prose, no markdown.`;
 
+// Deterministic page typing from the URL path — layered UNDER the PDP check but
+// OVER the LLM, so common page roles (home, policy, faq, listing) stop landing
+// in "other" when the LLM is unsure. Returns null when the URL gives no signal.
+export function classifyByUrl(url: string): PageType | null {
+  let path: string;
+  try {
+    path = new URL(url).pathname.replace(/\/+$/, '').toLowerCase();
+  } catch {
+    return null;
+  }
+  if (path === '' || path === '/') return 'home';
+  if (/(^|\/)(legal|policy|policies)(\/|$)|(^|\/)(terms|privacy|shipping|refund|returns?|cancellation)(\/|$)/.test(path)) {
+    return 'policy';
+  }
+  if (/(^|\/)faqs?(\/|$)/.test(path)) return 'faq';
+  // Listing pages: /shop, /collections, /products, /category (exactly — a deeper
+  // path like /shop/peace-mantra is a PDP and is handled by the isPdp check first).
+  if (/^\/(shop|collections?|products?|category|categories|store|catalog)$/.test(path)) return 'plp';
+  return null;
+}
+
 export async function extractStructured(args: ExtractArgs): Promise<ExtractedPage> {
   const jsonLd = harvestJsonLd(args.html, args.url);
   const isPdp = jsonLd.product !== null || looksLikePdpUrl(args.url);
+  const urlType = classifyByUrl(args.url);
 
   const prompt = `${SYSTEM}\n\nURL: ${args.url}\n\nHTML:\n${truncateHtml(args.html, 32_000)}`;
   let llm: Partial<ExtractedPage> = {};
@@ -54,7 +76,8 @@ export async function extractStructured(args: ExtractArgs): Promise<ExtractedPag
   const mergedFaqs = mergeFaqs(jsonLd.faqs, llmFaqs);
 
   return {
-    pageType: isPdp ? 'pdp' : (llm.pageType ?? 'other'),
+    // Priority: PDP (JSON-LD/URL) → deterministic URL type → LLM → other.
+    pageType: isPdp ? 'pdp' : (urlType ?? llm.pageType ?? 'other'),
     title: llm.title ?? jsonLd.product?.title ?? null,
     h1: llm.h1 ?? jsonLd.product?.title ?? null,
     intents: Array.isArray(llm.intents) ? llm.intents : [],

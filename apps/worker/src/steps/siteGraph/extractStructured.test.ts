@@ -1,5 +1,37 @@
 import { describe, expect, it, vi } from 'vitest';
-import { extractStructured } from './extractStructured.js';
+import { extractStructured, classifyByUrl } from './extractStructured.js';
+
+describe('classifyByUrl', () => {
+  it('types the root as home', () => {
+    expect(classifyByUrl('https://calmosis.com/')).toBe('home');
+    expect(classifyByUrl('https://calmosis.com')).toBe('home');
+  });
+  it('types legal/policy paths as policy', () => {
+    for (const u of [
+      'https://calmosis.com/legal/terms/',
+      'https://calmosis.com/legal/privacy',
+      'https://calmosis.com/legal/shipping/',
+      'https://calmosis.com/legal/refund/',
+      'https://calmosis.com/returns',
+    ]) {
+      expect(classifyByUrl(u)).toBe('policy');
+    }
+  });
+  it('types faq as faq', () => {
+    expect(classifyByUrl('https://calmosis.com/faq/')).toBe('faq');
+    expect(classifyByUrl('https://calmosis.com/faqs')).toBe('faq');
+  });
+  it('types the shop listing as plp (but not a product under it)', () => {
+    expect(classifyByUrl('https://calmosis.com/shop/')).toBe('plp');
+    expect(classifyByUrl('https://calmosis.com/collections')).toBe('plp');
+    // a specific product under /shop is NOT plp (handled as pdp upstream)
+    expect(classifyByUrl('https://calmosis.com/shop/peace-mantra')).toBeNull();
+  });
+  it('returns null for unknown paths (LLM/other decides)', () => {
+    expect(classifyByUrl('https://calmosis.com/blog/some-post')).toBeNull();
+    expect(classifyByUrl('not a url')).toBeNull();
+  });
+});
 
 describe('extractStructured', () => {
   it('parses LLM JSON response into normalized rows', async () => {
@@ -25,10 +57,12 @@ describe('extractStructured', () => {
     expect(out.product).toBeNull();
   });
 
-  it('returns safe defaults on LLM parse failure', async () => {
+  it('returns safe defaults on LLM parse failure (no deterministic URL signal)', async () => {
     const fakeLlm = vi.fn().mockRejectedValue(new Error('bad json'));
+    // Use a path classifyByUrl can't type, so this exercises the LLM-failure
+    // fallback to 'other' (a root/legal/faq/listing URL would type deterministically).
     const out = await extractStructured({
-      html: '<html/>', url: 'https://x.com/', llmCall: fakeLlm,
+      html: '<html/>', url: 'https://x.com/our-story', llmCall: fakeLlm,
     });
     expect(out.pageType).toBe('other');
     expect(out.intents).toEqual([]);
