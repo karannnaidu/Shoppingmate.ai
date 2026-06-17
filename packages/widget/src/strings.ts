@@ -34,6 +34,14 @@ export const STRINGS = {
     'Compare options out loud',
     'Check out without leaving the page',
   ] as readonly string[],
+  // Tapping a welcome bullet sends the matching starter message (same index)
+  // to kick off the conversation — the bullets are quick-start chips, not just
+  // a static value-prop list.
+  panelPrompts: [
+    'Help me find the right product',
+    'Can you compare your products for me?',
+    "I'd like to check out",
+  ] as readonly string[],
   poweredBy: 'Powered by shoppingmate',
   chatPlaceholder: 'Type a quick question…',
   reconnecting: 'Reconnecting…',

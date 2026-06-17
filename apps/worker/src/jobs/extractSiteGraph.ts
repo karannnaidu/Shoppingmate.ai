@@ -2,7 +2,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { db as defaultDb, schema, type PageType } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
 import { loadSiteGraph, projectSonnetAddendum } from '@shoppingmate/site-graph';
-import { extractStructured } from '../steps/siteGraph/extractStructured.js';
+import { extractStructured, type ExtractedNavLink } from '../steps/siteGraph/extractStructured.js';
 import { generateAltText, needsGeneratedAlt } from '../steps/siteGraph/vision.js';
 import { geminiExtractCall } from '../llm/geminiExtract.js';
 import { geminiVisionCall } from '../llm/geminiVision.js';
@@ -42,6 +42,20 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
   let visionCallsUsed = 0;
   const seenHashes = new Set<string>();
   const seenSkus = new Set<string>();
+  // Two-pass nav edges: a link's target page may not be inserted yet (or at all),
+  // so collect (fromPageId, links) now and resolve to toPageId after every page
+  // row exists. Normalised URL → pageId map drives the resolution.
+  const pageIdByUrl = new Map<string, string>();
+  const navLinksByFrom: Array<{ fromPageId: string; fromUrl: string; links: ExtractedNavLink[] }> = [];
+  const normalizeUrl = (raw: string): string | null => {
+    try {
+      const u = new URL(raw);
+      const path = u.pathname.replace(/\/+$/, '') || '/';
+      return `${u.protocol}//${u.host.toLowerCase()}${path}`;
+    } catch {
+      return null;
+    }
+  };
 
   for (const art of artifacts) {
     if (!art.contentType.includes('html')) continue;
@@ -60,6 +74,12 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
       lastSeenCrawlId: args.crawlId,
       meta: {},
     });
+
+    const normFrom = normalizeUrl(art.url);
+    if (normFrom) pageIdByUrl.set(normFrom, pageId);
+    if (extracted.navLinks.length > 0) {
+      navLinksByFrom.push({ fromPageId: pageId, fromUrl: art.url, links: extracted.navLinks });
+    }
 
     for (const intent of extracted.intents) {
       await db.insert(schema.pageIntents).values({
@@ -144,6 +164,35 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
         role: media.role, posterFrameKey: null, durationMs: null,
         captionTrackUrl: null, generatedAt: generatedAlt ? new Date() : null,
       });
+    }
+  }
+
+  // Second pass: resolve each page's nav links to internal target pages and write
+  // site_nav_edges (the connected "brand tree"). Links to uncrawled/external URLs
+  // or self-links are skipped; the unique (from,to,location) index dedupes.
+  for (const { fromPageId, fromUrl, links } of navLinksByFrom) {
+    for (const link of links) {
+      let abs: string | null;
+      try {
+        abs = new URL(link.href, fromUrl).href;
+      } catch {
+        continue;
+      }
+      const norm = normalizeUrl(abs);
+      if (!norm) continue;
+      const toPageId = pageIdByUrl.get(norm);
+      if (!toPageId || toPageId === fromPageId) continue;
+      await db
+        .insert(schema.siteNavEdges)
+        .values({
+          id: randomUUID(),
+          merchantId: args.merchantId,
+          fromPageId,
+          toPageId,
+          anchorText: link.anchorText || null,
+          linkLocation: link.location,
+        })
+        .onConflictDoNothing();
     }
   }
 

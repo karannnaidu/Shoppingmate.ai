@@ -376,13 +376,28 @@ export const SHADOW_CSS = `
   list-style: none; padding: 0; margin: 0;
   display: grid; gap: 8px;
 }
-.welcome-bullets li {
+.welcome-bullet {
+  font: inherit;
   font-size: 13px; color: rgba(255,255,255,0.85);
-  padding: 8px 12px;
+  padding: 10px 12px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 10px;
+  width: 100%;
+  min-height: 44px; /* comfortable tap target on mobile */
+  text-align: left;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  transition: background 160ms ease, border-color 160ms ease, transform 120ms ease;
 }
+.welcome-bullet:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); }
+.welcome-bullet:active { transform: scale(0.985); }
+.welcome-bullet:disabled { cursor: default; opacity: 0.55; }
+.welcome-bullet-arrow {
+  color: rgba(255,255,255,0.4); font-size: 14px; flex-shrink: 0;
+  transition: transform 160ms ease, color 160ms ease;
+}
+.welcome-bullet:hover .welcome-bullet-arrow { color: rgba(255,255,255,0.7); transform: translateX(2px); }
 
 .status-line {
   text-align: center;
