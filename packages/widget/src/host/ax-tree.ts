@@ -146,3 +146,76 @@ function scoreCandidate(c: Candidate, intent: string, intentTokens: Set<string>)
 function cssEscape(s: string): string {
   return s.replace(/(["\\])/g, '\\$1');
 }
+
+// Resolve a free-text field intent (e.g. "Email", "Pincode", "Full name") to a
+// form control. Prefers the page's OWN stable identifiers (id/name/data-field)
+// over fuzzy text, so we drive the same elements the site's code uses. An
+// optional hints map (Phase 2: from the crawl graph) takes top priority.
+export function resolveField(intent: string, hints?: Map<string, string>): HTMLElement | null {
+  if (hints) {
+    const sel = hints.get(intent.toLowerCase().trim());
+    if (sel) {
+      try {
+        const el = document.querySelector(sel);
+        if (el instanceof HTMLElement && isVisible(el)) return el;
+      } catch {
+        /* bad selector — fall through */
+      }
+    }
+  }
+  const tokens = tokenize(intent);
+  if (tokens.size === 0) return null;
+  const controls = Array.from(
+    document.querySelectorAll<HTMLElement>('input, textarea, select'),
+  ).filter((el) => isVisible(el) && !isUnfillable(el));
+
+  let best: { el: HTMLElement; score: number } | null = null;
+  for (const el of controls) {
+    const score = scoreField(el, tokens);
+    if (score <= 0) continue;
+    if (!best || score > best.score) best = { el, score };
+  }
+  return best?.el ?? null;
+}
+
+function isUnfillable(el: HTMLElement): boolean {
+  const t = (el.getAttribute('type') ?? '').toLowerCase();
+  return t === 'hidden' || t === 'submit' || t === 'button' || (el as HTMLInputElement).disabled;
+}
+
+function fieldNames(el: HTMLElement): string[] {
+  const names: string[] = [];
+  const id = el.id;
+  if (id) {
+    names.push(id);
+    const lbl = document.querySelector(`label[for="${cssEscape(id)}"]`);
+    if (lbl?.textContent) names.push(lbl.textContent);
+  }
+  const nameAttr = el.getAttribute('name');
+  if (nameAttr) names.push(nameAttr);
+  const dataField = el.getAttribute('data-field') ?? el.getAttribute('data-testid');
+  if (dataField) names.push(dataField);
+  const aria = el.getAttribute('aria-label');
+  if (aria) names.push(aria);
+  const ph = el.getAttribute('placeholder');
+  if (ph) names.push(ph);
+  // Wrapping <label>Email <input/></label>
+  const parentLabel = el.closest('label');
+  if (parentLabel?.textContent) names.push(parentLabel.textContent);
+  return names;
+}
+
+function scoreField(el: HTMLElement, intentTokens: Set<string>): number {
+  let best = 0;
+  for (const raw of fieldNames(el)) {
+    const nameTokens = tokenize(raw);
+    if (nameTokens.size === 0) continue;
+    let intersect = 0;
+    for (const t of intentTokens) if (nameTokens.has(t)) intersect++;
+    if (intersect === 0) continue;
+    // Coverage of the intent's tokens (so "pincode" fully matches a "pincode" field).
+    const coverage = intersect / intentTokens.size;
+    if (coverage > best) best = coverage;
+  }
+  return best;
+}
