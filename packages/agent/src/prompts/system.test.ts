@@ -99,12 +99,12 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).toMatch(/products\.get\(\{\s*sku:\s*["']bliss-club["']/);
   });
 
-  it('tells the bot to enroll via page.click (Join Bliss Club), not cart.add', () => {
+  it('tells the bot to enroll via cart.add({sku:"bliss-club"})', () => {
     const p = buildSystemPrompt(calmosis);
-    // New: Bliss Club is added via the store's own button, not cart.add.
-    expect(p).toMatch(/page\.click\(\{intent:\s*["']Join Bliss Club["']\}/);
-    // Must NOT use cart.add for the membership itself.
-    expect(p).not.toMatch(/cart\.add\(\{\s*sku:\s*["']bliss-club["']/);
+    // Bliss Club is added with cart.add (correct backend-matching attributes),
+    // not a fragile page.click on a membership button (multiple controls + a
+    // colliding "Join The Bliss Club" heading made the click unreliable).
+    expect(p).toMatch(/cart\.add\(\{\s*sku:\s*["']bliss-club["']/);
   });
 
   it('includes the consultation intake flow and the consultation.request tool', () => {
