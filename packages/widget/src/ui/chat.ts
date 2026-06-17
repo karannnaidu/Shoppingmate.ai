@@ -29,7 +29,15 @@ export function renderChat(host: HTMLElement, props: ChatProps): void {
   const key = chromeKey(props);
   if (host.dataset.chromeKey !== key) {
     const empty = props.transcript.length === 0;
-    const bullets = STRINGS.panelBullets.map((b) => `<li>${b}</li>`).join('');
+    // Quick-start chips: tapping one sends the matching starter prompt. They
+    // look tappable (card styling), so they must actually act — previously they
+    // were static <li> and visitors reported "the options don't click".
+    const bullets = STRINGS.panelBullets
+      .map(
+        (b, i) =>
+          `<button type="button" class="welcome-bullet" data-prompt="${i}" ${props.closed ? 'disabled' : ''}>${b}<span class="welcome-bullet-arrow" aria-hidden="true">→</span></button>`,
+      )
+      .join('');
 
     const welcomeHtml = empty
       ? `
@@ -40,7 +48,7 @@ export function renderChat(host: HTMLElement, props: ChatProps): void {
           </div>
           <h2 class="welcome-heading">${STRINGS.panelHelpHeading} ${props.personaName}.</h2>
           <p class="welcome-sub">${STRINGS.panelHelpSubtitle}</p>
-          <ul class="welcome-bullets">${bullets}</ul>
+          <div class="welcome-bullets">${bullets}</div>
         </div>
       `
       : '';
@@ -60,6 +68,15 @@ export function renderChat(host: HTMLElement, props: ChatProps): void {
     `;
 
     host.querySelector('[data-action="close"]')?.addEventListener('click', props.onClose);
+    // Welcome quick-start chips → send the matching starter prompt.
+    host.querySelectorAll('.welcome-bullet').forEach((el) => {
+      el.addEventListener('click', () => {
+        if (props.closed) return;
+        const i = Number((el as HTMLElement).dataset.prompt);
+        const prompt = STRINGS.panelPrompts[i] ?? STRINGS.panelBullets[i];
+        if (prompt) props.onSend(prompt);
+      });
+    });
     const form = host.querySelector('form');
     const input = host.querySelector('input');
     if (form instanceof HTMLFormElement && input instanceof HTMLInputElement) {
