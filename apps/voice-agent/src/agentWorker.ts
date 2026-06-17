@@ -38,6 +38,23 @@ import { resolveVoiceContext } from './persona.js';
 
 const log = childLogger({ mod: 'agent-worker' });
 
+// Detects a clear "take me to checkout" intent in a voice transcript. Used to
+// navigate deterministically (independent of the side-channel LLM + abort flag)
+// so the page actually moves when the bot says it's heading to checkout. Kept
+// strict to avoid false navigations on passing mentions ("what's the checkout
+// process?" → false). Exported for unit testing.
+export function wantsCheckoutNavigation(text: string): boolean {
+  const t = (text ?? '').trim().toLowerCase();
+  if (!t) return false;
+  // Passing/question mentions should NOT navigate.
+  if (/\b(what|how|when|where|why|is|does|do|can i|the)\b.*\bcheck\s?out\b.*\?/.test(t)) return false;
+  return (
+    /^check\s?out[.!?]*$/.test(t) ||
+    /\bcheck\s?out\b\s*(now|please)\b/.test(t) ||
+    /\b(take me to|go to|proceed to|proceed|head to|bring me to|let'?s|ready to|want to|wanna|can we|move to|navigate to)\b[\s\w']*\bcheck\s?out\b/.test(t)
+  );
+}
+
 let _redis: Redis | null = null;
 function redis(): Redis {
   if (!_redis) {
@@ -477,6 +494,17 @@ const agentDefinition = defineAgent({
               log.warn({ err, vertical }, 'showcase card lookup failed'),
             );
           }
+        }
+        // Belt-and-suspenders: when the visitor clearly asks to go to checkout,
+        // navigate DETERMINISTICALLY — independent of the side-channel LLM's tool
+        // decision and the runTurn abort flag (a barge-in could drop a pending
+        // site.navigate). This kills the "I'm taking you to checkout" / "still on
+        // the shop page" divergence: Gemini narrates it AND the page actually moves.
+        // Navigating to /checkout when already there is a client-router no-op.
+        if (merchant.siteGraphEnabled && bridge.dispatchHostAction && wantsCheckoutNavigation(e.text)) {
+          void bridge
+            .dispatchHostAction({ type: 'navigate', path: '/checkout' })
+            .catch((err) => log.warn({ err }, 'deterministic checkout nav failed'));
         }
       } else if (e.type === 'bot_text_partial' && e.text.trim().length > 0) {
         // Stream caption updates while the turn is still in progress. Widget
