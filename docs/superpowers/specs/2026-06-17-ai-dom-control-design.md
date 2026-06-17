@@ -106,10 +106,16 @@ read-back with no extra plumbing.
 ### Field resolution (widget)
 
 Extend the ax-tree resolver with `resolveField(intent): HTMLElement | null` that targets
-**form controls** (`input`, `textarea`, `select`) and matches by, in priority order:
-`<label for>` text → `aria-label`/`aria-labelledby` → `placeholder` → `name`/`id` attribute →
-nearest preceding label text. (Phase 2 adds graph-provided `selectorHint` as the highest-priority
-match, with this live resolution as the fallback.)
+**form controls** (`input`, `textarea`, `select`).
+
+**Prefer the website's own stable identifiers.** Match in priority order:
+**exact `id`/`name`/`data-*` attribute (the same ids the site's own code uses)** →
+`<label for>` text → `aria-label`/`aria-labelledby` → `placeholder` → nearest preceding label
+text. Fuzzy text matching is the last resort, not the first. The same applies to `page.click`
+targets (buttons): prefer the element's real `id`/stable selector over its label text. In
+Phase 2 the crawl supplies these exact selectors (`selectorHint`) so runtime uses the *same
+ids the website uses* with no guessing; Phase 1's live resolution is the fallback for elements
+not yet in the graph.
 
 ### React-safe value setting (widget)
 
@@ -140,16 +146,21 @@ read-back so the returned value reflects any input masking/normalisation the pag
 3. `page.fill({ fields: [{field:"Full name",value:…}, {field:"Phone",value:…}, …] })`.
 4. Bot reads the **returned read-back values** back to the visitor ("I've put X, Y, Z on the
    checkout page — does that look right?") — confirming from reality, not its guess.
-5. On the visitor's "yes", `page.click({ intent: "Continue to Payment" })` (the page's own
-   button → the storefront's own order logic runs). The visitor can also just tap it themselves;
-   either way they see the real values first.
+5. Bot tells the visitor the details are on the checkout page and **offers the choice** (never
+   auto-clicks): *"You're all set to continue on checkout — shall I click 'Continue to Payment'
+   for you, or would you like to tap it yourself?"* Only on an explicit yes does it call
+   `page.click({ intent: "Continue to Payment" })` (the page's own button → the storefront's own
+   order logic runs). Either way the visitor sees the real values first.
 
 ### Prompt changes (`packages/agent/src/prompts/system.ts`)
 
 - Replace the checkout closing flow to use navigate → `page.fill` → read-back from the returned
-  values → confirm → `page.click` "Continue to Payment".
+  values → confirm → **offer to click** "Continue to Payment".
 - Instruct: always fill from the visitor's **most recent** correction; after filling, read back
   the **returned** values (never the bot's own memory) and ask the visitor to confirm.
+- After confirmation, the bot **asks before clicking** the final button: *"shall I click
+  'Continue to Payment' for you, or would you like to tap it yourself?"* — it only calls
+  `page.click` on an explicit yes; it never auto-submits.
 
 ### Bliss Club fix (design-aligned)
 
