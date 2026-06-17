@@ -5,6 +5,7 @@ import { checkCaps } from './caps.js';
 import type { HostAction, HostActionResult } from './host-actions.js';
 import { redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
 import { validateConsultationRequest } from './consultation.js';
+import { validateCheckoutFill } from './checkout-fields.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
 import { type ToolResultEnvelope, buildToolSurface, dispatchTool, isCalmosisStitch } from './tools.js';
 import type {
@@ -418,11 +419,24 @@ export async function* runTurn(
           if (!deps.dispatchHostAction) {
             envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
           } else {
-            const action = toHostAction(call.name, args);
-            const result = await deps.dispatchHostAction(action);
-            envelope = result.ok
-              ? { ok: true, value: result }
-              : { ok: false, kind: 'unsupported', reason: result.reason };
+            let action = toHostAction(call.name, args);
+            // Hard-validate checkout fields before anything is typed onto the
+            // real page: a malformed phone/pincode/email is rejected (the bot
+            // relays the reason and re-asks) and valid values are normalized.
+            // On rejection we skip the dispatch and fall through to the shared
+            // tool-result/history handling so the model sees the reason.
+            const fillCheck =
+              action.type === 'form_fill' ? validateCheckoutFill(action.fields) : null;
+            if (fillCheck && !fillCheck.ok) {
+              envelope = { ok: false, kind: 'unsupported', reason: fillCheck.reason };
+            } else {
+              if (fillCheck && fillCheck.ok && action.type === 'form_fill') {
+                action = { ...action, fields: fillCheck.fields };
+              }
+              const result = await deps.dispatchHostAction(action);
+              envelope = result.ok
+                ? { ok: true, value: result }
+                : { ok: false, kind: 'unsupported', reason: result.reason };
             // Funnel metrics — emitted at the shared dispatch chokepoint so both
             // the text WS and the voice bridge inherit them. Only on success so
             // the funnel reflects real bot-driven cart/checkout progress.
@@ -448,6 +462,7 @@ export async function* runTurn(
                   sessionId: session.sessionId,
                 });
               }
+            }
             }
           }
         } else {
