@@ -74,6 +74,22 @@ export function wantsOrderConfirmation(text: string): boolean {
   );
 }
 
+// Detects that the visitor is in the checkout / detail-giving phase — a phone or
+// pincode (6+ digit run), an email, or delivery/order words. Opens the gate for
+// deterministic order completion so a later "yes" actually places the order
+// (the visitor often goes straight to giving details, never saying "checkout").
+export function hasCheckoutSignal(text: string): boolean {
+  const t = (text ?? '').trim().toLowerCase();
+  if (!t) return false;
+  return (
+    /\d{6,}/.test(t.replace(/[\s-]/g, '')) ||
+    /@|\bgmail\b|\bat\s+gmail\b|\bdot\s+com\b/.test(t) ||
+    /\b(delivery|deliver to|address|pin\s?code|pincode|shipping|ship to|place (the |my )?order|my order|complete (the |my )?order)\b/.test(
+      t,
+    )
+  );
+}
+
 let _redis: Redis | null = null;
 function redis(): Redis {
   if (!_redis) {
@@ -517,12 +533,17 @@ const agentDefinition = defineAgent({
       const dispatch = bridge.dispatchHostAction;
       if (completingOrder || orderPlaced || !dispatch) return;
       completingOrder = true;
+      log.info({ sessionId }, 'order completion: start');
       try {
         const transcript = recorder
           .snapshot()
           .map((t) => `${t.role === 'user' ? 'Visitor' : 'Calmio'}: ${t.content}`)
           .join('\n');
         const extracted = await extractCheckoutDetails(transcript, extractChat);
+        log.info(
+          { sessionId, ok: extracted.ok, reason: extracted.ok ? undefined : extracted.reason },
+          'order completion: extraction result',
+        );
         if (!extracted.ok) {
           ground(
             `The order is NOT placed yet — ${extracted.reason} Ask the visitor for that now in their language; do NOT tell them the order is placed.`,
@@ -532,6 +553,7 @@ const agentDefinition = defineAgent({
         const d = extracted.details;
         await dispatch({ type: 'navigate', path: '/checkout' }).catch(() => undefined);
         const fill = await dispatch({ type: 'checkout_fill', details: { ...d, payment: 'cod' } });
+        log.info({ sessionId, ok: fill.ok, reason: fill.ok ? undefined : fill.reason }, 'order completion: fill result');
         if (!fill.ok) {
           ground(
             `The checkout form did NOT get filled (reason: ${fill.reason}). Tell the visitor honestly it didn't go through and offer to try again — do NOT say it's placed.`,
@@ -539,6 +561,7 @@ const agentDefinition = defineAgent({
           return;
         }
         const place = await dispatch({ type: 'checkout_place' });
+        log.info({ sessionId, ok: place.ok, reason: place.ok ? undefined : place.reason }, 'order completion: place result');
         if (place.ok) {
           orderPlaced = true;
           recorder.markCheckoutReached();
@@ -602,6 +625,10 @@ const agentDefinition = defineAgent({
             .dispatchHostAction({ type: 'navigate', path: '/checkout' })
             .catch((err) => log.warn({ err }, 'deterministic checkout nav failed'));
         }
+        // Open the completion gate as soon as the visitor is giving checkout
+        // details (phone/email/pincode/address/order) — they often skip "take me
+        // to checkout" and go straight to dictating details.
+        if (merchant.siteGraphEnabled && hasCheckoutSignal(e.text)) checkoutEntered = true;
         // Deterministic, state-grounded order completion: once we're in checkout
         // and the visitor confirms, place the order for real (extract → fill →
         // place) and tell Gemini the true outcome — instead of letting it fake
@@ -613,6 +640,7 @@ const agentDefinition = defineAgent({
           !orderPlaced &&
           wantsOrderConfirmation(e.text)
         ) {
+          log.info({ sessionId, text: e.text }, 'order completion: confirmation detected → completing');
           void completeOrder();
         }
       } else if (e.type === 'bot_text_partial' && e.text.trim().length > 0) {

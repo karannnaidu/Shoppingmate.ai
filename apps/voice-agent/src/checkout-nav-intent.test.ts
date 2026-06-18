@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { wantsCheckoutNavigation, wantsOrderConfirmation } from './agentWorker.js';
+import { hasCheckoutSignal, wantsCheckoutNavigation, wantsOrderConfirmation } from './agentWorker.js';
 
 describe('wantsCheckoutNavigation', () => {
   it('fires on clear "take me to checkout" intents', () => {
@@ -82,5 +82,36 @@ describe('wantsOrderConfirmation', () => {
   it('handles empty / whitespace safely', () => {
     expect(wantsOrderConfirmation('')).toBe(false);
     expect(wantsOrderConfirmation('   ')).toBe(false);
+  });
+});
+
+describe('hasCheckoutSignal', () => {
+  it('fires when the visitor is giving checkout details', () => {
+    for (const t of [
+      'add my delivery details',
+      '8105791728',
+      '810579 1728',
+      'my pincode is 560037',
+      '560037',
+      'karan at gmail dot com',
+      'thorin1435@gmail.com',
+      'deliver to 21 Sandeep Square',
+      'place my order',
+      'my address is 21 Sandeep Square',
+    ]) {
+      expect(hasCheckoutSignal(t)).toBe(true);
+    }
+  });
+
+  it('does NOT fire on ordinary browsing chat', () => {
+    for (const t of [
+      'tell me about peace mantra',
+      'which one helps with sleep',
+      'yes',
+      'add peace mantra to cart',
+      'what is the price',
+    ]) {
+      expect(hasCheckoutSignal(t)).toBe(false);
+    }
   });
 });
