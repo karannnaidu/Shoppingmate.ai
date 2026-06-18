@@ -66,6 +66,9 @@ export type BridgeDeps = {
 
 export type Bridge = {
   handleUserText: (text: string) => Promise<void>;
+  // Record what the VOICE (Gemini) actually said, so the side-channel executor
+  // reasons over the real dialogue. See voiceHistory in createBridge.
+  noteAssistantTurn: (text: string) => void;
   handleBargeIn: () => void;
   dispatchHostAction?: (action: HostAction) => Promise<HostActionResult>;
   deliverHostActionResult?: (msg: { callId: string; result: HostActionResult }) => void;
@@ -75,6 +78,16 @@ const HOST_ACTION_TIMEOUT_MS = 5000;
 
 export function createBridge(deps: BridgeDeps): Bridge {
   let aborted = false;
+  // Voice has TWO brains: Gemini Live speaks to the visitor; this side-channel
+  // executor is what actually calls the tools (cart/checkout/navigate). Gemini's
+  // spoken turns are recorded here (via noteAssistantTurn) and the visitor's
+  // turns in handleUserText, so the executor's history mirrors the REAL spoken
+  // conversation. Without this it only sees the visitor's fragmented utterances
+  // ("8105791728", "Bangalore 560037") with no idea which question each answers
+  // — so it can't assemble a checkout.fill and the form never gets filled while
+  // Gemini cheerfully says "order placed". The executor's own (suppressed)
+  // replies are intentionally NOT recorded — Gemini's are the canonical voice.
+  const voiceHistory: SessionState['history'] = [];
   const pending = new Map<
     string,
     { resolve: (r: HostActionResult) => void; timer: ReturnType<typeof setTimeout> }
@@ -93,6 +106,15 @@ export function createBridge(deps: BridgeDeps): Bridge {
       );
       const merchant = await deps.loadMerchant(deps.merchantId);
       const session = await deps.loadSession(deps.sessionId);
+      // Run the executor over the REAL spoken conversation (Gemini's turns +
+      // the visitor's turns), not the persisted/own-reply history which diverges
+      // from what the visitor actually heard. Drop any leading assistant turns
+      // (e.g. the kickoff greeting) so the message list starts with a user turn.
+      // runTurn appends this `text` itself, so history holds everything BEFORE it.
+      let prior = [...voiceHistory];
+      while (prior.length > 0 && prior[0]?.role === 'assistant') prior = prior.slice(1);
+      session.history = prior;
+      voiceHistory.push({ role: 'user', content: text });
       const widgetMsg: WidgetMessage = {
         type: 'user_text',
         sessionId: deps.sessionId,
@@ -137,6 +159,10 @@ export function createBridge(deps: BridgeDeps): Bridge {
         deps.publishData({ type: 'session_closed', reason: 'error' });
         deps.closeRoom();
       }
+    },
+    noteAssistantTurn(text) {
+      const t = text.trim();
+      if (t.length > 0) voiceHistory.push({ role: 'assistant', content: t });
     },
     handleBargeIn() {
       aborted = true;

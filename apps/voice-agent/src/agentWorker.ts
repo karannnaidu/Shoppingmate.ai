@@ -530,6 +530,9 @@ const agentDefinition = defineAgent({
         if (clean.trim().length > 0) {
           dataChannel.publish({ type: 'say', text: clean });
           recorder.addTurn('agent', clean);
+          // Feed Gemini's spoken turn to the side-channel executor so it reasons
+          // over the real dialogue (and can map answers→fields for checkout.fill).
+          bridge.noteAssistantTurn(clean);
         }
       } else if (e.type === 'audio_out') {
         const samples = e.bytes.length / 2;

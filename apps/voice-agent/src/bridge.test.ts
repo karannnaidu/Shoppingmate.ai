@@ -68,6 +68,32 @@ describe('createBridge — STT-final → runTurn → say → speak', () => {
     expect(deps.publishData).toHaveBeenCalledWith({ type: 'say', text: 'Hi there.' });
   });
 
+  it('feeds Gemini’s spoken turns into the executor history (real dialogue, not blind utterances)', async () => {
+    const histories: Array<Array<{ role: string; content: string }>> = [];
+    const capture = vi.fn(async function* (_d: unknown, _m: unknown, session: { history?: unknown }) {
+      histories.push(JSON.parse(JSON.stringify(session.history ?? [])));
+      yield { type: 'end_of_turn' } as AgentEvent;
+    });
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      loadSession: vi.fn().mockResolvedValue({ sessionId: 'ws_test', history: [] }),
+      runTurn: capture as unknown as BridgeDeps['runTurn'],
+    };
+    const bridge = createBridge(deps);
+    bridge.noteAssistantTurn("What's your phone number?");
+    await bridge.handleUserText('9876543210');
+    bridge.noteAssistantTurn('And your email?');
+    await bridge.handleUserText('test@example.com');
+
+    // The 2nd executor turn must see the prior answer AND Gemini's question, so
+    // it can map "test@example.com" → email (the bug: it saw only utterances).
+    const second = histories[1]!;
+    expect(second).toContainEqual({ role: 'user', content: '9876543210' });
+    expect(second).toContainEqual({ role: 'assistant', content: 'And your email?' });
+    // Leading assistant turns are dropped so the list starts with a user turn.
+    expect(second[0]!.role).toBe('user');
+  });
+
   it('does NOT speak() events of type cards/checkout_redirect/cap_warning', async () => {
     const deps: BridgeDeps = {
       ...baseDeps(),
