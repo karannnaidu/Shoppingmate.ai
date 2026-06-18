@@ -24,6 +24,65 @@ function normalizePhoneDigits(value: string): string {
   return d;
 }
 
+const reasonFor = {
+  phone: (raw: string) =>
+    `The phone number "${raw}" isn't a valid 10-digit Indian mobile — ask the visitor to re-share it (10 digits, starting 6–9).`,
+  pincode: (raw: string) =>
+    `The pincode "${raw}" isn't 6 digits — ask the visitor for a valid 6-digit pincode.`,
+  email: (raw: string) =>
+    `The email address "${raw}" looks invalid — ask the visitor for a valid email.`,
+};
+
+/** True for a valid 10-digit Indian mobile (already normalized digits). */
+function isValidPhone(digits: string): boolean {
+  return digits.length === 10 && /^[6-9]/.test(digits);
+}
+
+export type CheckoutDetails = {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+};
+
+export type CheckoutDetailsResult =
+  | { ok: true; details: CheckoutDetails }
+  | { ok: false; reason: string };
+
+/**
+ * Validate + normalize the named checkout.fill details (the brand-hook path).
+ * Mirrors validateCheckoutFill but for the structured shape, returning a
+ * field-specific reason so the bot re-asks for exactly what's wrong instead of
+ * looping. Normalizes phone (bare 10 digits) and pincode (6 digits).
+ */
+export function validateCheckoutDetails(d: Partial<CheckoutDetails>): CheckoutDetailsResult {
+  const name = (d.name ?? '').trim();
+  if (!name) return { ok: false, reason: 'The name is missing — ask the visitor for their full name.' };
+
+  const phone = normalizePhoneDigits((d.phone ?? '').trim());
+  if (!isValidPhone(phone)) return { ok: false, reason: reasonFor.phone((d.phone ?? '').trim()) };
+
+  const email = (d.email ?? '').trim();
+  if (!EMAIL_VALUE_RE.test(email)) return { ok: false, reason: reasonFor.email(email) };
+
+  const address = (d.address ?? '').trim();
+  if (!address) return { ok: false, reason: 'The street address is missing — ask the visitor for it.' };
+
+  const city = (d.city ?? '').trim();
+  if (!city) return { ok: false, reason: 'The city is missing — ask the visitor for it.' };
+
+  const state = (d.state ?? '').trim();
+  if (!state) return { ok: false, reason: 'The state is missing — ask the visitor for it.' };
+
+  const pincode = (d.pincode ?? '').replace(/\D/g, '');
+  if (pincode.length !== 6) return { ok: false, reason: reasonFor.pincode((d.pincode ?? '').trim()) };
+
+  return { ok: true, details: { name, phone, email, address, city, state, pincode } };
+}
+
 /**
  * Validate + normalize the fields the bot wants to type into the checkout page.
  * Only phone/pincode/email fields are checked (by field-name); everything else

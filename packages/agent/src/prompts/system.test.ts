@@ -134,31 +134,34 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).toMatch(/COUPONS/);
   });
 
-  it('drives bot checkout completion via page.fill + read-back + ask-before-click', () => {
+  it('drives Calmosis checkout via the brand hooks (state → fill → place), not page.fill', () => {
     const p = buildSystemPrompt(calmosis);
-    // New flow: navigate → page.fill → read-back the returned values → ask before clicking.
-    expect(p).toMatch(/page\.fill/);
-    expect(p).toMatch(/page\.click/);
-    expect(p).toMatch(/ACTUALLY in the form|read THOSE back/i);
-    expect(p).toMatch(/Shall I click Continue to Payment|ask before submit/i);
-    expect(p).toMatch(/NEVER auto-click/i);
-    // Must NOT use the old checkout.state / checkout.fill / checkout.place flow.
-    expect(p).not.toMatch(/checkout\.state/);
-    expect(p).not.toMatch(/checkout\.fill/);
-    expect(p).not.toMatch(/checkout\.place/);
+    // Reliable flow: checkout.state → navigate → checkout.fill (animated) → confirm → checkout.place.
+    expect(p).toMatch(/checkout\.state/);
+    expect(p).toMatch(/checkout\.fill/);
+    expect(p).toMatch(/checkout\.place/);
+    // Must steer AWAY from the brittle generic DOM flow for Calmosis checkout.
+    expect(p).toMatch(/never page\.fill \/ page\.click here/i);
   });
 
-  it('confirms details with the visitor BEFORE writing them to the checkout page', () => {
+  it('confirms the order with the visitor BEFORE placing it (checkout.place)', () => {
     const p = buildSystemPrompt(calmosis);
-    expect(p).toMatch(/CONFIRM BEFORE YOU FILL/i);
-    expect(p).toMatch(/do not call page\.fill until/i);
+    expect(p).toMatch(/ONLY after an explicit yes, call checkout\.place/i);
+    expect(p).toMatch(/never call checkout\.place before checkout\.fill has succeeded/i);
   });
 
   it('tells the bot to always use the visitor’s latest corrected value', () => {
     const p = buildSystemPrompt(calmosis);
     expect(p).toMatch(/CORRECTIONS/i);
     expect(p).toMatch(/LATEST value/i);
-    expect(p).toMatch(/never fill or submit a value the visitor has just changed/i);
+    expect(p).toMatch(/never place an order with a value the visitor has just changed/i);
+  });
+
+  it('keeps checkout.fill validation enforced + does not loop on a missing field', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/VALIDATION IS ENFORCED/i);
+    expect(p).toMatch(/checkout\.fill REJECTS/i);
+    expect(p).toMatch(/DON'T GET STUCK/i);
   });
 });
 
