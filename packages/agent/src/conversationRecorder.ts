@@ -15,6 +15,9 @@ export type ConversationTags = {
 
 export type ConversationRecorder = {
   addTurn: (role: TranscriptRole, content: string) => void;
+  /** Read the conversation so far (both sides) without finishing — used to
+   *  deterministically extract checkout details mid-call. */
+  snapshot: () => TranscriptTurn[];
   markCartAdd: () => void;
   markCheckoutReached: () => void;
   markPurchased: (cents: number) => void;
@@ -44,6 +47,9 @@ export function createConversationRecorder(args: {
     addTurn(role, content) {
       if (!content || content.trim().length === 0) return;
       turns.push({ role, content, timestamp: Date.now() - args.startMs });
+    },
+    snapshot() {
+      return [...turns];
     },
     markCartAdd() {
       cartAdds += 1;

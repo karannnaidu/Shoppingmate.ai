@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { wantsCheckoutNavigation } from './agentWorker.js';
+import { wantsCheckoutNavigation, wantsOrderConfirmation } from './agentWorker.js';
 
 describe('wantsCheckoutNavigation', () => {
   it('fires on clear "take me to checkout" intents', () => {
@@ -39,5 +39,48 @@ describe('wantsCheckoutNavigation', () => {
   it('handles empty / whitespace safely', () => {
     expect(wantsCheckoutNavigation('')).toBe(false);
     expect(wantsCheckoutNavigation('   ')).toBe(false);
+  });
+});
+
+describe('wantsOrderConfirmation', () => {
+  it('fires on confirmations / place-order intents (English + Hinglish)', () => {
+    for (const t of [
+      'yes please',
+      'yes',
+      'yeah',
+      'sure',
+      'go ahead',
+      'place the order',
+      'confirm the order',
+      'place it',
+      "that's correct",
+      'looks good',
+      'haan',
+      'bilkul',
+      'theek hai',
+      'haan kar do',
+      'yes please go ahead',
+      'ok',
+    ]) {
+      expect(wantsOrderConfirmation(t)).toBe(true);
+    }
+  });
+
+  it('does NOT fire on questions or non-confirmations', () => {
+    for (const t of [
+      'what is the total?',
+      'can you fill my address?',
+      'my name is Karan',
+      'no not yet',
+      'wait',
+      'how much is it?',
+    ]) {
+      expect(wantsOrderConfirmation(t)).toBe(false);
+    }
+  });
+
+  it('handles empty / whitespace safely', () => {
+    expect(wantsOrderConfirmation('')).toBe(false);
+    expect(wantsOrderConfirmation('   ')).toBe(false);
   });
 });

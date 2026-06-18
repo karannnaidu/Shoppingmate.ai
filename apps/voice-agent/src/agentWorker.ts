@@ -26,7 +26,8 @@ import {
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import { db, schema, submitConsultationRequest } from '@shoppingmate/db';
-import { childLogger, env as sharedEnv } from '@shoppingmate/shared';
+import { type ChatFn, extractCheckoutDetails } from '@shoppingmate/agent';
+import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
@@ -52,6 +53,24 @@ export function wantsCheckoutNavigation(text: string): boolean {
     /^check\s?out[.!?]*$/.test(t) ||
     /\bcheck\s?out\b\s*(now|please)\b/.test(t) ||
     /\b(take me to|go to|proceed to|proceed|head to|bring me to|let'?s|ready to|want to|wanna|can we|move to|navigate to)\b[\s\w']*\bcheck\s?out\b/.test(t)
+  );
+}
+
+// Detects the visitor confirming they want the order PLACED (after details were
+// collected). Used to run deterministic checkout completion. Broad on purpose —
+// false positives are safe because completion re-validates the details and only
+// places when all are present; it asks for what's missing otherwise. Covers
+// English + common Hindi/Hinglish affirmatives.
+export function wantsOrderConfirmation(text: string): boolean {
+  const t = (text ?? '').trim().toLowerCase();
+  if (!t) return false;
+  if (t.includes('?')) return false; // a question isn't a confirmation
+  return (
+    /\b(place|confirm|complete|finalize|finalise|submit)\b.*\border\b/.test(t) ||
+    /\b(place|confirm|complete)\s+it\b/.test(t) ||
+    /\b(go ahead|proceed|do it|that'?s correct|looks good|all correct|that is correct|sounds good)\b/.test(t) ||
+    /\b(yes|yeah|yep|sure|haan|haa|ha|bilkul|theek hai|thik hai|kar do|kardo|kar dijiye|place kar)\b[\s,.!]*(please|pls|go|placeit|kar do|do it)?\s*$/.test(t) ||
+    /^(yes|yeah|yep|yup|sure|ok|okay|haan|haa|bilkul|theek hai|thik hai)[\s,.!]*$/.test(t)
   );
 }
 
@@ -474,6 +493,73 @@ const agentDefinition = defineAgent({
     // the same three jewelry cards — noisy and disorienting.
     const shownVerticals = new Set<string>();
 
+    // ── Deterministic, state-grounded voice checkout ─────────────────────────
+    // Voice has two brains (Gemini speaks; the side-channel executor drives
+    // tools), and the executor is unreliable at deciding to call checkout.fill.
+    // So on a confirmation we DON'T trust either LLM: we read the whole spoken
+    // transcript, extract+validate the details, then drive navigate → fill →
+    // place as real host actions and tell Gemini the REAL outcome. Gemini's
+    // prompt forbids claiming "filled"/"placed" until it gets one of these
+    // system messages — that kills the fake "your order's in" with an empty form.
+    let checkoutEntered = false;
+    let orderPlaced = false;
+    let completingOrder = false;
+    const checkoutModel =
+      process.env.OPENROUTER_CHECKOUT_MODEL ?? process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
+    const extractChat: ChatFn = (messages) =>
+      chat({ model: checkoutModel, messages, responseFormat: 'json' });
+    // Inject a one-shot grounding message Gemini will voice to the visitor. It's
+    // sent as a turn Gemini responds to (same channel as the kickoff greeting).
+    const ground = (instruction: string) =>
+      gemini.speak(instruction).catch((err) => log.warn({ err }, 'grounding speak failed'));
+
+    async function completeOrder() {
+      const dispatch = bridge.dispatchHostAction;
+      if (completingOrder || orderPlaced || !dispatch) return;
+      completingOrder = true;
+      try {
+        const transcript = recorder
+          .snapshot()
+          .map((t) => `${t.role === 'user' ? 'Visitor' : 'Calmio'}: ${t.content}`)
+          .join('\n');
+        const extracted = await extractCheckoutDetails(transcript, extractChat);
+        if (!extracted.ok) {
+          ground(
+            `The order is NOT placed yet — ${extracted.reason} Ask the visitor for that now in their language; do NOT tell them the order is placed.`,
+          );
+          return;
+        }
+        const d = extracted.details;
+        await dispatch({ type: 'navigate', path: '/checkout' }).catch(() => undefined);
+        const fill = await dispatch({ type: 'checkout_fill', details: { ...d, payment: 'cod' } });
+        if (!fill.ok) {
+          ground(
+            `The checkout form did NOT get filled (reason: ${fill.reason}). Tell the visitor honestly it didn't go through and offer to try again — do NOT say it's placed.`,
+          );
+          return;
+        }
+        const place = await dispatch({ type: 'checkout_place' });
+        if (place.ok) {
+          orderPlaced = true;
+          recorder.markCheckoutReached();
+          ground(
+            `The order has now been placed successfully and the secure payment page is opening. Tell the visitor warmly it's all done and they can pick their payment method (card, UPI, or Cash on Delivery) on the page.`,
+          );
+        } else {
+          ground(
+            `The order did NOT go through (reason: ${place.reason}). Apologize briefly and offer to try again — do NOT say it's placed.`,
+          );
+        }
+      } catch (err) {
+        log.warn({ err, sessionId }, 'deterministic order completion failed');
+        ground(
+          `Something went wrong while placing the order. Apologize briefly and offer to try again — do NOT say it's placed.`,
+        );
+      } finally {
+        completingOrder = false;
+      }
+    }
+
     gemini.onEvent((e) => {
       if (e.type === 'final_transcript' && e.text.trim().length > 0) {
         const words = e.text.split(/\s+/).filter(Boolean).length;
@@ -511,9 +597,23 @@ const agentDefinition = defineAgent({
         // the shop page" divergence: Gemini narrates it AND the page actually moves.
         // Navigating to /checkout when already there is a client-router no-op.
         if (merchant.siteGraphEnabled && bridge.dispatchHostAction && wantsCheckoutNavigation(e.text)) {
+          checkoutEntered = true;
           void bridge
             .dispatchHostAction({ type: 'navigate', path: '/checkout' })
             .catch((err) => log.warn({ err }, 'deterministic checkout nav failed'));
+        }
+        // Deterministic, state-grounded order completion: once we're in checkout
+        // and the visitor confirms, place the order for real (extract → fill →
+        // place) and tell Gemini the true outcome — instead of letting it fake
+        // "your order's in" while nothing was filled. Safe to over-trigger: if
+        // details are incomplete it just asks for what's missing, never places.
+        if (
+          merchant.siteGraphEnabled &&
+          checkoutEntered &&
+          !orderPlaced &&
+          wantsOrderConfirmation(e.text)
+        ) {
+          void completeOrder();
         }
       } else if (e.type === 'bot_text_partial' && e.text.trim().length > 0) {
         // Stream caption updates while the turn is still in progress. Widget
