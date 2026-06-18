@@ -438,11 +438,20 @@ const agentDefinition = defineAgent({
     });
     bridgeRef = bridge;
 
-    // Tell the widget Sage is online. The widget flips its tray from
+    // Tell the widget the bot is online. The widget flips its tray from
     // CONNECTING → listening immediately on this signal instead of waiting
-    // for Sage's first audio frame — and we no longer inject a kickoff
-    // greeting, so the visitor speaks first.
+    // for the first audio frame.
     dataChannel.publish({ type: 'agent_ready' });
+
+    // Kickoff greeting: Gemini Live native-audio is purely reactive — left alone
+    // it waits for the visitor to speak first. Visitors expect the bot to greet
+    // them the moment the call connects, so inject a one-shot trigger (a user
+    // turn) that makes it open the conversation per its system instructions.
+    // Fire-and-forget so a hiccup never blocks the session.
+    const kickoff = demoMode
+      ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
+      : `The visitor just connected on the ${merchant.name ?? 'store'} site. Open the conversation now: greet them warmly and introduce yourself exactly as your instructions say, then ask how you can help. Keep it to a sentence or two — do not wait for them to speak first.`;
+    gemini.speak(kickoff).catch((err) => log.warn({ err }, 'kickoff greeting failed'));
     log.info(
       {
         sessionId,
