@@ -33,7 +33,16 @@ export function formFill(
   const filled: Array<{ field: string; ok: boolean; value: string }> = [];
   let anyResolved = false;
   for (const { field, value } of fields) {
-    const el = resolveField(field, hints);
+    // Prefer a stable data-sm-field anchor (the brand tags its checkout inputs
+    // with these) for deterministic, reliable resolution; fall back to the
+    // accessible-name/label heuristic for generic pages.
+    let el: HTMLElement | null = null;
+    try {
+      el = document.querySelector<HTMLElement>(`[data-sm-field="${CSS.escape(field)}"]`);
+    } catch {
+      el = null;
+    }
+    if (!el) el = resolveField(field, hints);
     if (!el) {
       filled.push({ field, ok: false, value: '' });
       continue;

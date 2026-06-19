@@ -600,28 +600,50 @@ const agentDefinition = defineAgent({
           return;
         }
         const d = extracted.details;
-        // Fill the form on the page (state-set, reliable), then hand off: the
-        // visitor reviews, adds email if needed, and taps Pay on the page. We do
-        // NOT place by voice — that's where it kept dying. Bonus: once the form
-        // is filled the order is completable on-screen even if the voice session
-        // later drops.
+        // Fill the REAL checkout form via page.fill (DOM) — the mechanism that
+        // actually populates the inputs (the event-based brand hook filled
+        // nothing in practice). Resolution is by the stable data-sm-field anchors
+        // on the inputs. Filling the pincode triggers the page's own city/state
+        // lookup, so those derive automatically. We do NOT place by voice — the
+        // visitor reviews + taps Pay on the page (and adds email if we couldn't
+        // catch it). Bonus: once filled, the order is completable on-screen even
+        // if the voice session later drops.
         await dispatch({ type: 'navigate', path: '/checkout' }).catch(() => undefined);
-        const fill = await dispatch({ type: 'checkout_fill', details: { ...d, payment: 'cod' } });
-        log.info({ sessionId, ok: fill.ok, reason: fill.ok ? undefined : fill.reason }, 'order completion: fill result');
+        // Let the checkout route mount its inputs before we fill them.
+        await new Promise((r) => setTimeout(r, 700));
+        const fillFields: Array<{ field: string; value: string }> = [
+          { field: 'name', value: d.name },
+          { field: 'phone', value: d.phone },
+          { field: 'address', value: d.address },
+          { field: 'pincode', value: d.pincode },
+        ];
+        if (d.email) fillFields.push({ field: 'email', value: d.email });
+        const fill = await dispatch({ type: 'form_fill', fields: fillFields });
+        const filledVals = (fill as { values?: Record<string, string> }).values ?? {};
+        log.info(
+          { sessionId, ok: fill.ok, filled: fill.ok ? filledVals : undefined, reason: fill.ok ? undefined : (fill as { reason?: string }).reason },
+          'order completion: fill result',
+        );
         if (!fill.ok) {
           ground(
-            `The details did NOT get filled on the page (reason: ${fill.reason}). Tell the visitor honestly it didn't go through and offer to try again — do NOT say it's filled or placed.`,
+            `The details did NOT get filled on the page (reason: ${(fill as { reason?: string }).reason}). Tell the visitor honestly it didn't go through and offer to try again — do NOT say it's filled or placed.`,
           );
           return;
         }
         orderPlaced = true; // handed off to the page — don't re-fill on later confirmations
         recorder.markCheckoutReached();
-        const hasEmail = d.email.length > 0;
+        // Read back what's ACTUALLY in the form (not our memory) so the bot is
+        // state-grounded. Fall back to the validated values if the field key
+        // wasn't echoed.
+        const shownName = filledVals.name || d.name;
+        const shownPhone = filledVals.phone || d.phone;
+        const shownAddress = filledVals.address || d.address;
+        const hasEmail = (filledVals.email || d.email).length > 0;
         ground(
-          `Their details are now filled on the checkout page: name ${d.name}, phone ${d.phone}, address ${d.address}, ${d.city} ${d.pincode}. ` +
+          `The checkout form on screen now shows: name ${shownName}, phone ${shownPhone}, address ${shownAddress}, pincode ${d.pincode} (city/state fill in from the pincode). ` +
             (hasEmail
               ? `Tell the visitor warmly it's all filled in — ask them to glance over it on screen and tap "Place Order" to pay (card, UPI, or Cash on Delivery on the secure page). `
-              : `Their EMAIL is the only thing still blank (we couldn't catch it by voice). Tell them everything else is filled in on screen, and ask them to type their email in the email box on the page, then tap "Place Order" to pay. `) +
+              : `Their EMAIL is the only thing still blank (voice can't catch emails reliably). Tell them everything else is filled in on screen, and ask them to type their email in the email box on the page, then tap "Place Order" to pay. `) +
             `Do NOT say the order is already placed — they complete it by tapping on the page.`,
         );
       } catch (err) {
