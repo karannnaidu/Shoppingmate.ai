@@ -33,20 +33,29 @@ type RoomShape = {
 // Cache the dynamic import promise so subsequent callers share the network
 // request. Without this, calling preloadLiveKit() at widget init then again
 // at start() would either race or re-fetch. The promise itself is the cache.
-let _livekitImport: Promise<{ Room: new () => RoomShape }> | null = null;
+// Room ctor accepts RoomOptions; we pass audioCaptureDefaults to turn on the
+// browser's audio cleanup (see connectToRoom). Typed loosely — we only use this
+// one option.
+type RoomOpts = {
+  audioCaptureDefaults?: {
+    echoCancellation?: boolean;
+    noiseSuppression?: boolean;
+    autoGainControl?: boolean;
+    channelCount?: number;
+  };
+};
+type RoomCtor = { Room: new (opts?: RoomOpts) => RoomShape };
 
-function loadLiveKit(): Promise<{ Room: new () => RoomShape }> {
+let _livekitImport: Promise<RoomCtor> | null = null;
+
+function loadLiveKit(): Promise<RoomCtor> {
   if (_livekitImport) return _livekitImport;
   if (typeof globalThis.__SHOPPINGMATE_LIVEKIT_LOADER__ === 'function') {
-    _livekitImport = globalThis.__SHOPPINGMATE_LIVEKIT_LOADER__() as Promise<{
-      Room: new () => RoomShape;
-    }>;
+    _livekitImport = globalThis.__SHOPPINGMATE_LIVEKIT_LOADER__() as Promise<RoomCtor>;
     return _livekitImport;
   }
   const url = `${DEFAULT_CDN_BASE}/livekit-client@${DEFAULT_VERSION}/dist/livekit-client.esm.mjs`;
-  _livekitImport = import(/* @vite-ignore */ url) as Promise<{
-    Room: new () => RoomShape;
-  }>;
+  _livekitImport = import(/* @vite-ignore */ url) as Promise<RoomCtor>;
   return _livekitImport;
 }
 
@@ -65,7 +74,19 @@ export async function connectToRoom(opts: {
   roomName: string;
 }): Promise<LiveKitHandle> {
   const lk = await loadLiveKit();
-  const room = new lk.Room();
+  // Turn ON the browser's audio cleanup for the mic capture. Without these,
+  // background room noise and the bot's own voice (echo from the speaker) reach
+  // Gemini, wrecking its transcription (garbled names/emails). echoCancellation
+  // removes the bot voice the mic picks up; noiseSuppression cuts ambient noise;
+  // autoGainControl normalizes a quiet/distant mic. mono keeps it clean for STT.
+  const room = new lk.Room({
+    audioCaptureDefaults: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: 1,
+    },
+  });
 
   // Attach Sage's audio as soon as it arrives. livekit-client doesn't auto-play
   // remote tracks — it returns an HTMLMediaElement from attach() that must be
