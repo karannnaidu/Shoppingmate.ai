@@ -90,6 +90,46 @@ export function hasCheckoutSignal(text: string): boolean {
   );
 }
 
+// Maps a "show me / open / take me to <product> page" utterance to its product
+// path so we can navigate DETERMINISTICALLY (the executor's site.navigate is
+// flaky — Gemini narrates "taking you there" but the page may not move). Returns
+// null when there's no clear product+navigation intent (e.g. "buy peace mantra"
+// is an add-to-cart intent, not navigation).
+const PRODUCT_NAV: Array<[RegExp, string]> = [
+  [/\bpeace\s*mantra\b/, 'peace-mantra'],
+  [/\bsleep\s*mantra\b/, 'sleep-mantra'],
+  [/\bgreen\s*mantra\b/, 'green-mantra'],
+  [/\bdog\s*mantra\b/, 'dog-mantra'],
+];
+export function productNavPath(text: string): string | null {
+  const t = (text ?? '').trim().toLowerCase();
+  if (!t) return null;
+  const navIntent =
+    /\b(show|see|view|open|go to|take me to|bring me to|pull up|navigate to|look at|check out the)\b/.test(
+      t,
+    ) || /\bpage\b/.test(t);
+  if (!navIntent) return null;
+  for (const [re, sku] of PRODUCT_NAV) if (re.test(t)) return `/shop/${sku}`;
+  return null;
+}
+
+// Detects the bot (Gemini) narrating that it's PLACING the order ("putting your
+// order through, one moment"). This is the reliable trigger for deterministic
+// completion: the user's confirmation can be in any language / garbled by STT,
+// but Gemini's placement line is instructed and consistent. We complete on THIS
+// rather than trying to regex-match a multilingual "yes".
+export function geminiSignalsPlacement(text: string): boolean {
+  const t = (text ?? '').toLowerCase();
+  if (!t) return false;
+  return (
+    /\bputting\b[\s\w']*\b(order|through)\b/.test(t) ||
+    /\bplacing\b[\s\w']*\border\b/.test(t) ||
+    /\border\b[\s\w']*\bthrough\b/.test(t) ||
+    /\bputting it through\b/.test(t) ||
+    /\bplace (your |the )?order now\b/.test(t)
+  );
+}
+
 let _redis: Redis | null = null;
 function redis(): Redis {
   if (!_redis) {
@@ -625,6 +665,16 @@ const agentDefinition = defineAgent({
             .dispatchHostAction({ type: 'navigate', path: '/checkout' })
             .catch((err) => log.warn({ err }, 'deterministic checkout nav failed'));
         }
+        // Belt-and-suspenders product-page nav: "show me the peace mantra page"
+        // navigates deterministically even if the executor's site.navigate misses.
+        if (merchant.siteGraphEnabled && bridge.dispatchHostAction) {
+          const productPath = productNavPath(e.text);
+          if (productPath) {
+            void bridge
+              .dispatchHostAction({ type: 'navigate', path: productPath })
+              .catch((err) => log.warn({ err }, 'deterministic product nav failed'));
+          }
+        }
         // Open the completion gate as soon as the visitor is giving checkout
         // details (phone/email/pincode/address/order) — they often skip "take me
         // to checkout" and go straight to dictating details.
@@ -661,6 +711,20 @@ const agentDefinition = defineAgent({
           // Feed Gemini's spoken turn to the side-channel executor so it reasons
           // over the real dialogue (and can map answers→fields for checkout.fill).
           bridge.noteAssistantTurn(clean);
+          // Reliable completion trigger: when Gemini narrates that it's placing
+          // the order ("putting your order through, one moment"), run the real
+          // deterministic completion. More robust than matching the visitor's
+          // multilingual "yes" — and it's exactly when Gemini is about to wait
+          // for the system outcome, so it stays silent until we ground it.
+          if (
+            merchant.siteGraphEnabled &&
+            checkoutEntered &&
+            !orderPlaced &&
+            geminiSignalsPlacement(clean)
+          ) {
+            log.info({ sessionId }, 'order completion: placement narration detected → completing');
+            void completeOrder();
+          }
         }
       } else if (e.type === 'audio_out') {
         const samples = e.bytes.length / 2;

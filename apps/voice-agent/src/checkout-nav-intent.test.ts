@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { hasCheckoutSignal, wantsCheckoutNavigation, wantsOrderConfirmation } from './agentWorker.js';
+import {
+  geminiSignalsPlacement,
+  hasCheckoutSignal,
+  productNavPath,
+  wantsCheckoutNavigation,
+  wantsOrderConfirmation,
+} from './agentWorker.js';
 
 describe('wantsCheckoutNavigation', () => {
   it('fires on clear "take me to checkout" intents', () => {
@@ -113,5 +119,38 @@ describe('hasCheckoutSignal', () => {
     ]) {
       expect(hasCheckoutSignal(t)).toBe(false);
     }
+  });
+});
+
+describe('productNavPath', () => {
+  it('maps show/open + product to its shop path', () => {
+    expect(productNavPath('show me the peace mantra page')).toBe('/shop/peace-mantra');
+    expect(productNavPath('take me to sleep mantra')).toBe('/shop/sleep-mantra');
+    expect(productNavPath('open green mantra page')).toBe('/shop/green-mantra');
+    expect(productNavPath('go to dog mantra')).toBe('/shop/dog-mantra');
+  });
+  it('returns null without a clear nav intent (e.g. buy / mention)', () => {
+    expect(productNavPath('i want to buy peace mantra')).toBeNull();
+    expect(productNavPath('tell me about peace mantra')).toBeNull();
+    expect(productNavPath('show me something')).toBeNull();
+    expect(productNavPath('')).toBeNull();
+  });
+});
+
+describe('geminiSignalsPlacement', () => {
+  it('fires on the bot narrating placement', () => {
+    for (const t of [
+      'Perfect — putting your order through now, one moment.',
+      "I'm placing your order.",
+      'putting it through now',
+      'Let me place your order now.',
+    ]) {
+      expect(geminiSignalsPlacement(t)).toBe(true);
+    }
+  });
+  it('does NOT fire on ordinary narration', () => {
+    expect(geminiSignalsPlacement('pulling that up, one moment')).toBe(false);
+    expect(geminiSignalsPlacement('added it to your cart')).toBe(false);
+    expect(geminiSignalsPlacement('what is your name?')).toBe(false);
   });
 });
