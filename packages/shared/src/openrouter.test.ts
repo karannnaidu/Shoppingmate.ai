@@ -28,6 +28,25 @@ describe('chat()', () => {
     });
     expect(r).toEqual({ text: 'pong', inputTokens: 4, outputTokens: 1 });
   });
+
+  it('sends max_tokens when given (so OpenRouter does not reserve the full default)', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    let sentMax: unknown;
+    server.use(
+      http.post('https://openrouter.ai/api/v1/chat/completions', async ({ request }) => {
+        const body = (await request.json()) as { max_tokens?: number };
+        sentMax = body.max_tokens;
+        return HttpResponse.json({ choices: [{ message: { content: '{}' } }] });
+      }),
+    );
+    await chat({
+      model: 'anthropic/claude-sonnet-4.6',
+      messages: [{ role: 'user', content: 'x' }],
+      responseFormat: 'json',
+      maxTokens: 512,
+    });
+    expect(sentMax).toBe(512);
+  });
 });
 
 describe('chatTools()', () => {

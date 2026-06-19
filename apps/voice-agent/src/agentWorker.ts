@@ -563,7 +563,9 @@ const agentDefinition = defineAgent({
     const checkoutModel =
       process.env.OPENROUTER_CHECKOUT_MODEL ?? process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
     const extractChat: ChatFn = (messages) =>
-      chat({ model: checkoutModel, messages, responseFormat: 'json' });
+      // Tiny structured reply (7 short fields) — cap output so OpenRouter doesn't
+      // reserve credit for the model's 64K default and 402 on a low balance.
+      chat({ model: checkoutModel, messages, responseFormat: 'json', maxTokens: 512 });
     // Inject a one-shot grounding message Gemini will voice to the visitor. It's
     // sent as a turn Gemini responds to (same channel as the kickoff greeting).
     const ground = (instruction: string) =>

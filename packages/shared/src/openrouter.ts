@@ -16,6 +16,10 @@ export async function chat(opts: {
   messages: ChatMessage[];
   responseFormat?: 'json' | 'text';
   timeoutMs?: number;
+  /** Cap output tokens. Without this OpenRouter reserves credit for the model's
+   *  full default output (e.g. 64K on Sonnet) and 402s when the balance is low,
+   *  even for a tiny reply. Set a small bound for short structured replies. */
+  maxTokens?: number;
 }): Promise<ChatResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY missing');
@@ -35,6 +39,7 @@ export async function chat(opts: {
         model: opts.model,
         messages: opts.messages,
         ...(opts.responseFormat === 'json' ? { response_format: { type: 'json_object' } } : {}),
+        ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
       }),
       signal: controller.signal,
     });
