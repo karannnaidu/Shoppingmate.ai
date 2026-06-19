@@ -54,6 +54,16 @@ export function createGeminiSdkTransport(): GeminiTransport {
               silenceDurationMs: 500,
             },
           },
+          // Sliding-window context compression lets long conversations run
+          // without hitting Gemini's session context limit, which otherwise
+          // terminates the session mid-call (observed: ws close code 1008
+          // "Operation is not implemented..." right at the checkout read-back on
+          // long, correction-heavy calls). Gated by env so it can be disabled
+          // INSTANTLY (set GEMINI_CONTEXT_COMPRESSION=off on the service) if the
+          // native-audio model rejects the field — no redeploy needed.
+          ...(process.env.GEMINI_CONTEXT_COMPRESSION === 'off'
+            ? {}
+            : { contextWindowCompression: { slidingWindow: {} } }),
         },
         callbacks: {
           onmessage: (msg) => {
