@@ -58,15 +58,24 @@ export type CheckoutDetailsResult =
  * field-specific reason so the bot re-asks for exactly what's wrong instead of
  * looping. Normalizes phone (bare 10 digits) and pincode (6 digits).
  */
-export function validateCheckoutDetails(d: Partial<CheckoutDetails>): CheckoutDetailsResult {
+export function validateCheckoutDetails(
+  d: Partial<CheckoutDetails>,
+  opts: { requireEmail?: boolean } = {},
+): CheckoutDetailsResult {
   const name = (d.name ?? '').trim();
   if (!name) return { ok: false, reason: 'The name is missing — ask the visitor for their full name.' };
 
   const phone = normalizePhoneDigits((d.phone ?? '').trim());
   if (!isValidPhone(phone)) return { ok: false, reason: reasonFor.phone((d.phone ?? '').trim()) };
 
-  const email = (d.email ?? '').trim();
-  if (!EMAIL_VALUE_RE.test(email)) return { ok: false, reason: reasonFor.email(email) };
+  // Voice can't reliably spell emails (STT garbles them), so the voice flow
+  // passes requireEmail:false: we KEEP the email only if it's actually valid,
+  // otherwise leave it blank for the visitor to type on the checkout page —
+  // never fill a mis-heard guess. The text flow keeps requireEmail (default).
+  const rawEmail = (d.email ?? '').trim();
+  const emailValid = EMAIL_VALUE_RE.test(rawEmail);
+  if (opts.requireEmail !== false && !emailValid) return { ok: false, reason: reasonFor.email(rawEmail) };
+  const email = emailValid ? rawEmail : '';
 
   const address = (d.address ?? '').trim();
   if (!address) return { ok: false, reason: 'The street address is missing — ask the visitor for it.' };

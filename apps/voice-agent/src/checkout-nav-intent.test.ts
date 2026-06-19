@@ -138,12 +138,14 @@ describe('productNavPath', () => {
 });
 
 describe('geminiSignalsPlacement', () => {
-  it('fires on the bot narrating placement', () => {
+  it('fires on the bot narrating placement / filling', () => {
     for (const t of [
       'Perfect — putting your order through now, one moment.',
       "I'm placing your order.",
       'putting it through now',
       'Let me place your order now.',
+      'Perfect — filling that in for you now, one moment.',
+      'Filling in your details on the page now.',
     ]) {
       expect(geminiSignalsPlacement(t)).toBe(true);
     }

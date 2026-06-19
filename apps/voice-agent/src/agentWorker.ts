@@ -126,7 +126,11 @@ export function geminiSignalsPlacement(text: string): boolean {
     /\bplacing\b[\s\w']*\border\b/.test(t) ||
     /\border\b[\s\w']*\bthrough\b/.test(t) ||
     /\bputting it through\b/.test(t) ||
-    /\bplace (your |the )?order now\b/.test(t)
+    /\bplace (your |the )?order now\b/.test(t) ||
+    // New page-confirm flow: the bot says "filling that in for you now, one
+    // moment" before it waits for the fill result.
+    /\bfilling\b[\s\w']*\b(that|this|it|your|the|details|in)\b/.test(t) ||
+    /\bfill(ing)?\b[\s\w']*\bin (for|on the page|now)\b/.test(t)
   );
 }
 
@@ -581,44 +585,49 @@ const agentDefinition = defineAgent({
           .snapshot()
           .map((t) => `${t.role === 'user' ? 'Visitor' : 'Calmio'}: ${t.content}`)
           .join('\n');
-        const extracted = await extractCheckoutDetails(transcript, extractChat);
+        // Email-optional: voice STT can't reliably spell emails, so we don't
+        // block on it — the visitor types/confirms email on the page. We require
+        // name/phone/address/city/state/pincode (what voice CAN capture).
+        const extracted = await extractCheckoutDetails(transcript, extractChat, { requireEmail: false });
         log.info(
           { sessionId, ok: extracted.ok, reason: extracted.ok ? undefined : extracted.reason },
           'order completion: extraction result',
         );
         if (!extracted.ok) {
           ground(
-            `The order is NOT placed yet — ${extracted.reason} Ask the visitor for that now in their language; do NOT tell them the order is placed.`,
+            `We can't fill the order yet — ${extracted.reason} Ask the visitor for that now in their language; do NOT say the order is filled or placed.`,
           );
           return;
         }
         const d = extracted.details;
+        // Fill the form on the page (state-set, reliable), then hand off: the
+        // visitor reviews, adds email if needed, and taps Pay on the page. We do
+        // NOT place by voice — that's where it kept dying. Bonus: once the form
+        // is filled the order is completable on-screen even if the voice session
+        // later drops.
         await dispatch({ type: 'navigate', path: '/checkout' }).catch(() => undefined);
         const fill = await dispatch({ type: 'checkout_fill', details: { ...d, payment: 'cod' } });
         log.info({ sessionId, ok: fill.ok, reason: fill.ok ? undefined : fill.reason }, 'order completion: fill result');
         if (!fill.ok) {
           ground(
-            `The checkout form did NOT get filled (reason: ${fill.reason}). Tell the visitor honestly it didn't go through and offer to try again — do NOT say it's placed.`,
+            `The details did NOT get filled on the page (reason: ${fill.reason}). Tell the visitor honestly it didn't go through and offer to try again — do NOT say it's filled or placed.`,
           );
           return;
         }
-        const place = await dispatch({ type: 'checkout_place' });
-        log.info({ sessionId, ok: place.ok, reason: place.ok ? undefined : place.reason }, 'order completion: place result');
-        if (place.ok) {
-          orderPlaced = true;
-          recorder.markCheckoutReached();
-          ground(
-            `The order has now been placed successfully and the secure payment page is opening. Tell the visitor warmly it's all done and they can pick their payment method (card, UPI, or Cash on Delivery) on the page.`,
-          );
-        } else {
-          ground(
-            `The order did NOT go through (reason: ${place.reason}). Apologize briefly and offer to try again — do NOT say it's placed.`,
-          );
-        }
-      } catch (err) {
-        log.warn({ err, sessionId }, 'deterministic order completion failed');
+        orderPlaced = true; // handed off to the page — don't re-fill on later confirmations
+        recorder.markCheckoutReached();
+        const hasEmail = d.email.length > 0;
         ground(
-          `Something went wrong while placing the order. Apologize briefly and offer to try again — do NOT say it's placed.`,
+          `Their details are now filled on the checkout page: name ${d.name}, phone ${d.phone}, address ${d.address}, ${d.city} ${d.pincode}. ` +
+            (hasEmail
+              ? `Tell the visitor warmly it's all filled in — ask them to glance over it on screen and tap "Place Order" to pay (card, UPI, or Cash on Delivery on the secure page). `
+              : `Their EMAIL is the only thing still blank (we couldn't catch it by voice). Tell them everything else is filled in on screen, and ask them to type their email in the email box on the page, then tap "Place Order" to pay. `) +
+            `Do NOT say the order is already placed — they complete it by tapping on the page.`,
+        );
+      } catch (err) {
+        log.warn({ err, sessionId }, 'voice checkout fill failed');
+        ground(
+          `Something went wrong filling the order. Apologize briefly and offer to try again — do NOT say it's filled or placed.`,
         );
       } finally {
         completingOrder = false;

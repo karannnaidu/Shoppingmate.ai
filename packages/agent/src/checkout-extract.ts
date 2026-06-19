@@ -27,6 +27,7 @@ const SYSTEM = `You extract structured checkout details from a VOICE shopping co
 export async function extractCheckoutDetails(
   transcript: string,
   chat: ChatFn,
+  opts: { requireEmail?: boolean } = {},
 ): Promise<ExtractResult> {
   let text: string;
   try {
@@ -47,5 +48,5 @@ export async function extractCheckoutDetails(
   } catch {
     return { ok: false, reason: 'I had trouble reading back the details — could the visitor repeat them?' };
   }
-  return validateCheckoutDetails(parsed);
+  return validateCheckoutDetails(parsed, opts);
 }

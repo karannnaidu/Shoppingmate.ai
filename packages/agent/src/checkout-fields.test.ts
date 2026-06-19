@@ -32,6 +32,21 @@ describe('validateCheckoutDetails', () => {
     expect(validateCheckoutDetails({ ...goodDetails, email: 'nope' }).ok).toBe(false);
     expect(validateCheckoutDetails({ ...goodDetails, name: '  ' }).ok).toBe(false);
   });
+
+  it('with requireEmail:false, accepts a blank/garbled email and blanks it (voice flow)', () => {
+    const blank = validateCheckoutDetails({ ...goodDetails, email: '' }, { requireEmail: false });
+    expect(blank.ok).toBe(true);
+    if (blank.ok) expect(blank.details.email).toBe('');
+    // A mis-heard non-email is dropped to blank, not filled as a wrong guess.
+    const garbled = validateCheckoutDetails({ ...goodDetails, email: 'corona at gmail' }, { requireEmail: false });
+    expect(garbled.ok).toBe(true);
+    if (garbled.ok) expect(garbled.details.email).toBe('');
+    // A valid email is still kept.
+    const valid = validateCheckoutDetails({ ...goodDetails, email: 'k@c.com' }, { requireEmail: false });
+    expect(valid.ok && valid.details.email).toBe('k@c.com');
+    // Phone/pincode are still required even in lenient mode.
+    expect(validateCheckoutDetails({ ...goodDetails, phone: '123' }, { requireEmail: false }).ok).toBe(false);
+  });
 });
 
 describe('validateCheckoutFill', () => {
