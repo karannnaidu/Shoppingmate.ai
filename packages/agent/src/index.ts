@@ -61,5 +61,15 @@ export {
   type TranscriptRole,
   type TranscriptTurn,
 } from './conversationRecorder.js';
-export { extractCheckoutDetails, type ChatFn, type ExtractResult } from './checkout-extract.js';
-export { validateCheckoutDetails, type CheckoutDetails } from './checkout-fields.js';
+export {
+  extractCheckoutDetails,
+  extractContactDetails,
+  type ChatFn,
+  type ExtractResult,
+} from './checkout-extract.js';
+export {
+  validateCheckoutDetails,
+  validateContactDetails,
+  type CheckoutDetails,
+  type ContactDetails,
+} from './checkout-fields.js';

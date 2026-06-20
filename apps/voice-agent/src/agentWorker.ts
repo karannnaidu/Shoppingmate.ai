@@ -26,7 +26,7 @@ import {
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import { db, schema, submitConsultationRequest } from '@shoppingmate/db';
-import { type ChatFn, extractCheckoutDetails } from '@shoppingmate/agent';
+import { type ChatFn, extractCheckoutDetails, extractContactDetails } from '@shoppingmate/agent';
 import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
@@ -111,6 +111,18 @@ export function productNavPath(text: string): string | null {
   if (!navIntent) return null;
   for (const [re, sku] of PRODUCT_NAV) if (re.test(t)) return `/shop/${sku}`;
   return null;
+}
+
+// Detects the visitor wanting to send a "Contact us" / inquiry message (the
+// contact form), as opposed to a doctor consultation. Opens contact-fill mode.
+export function wantsContactForm(text: string): boolean {
+  const t = (text ?? '').trim().toLowerCase();
+  if (!t) return false;
+  return (
+    /\b(send|submit|fill)[\s\w']*\b(message|inquiry|enquiry|query|contact form)\b/.test(t) ||
+    /\b(contact form|contact us|contact page|get in touch|send us a message|reach out to)\b/.test(t) ||
+    /\b(inquiry|enquiry)\b/.test(t)
+  );
 }
 
 // Detects the bot (Gemini) narrating that it's PLACING the order ("putting your
@@ -564,6 +576,9 @@ const agentDefinition = defineAgent({
     let checkoutEntered = false;
     let orderPlaced = false;
     let completingOrder = false;
+    // Contact-us / inquiry form (separate from checkout + consultation).
+    let contactMode = false;
+    let contactFilled = false;
     const checkoutModel =
       process.env.OPENROUTER_CHECKOUT_MODEL ?? process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
     const extractChat: ChatFn = (messages) =>
@@ -656,6 +671,71 @@ const agentDefinition = defineAgent({
       }
     }
 
+    // Deterministic "Contact us" / inquiry form fill — same page.fill approach as
+    // checkout, different fields. The visitor reviews + taps Send Message.
+    async function completeContactForm() {
+      const dispatch = bridge.dispatchHostAction;
+      if (completingOrder || contactFilled || !dispatch) return;
+      completingOrder = true;
+      log.info({ sessionId }, 'contact fill: start');
+      try {
+        const transcript = recorder
+          .snapshot()
+          .map((t) => `${t.role === 'user' ? 'Visitor' : 'Calmio'}: ${t.content}`)
+          .join('\n');
+        const extracted = await extractContactDetails(transcript, extractChat);
+        log.info(
+          { sessionId, ok: extracted.ok, reason: extracted.ok ? undefined : extracted.reason },
+          'contact fill: extraction result',
+        );
+        if (!extracted.ok) {
+          ground(
+            `We can't fill the contact form yet — ${extracted.reason} Ask the visitor for that now in their language; do NOT say the message is sent.`,
+          );
+          return;
+        }
+        const c = extracted.details;
+        await dispatch({ type: 'navigate', path: '/contact' }).catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 700));
+        const fields: Array<{ field: string; value: string }> = [
+          { field: 'name', value: c.name },
+          { field: 'mobile', value: c.mobile },
+        ];
+        if (c.email) fields.push({ field: 'email', value: c.email });
+        if (c.subject) fields.push({ field: 'subject', value: c.subject });
+        if (c.message) fields.push({ field: 'message', value: c.message });
+        const fill = await dispatch({ type: 'form_fill', fields });
+        const vals = (fill as { values?: Record<string, string> }).values ?? {};
+        log.info(
+          { sessionId, ok: fill.ok, filled: fill.ok ? vals : undefined, reason: fill.ok ? undefined : (fill as { reason?: string }).reason },
+          'contact fill: fill result',
+        );
+        if (!fill.ok) {
+          ground(
+            `The contact form did NOT get filled (reason: ${(fill as { reason?: string }).reason}). Tell the visitor honestly and offer to try again — do NOT say it's sent.`,
+          );
+          return;
+        }
+        contactFilled = true;
+        const needEmail = (vals.email || c.email).length === 0;
+        const needMsg = c.message.length === 0;
+        ground(
+          `The contact form on screen is now filled: name ${c.name}, mobile ${c.mobile}${c.subject ? `, subject ${c.subject}` : ''}. ` +
+            (needEmail || needMsg
+              ? `Still blank: ${[needEmail ? 'their email' : '', needMsg ? 'the message' : ''].filter(Boolean).join(' and ')} — ask them to type ${needEmail && needMsg ? 'those' : 'that'} in on the page. Then tell them to tap "Send Message". `
+              : `Tell the visitor it's all filled in on screen — ask them to review it and tap "Send Message" to send. `) +
+            `Do NOT say the message is already sent — they send it by tapping Send Message on the page.`,
+        );
+      } catch (err) {
+        log.warn({ err, sessionId }, 'contact form fill failed');
+        ground(
+          `Something went wrong filling the contact form. Apologize briefly and offer to try again — do NOT say it's sent.`,
+        );
+      } finally {
+        completingOrder = false;
+      }
+    }
+
     gemini.onEvent((e) => {
       if (e.type === 'final_transcript' && e.text.trim().length > 0) {
         const words = e.text.split(/\s+/).filter(Boolean).length;
@@ -712,19 +792,20 @@ const agentDefinition = defineAgent({
         // details (phone/email/pincode/address/order) — they often skip "take me
         // to checkout" and go straight to dictating details.
         if (merchant.siteGraphEnabled && hasCheckoutSignal(e.text)) checkoutEntered = true;
-        // Deterministic, state-grounded order completion: once we're in checkout
-        // and the visitor confirms, place the order for real (extract → fill →
-        // place) and tell Gemini the true outcome — instead of letting it fake
-        // "your order's in" while nothing was filled. Safe to over-trigger: if
-        // details are incomplete it just asks for what's missing, never places.
-        if (
-          merchant.siteGraphEnabled &&
-          checkoutEntered &&
-          !orderPlaced &&
-          wantsOrderConfirmation(e.text)
-        ) {
-          log.info({ sessionId, text: e.text }, 'order completion: confirmation detected → completing');
-          void completeOrder();
+        // The visitor wants to send a Contact-us / inquiry message → fill that
+        // form instead of checkout (and instead of the doctor consultation).
+        if (merchant.siteGraphEnabled && wantsContactForm(e.text)) contactMode = true;
+        // Deterministic, state-grounded completion on a confirmation. Route to
+        // the contact form if we're in contact mode, else to checkout. Safe to
+        // over-trigger: incomplete details just ask for what's missing.
+        if (merchant.siteGraphEnabled && wantsOrderConfirmation(e.text)) {
+          if (contactMode && !contactFilled) {
+            log.info({ sessionId, text: e.text }, 'contact fill: confirmation detected → filling');
+            void completeContactForm();
+          } else if (checkoutEntered && !orderPlaced) {
+            log.info({ sessionId, text: e.text }, 'order completion: confirmation detected → completing');
+            void completeOrder();
+          }
         }
       } else if (e.type === 'bot_text_partial' && e.text.trim().length > 0) {
         // Stream caption updates while the turn is still in progress. Widget
@@ -749,14 +830,14 @@ const agentDefinition = defineAgent({
           // deterministic completion. More robust than matching the visitor's
           // multilingual "yes" — and it's exactly when Gemini is about to wait
           // for the system outcome, so it stays silent until we ground it.
-          if (
-            merchant.siteGraphEnabled &&
-            checkoutEntered &&
-            !orderPlaced &&
-            geminiSignalsPlacement(clean)
-          ) {
-            log.info({ sessionId }, 'order completion: placement narration detected → completing');
-            void completeOrder();
+          if (merchant.siteGraphEnabled && geminiSignalsPlacement(clean)) {
+            if (contactMode && !contactFilled) {
+              log.info({ sessionId }, 'contact fill: placement narration detected → filling');
+              void completeContactForm();
+            } else if (checkoutEntered && !orderPlaced) {
+              log.info({ sessionId }, 'order completion: placement narration detected → completing');
+              void completeOrder();
+            }
           }
         }
       } else if (e.type === 'audio_out') {

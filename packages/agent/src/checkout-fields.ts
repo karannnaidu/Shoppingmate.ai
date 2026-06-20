@@ -92,6 +92,39 @@ export function validateCheckoutDetails(
   return { ok: true, details: { name, phone, email, address, city, state, pincode } };
 }
 
+export type ContactDetails = {
+  name: string;
+  email: string;
+  mobile: string;
+  subject: string;
+  message: string;
+};
+
+export type ContactDetailsResult =
+  | { ok: true; details: ContactDetails }
+  | { ok: false; reason: string };
+
+/**
+ * Validate + normalize the "Contact us" / inquiry form details. name + a valid
+ * 10-digit mobile are required; email is kept only if valid (else blank — the
+ * visitor types it on the page, same as checkout); subject/message pass through.
+ */
+export function validateContactDetails(d: Partial<ContactDetails>): ContactDetailsResult {
+  const name = (d.name ?? '').trim();
+  if (!name) return { ok: false, reason: 'The name is missing — ask the visitor for their full name.' };
+
+  const mobile = normalizePhoneDigits((d.mobile ?? '').trim());
+  if (!isValidPhone(mobile)) return { ok: false, reason: reasonFor.phone((d.mobile ?? '').trim()) };
+
+  const rawEmail = (d.email ?? '').trim();
+  const email = EMAIL_VALUE_RE.test(rawEmail) ? rawEmail : '';
+
+  return {
+    ok: true,
+    details: { name, email, mobile, subject: (d.subject ?? '').trim(), message: (d.message ?? '').trim() },
+  };
+}
+
 /**
  * Validate + normalize the fields the bot wants to type into the checkout page.
  * Only phone/pincode/email fields are checked (by field-name); everything else

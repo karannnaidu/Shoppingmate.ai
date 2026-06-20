@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { extractCheckoutDetails } from './checkout-extract.js';
+import { extractCheckoutDetails, extractContactDetails } from './checkout-extract.js';
 
 const TRANSCRIPT = `Bot: What is your full name? User: Karam... actually K A R A N
 Bot: phone? User: 8105791728
@@ -48,5 +48,34 @@ describe('extractCheckoutDetails', () => {
     const chat = vi.fn().mockRejectedValue(new Error('network'));
     const r = await extractCheckoutDetails(TRANSCRIPT, chat);
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('extractContactDetails', () => {
+  it('parses contact fields, validates name+mobile, keeps email if valid', async () => {
+    const chat = vi.fn().mockResolvedValue({
+      text: `{"name":"Karan","email":"karan@calmosis.com","mobile":"+91 8105791728","subject":"Bulk order","message":"Do you ship 50 units?"}`,
+    });
+    const r = await extractContactDetails('Bot: ... User: ...', chat);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.details.mobile).toBe('8105791728');
+      expect(r.details.email).toBe('karan@calmosis.com');
+      expect(r.details.subject).toBe('Bulk order');
+    }
+  });
+
+  it('blanks a garbled email but still succeeds (typed on page); rejects a bad mobile', async () => {
+    const blankEmail = vi.fn().mockResolvedValue({
+      text: `{"name":"Karan","email":"karan at gmail","mobile":"8105791728","subject":"","message":"hi"}`,
+    });
+    const r = await extractContactDetails('x', blankEmail);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.details.email).toBe('');
+
+    const badMobile = vi.fn().mockResolvedValue({
+      text: `{"name":"Karan","email":"k@c.com","mobile":"123","subject":"","message":"hi"}`,
+    });
+    expect((await extractContactDetails('x', badMobile)).ok).toBe(false);
   });
 });

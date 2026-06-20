@@ -4,6 +4,7 @@ import {
   hasCheckoutSignal,
   productNavPath,
   wantsCheckoutNavigation,
+  wantsContactForm,
   wantsOrderConfirmation,
 } from './agentWorker.js';
 
@@ -134,6 +135,26 @@ describe('productNavPath', () => {
     expect(productNavPath('tell me about peace mantra')).toBeNull();
     expect(productNavPath('show me something')).toBeNull();
     expect(productNavPath('')).toBeNull();
+  });
+});
+
+describe('wantsContactForm', () => {
+  it('fires on contact / inquiry / send-a-message intents', () => {
+    for (const t of [
+      'I need to send an inquiry',
+      'can you fill the contact form',
+      'send us a message',
+      'I want to send a message',
+      'submit an enquiry',
+      'fill up my details I need to send an inquiry',
+    ]) {
+      expect(wantsContactForm(t)).toBe(true);
+    }
+  });
+  it('does NOT fire on ordinary chat / checkout', () => {
+    for (const t of ['add peace mantra', 'take me to checkout', 'what is the price', 'yes']) {
+      expect(wantsContactForm(t)).toBe(false);
+    }
   });
 });
 
