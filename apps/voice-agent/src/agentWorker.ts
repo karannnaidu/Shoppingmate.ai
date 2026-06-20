@@ -133,16 +133,18 @@ export function wantsContactForm(text: string): boolean {
 export function geminiSignalsPlacement(text: string): boolean {
   const t = (text ?? '').toLowerCase();
   if (!t) return false;
+  // The bot can phrase "I'm filling that in" many ways — match them broadly
+  // (gated by mode, so over-matching just runs the validated fill).
   return (
     /\bputting\b[\s\w']*\b(order|through)\b/.test(t) ||
     /\bplacing\b[\s\w']*\border\b/.test(t) ||
     /\border\b[\s\w']*\bthrough\b/.test(t) ||
     /\bputting it through\b/.test(t) ||
     /\bplace (your |the )?order now\b/.test(t) ||
-    // New page-confirm flow: the bot says "filling that in for you now, one
-    // moment" before it waits for the fill result.
-    /\bfilling\b[\s\w']*\b(that|this|it|your|the|details|in)\b/.test(t) ||
-    /\bfill(ing)?\b[\s\w']*\bin (for|on the page|now)\b/.test(t)
+    /\bfill(ing)?\b.{0,25}\b(form|details)\b/.test(t) || // "fill out the form", "filling in your details"
+    /\bfill(ing)?\b.{0,15}\bin\b/.test(t) || // "fill that in", "filling it in"
+    /\bfill (out|in)\b/.test(t) ||
+    /\bfilling that in\b/.test(t)
   );
 }
 
@@ -825,6 +827,12 @@ const agentDefinition = defineAgent({
           // Feed Gemini's spoken turn to the side-channel executor so it reasons
           // over the real dialogue (and can map answers→fields for checkout.fill).
           bridge.noteAssistantTurn(clean);
+          // The contact form is the only flow that asks for a "subject" / "message"
+          // — if the bot asks for those, we're filling the contact form, not
+          // checkout (even though a phone number set checkoutEntered).
+          if (merchant.siteGraphEnabled && /\b(subject|your message|what is this about|message you)\b/i.test(clean)) {
+            contactMode = true;
+          }
           // Reliable completion trigger: when Gemini narrates that it's placing
           // the order ("putting your order through, one moment"), run the real
           // deterministic completion. More robust than matching the visitor's

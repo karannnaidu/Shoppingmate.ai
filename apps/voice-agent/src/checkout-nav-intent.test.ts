@@ -167,6 +167,8 @@ describe('geminiSignalsPlacement', () => {
       'Let me place your order now.',
       'Perfect — filling that in for you now, one moment.',
       'Filling in your details on the page now.',
+      'I will fill out the form for you.',
+      'Let me fill in the contact form for you.',
     ]) {
       expect(geminiSignalsPlacement(t)).toBe(true);
     }
