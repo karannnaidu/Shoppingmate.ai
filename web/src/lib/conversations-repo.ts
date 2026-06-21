@@ -82,6 +82,14 @@ export type ConversationDetail = {
   transcript: Array<{ role: 'user' | 'agent' | 'tool' | 'card'; content: string; timestamp: number }>;
   llmCostCents: number;
   voiceCostCents: number;
+  intent?: {
+    intent: string;
+    intentConfidence: number;
+    needs: string[];
+    objections: string[];
+    identity: Record<string, unknown>;
+    dropStage: string | null;
+  };
 };
 
 export async function getConversation(args: { merchantId: string; sessionId: string }): Promise<ConversationDetail | null> {
@@ -98,6 +106,24 @@ export async function getConversation(args: { merchantId: string; sessionId: str
   if (!row) return null;
   const t = (row.tags ?? {}) as Record<string, unknown>;
   const attributed = t.attributed_cents;
+  const rawIntent = t.intent;
+  const intent =
+    rawIntent && typeof rawIntent === 'object' && !Array.isArray(rawIntent)
+      ? (() => {
+          const i = rawIntent as Record<string, unknown>;
+          return {
+            intent: String(i.intent ?? ''),
+            intentConfidence: Number(i.intentConfidence ?? 0),
+            needs: Array.isArray(i.needs) ? (i.needs as string[]) : [],
+            objections: Array.isArray(i.objections) ? (i.objections as string[]) : [],
+            identity:
+              i.identity && typeof i.identity === 'object' && !Array.isArray(i.identity)
+                ? (i.identity as Record<string, unknown>)
+                : {},
+            dropStage: i.dropStage != null ? String(i.dropStage) : null,
+          };
+        })()
+      : undefined;
   return {
     id: args.sessionId,
     startedAt: row.ts,
@@ -109,5 +135,6 @@ export async function getConversation(args: { merchantId: string; sessionId: str
     transcript: Array.isArray(t.transcript) ? (t.transcript as ConversationDetail['transcript']) : [],
     llmCostCents: Number(t.llm_cost_cents ?? 0),
     voiceCostCents: Number(t.voice_cost_cents ?? 0),
+    intent,
   };
 }
