@@ -591,6 +591,20 @@ const agentDefinition = defineAgent({
     // sent as a turn Gemini responds to (same channel as the kickoff greeting).
     const ground = (instruction: string) =>
       gemini.speak(instruction).catch((err) => log.warn({ err }, 'grounding speak failed'));
+    // Fill the page NOW; only pay a wait if the inputs aren't mounted yet
+    // (form_fill returns not-ok), then retry once. Avoids a fixed pre-fill delay
+    // on every fill when the page is already up (the common case — the bot
+    // navigated earlier). data-sm-field resolution is a direct lookup, so this is
+    // fast and does not "crawl" the DOM.
+    const fillFormWithRetry = async (fields: Array<{ field: string; value: string }>) => {
+      const dispatch = bridge.dispatchHostAction!;
+      let fill = await dispatch({ type: 'form_fill', fields });
+      if (!fill.ok) {
+        await new Promise((r) => setTimeout(r, 600));
+        fill = await dispatch({ type: 'form_fill', fields });
+      }
+      return fill;
+    };
 
     async function completeOrder() {
       const dispatch = bridge.dispatchHostAction;
@@ -626,8 +640,6 @@ const agentDefinition = defineAgent({
         // catch it). Bonus: once filled, the order is completable on-screen even
         // if the voice session later drops.
         await dispatch({ type: 'navigate', path: '/checkout' }).catch(() => undefined);
-        // Let the checkout route mount its inputs before we fill them.
-        await new Promise((r) => setTimeout(r, 700));
         const fillFields: Array<{ field: string; value: string }> = [
           { field: 'name', value: d.name },
           { field: 'phone', value: d.phone },
@@ -635,7 +647,7 @@ const agentDefinition = defineAgent({
           { field: 'pincode', value: d.pincode },
         ];
         if (d.email) fillFields.push({ field: 'email', value: d.email });
-        const fill = await dispatch({ type: 'form_fill', fields: fillFields });
+        const fill = await fillFormWithRetry(fillFields);
         const filledVals = (fill as { values?: Record<string, string> }).values ?? {};
         log.info(
           { sessionId, ok: fill.ok, filled: fill.ok ? filledVals : undefined, reason: fill.ok ? undefined : (fill as { reason?: string }).reason },
@@ -698,7 +710,6 @@ const agentDefinition = defineAgent({
         }
         const c = extracted.details;
         await dispatch({ type: 'navigate', path: '/contact' }).catch(() => undefined);
-        await new Promise((r) => setTimeout(r, 700));
         const fields: Array<{ field: string; value: string }> = [
           { field: 'name', value: c.name },
           { field: 'mobile', value: c.mobile },
@@ -706,7 +717,7 @@ const agentDefinition = defineAgent({
         if (c.email) fields.push({ field: 'email', value: c.email });
         if (c.subject) fields.push({ field: 'subject', value: c.subject });
         if (c.message) fields.push({ field: 'message', value: c.message });
-        const fill = await dispatch({ type: 'form_fill', fields });
+        const fill = await fillFormWithRetry(fields);
         const vals = (fill as { values?: Record<string, string> }).values ?? {};
         log.info(
           { sessionId, ok: fill.ok, filled: fill.ok ? vals : undefined, reason: fill.ok ? undefined : (fill as { reason?: string }).reason },
