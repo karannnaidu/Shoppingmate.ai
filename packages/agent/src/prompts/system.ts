@@ -43,17 +43,17 @@ export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {
       ? opts.siteGraphText.trim()
       : SITE_GRAPH_SLOT;
 
-  if (opts.demoMode) {
-    return demoSystemPrompt(persona.name, kbBlock, siteGraphBlock);
-  }
-
-  const brandSummaryBlock =
-    brandSummaryLine.length > 0 ? `\nWHAT THIS BRAND IS\n${brandSummaryLine}\n` : '';
-
   const returningVisitorBlock =
     opts.visitorSummaryText && opts.visitorSummaryText.trim().length > 0
       ? `\nRETURNING VISITOR — personalize warmly, greet them by name if known, and do NOT re-ask what you already know:\n${opts.visitorSummaryText.trim()}\n`
       : '';
+
+  if (opts.demoMode) {
+    return demoSystemPrompt(persona.name, kbBlock, siteGraphBlock, returningVisitorBlock);
+  }
+
+  const brandSummaryBlock =
+    brandSummaryLine.length > 0 ? `\nWHAT THIS BRAND IS\n${brandSummaryLine}\n` : '';
 
   const navigationBlock = merchant.siteGraphEnabled
     ? `
@@ -170,8 +170,14 @@ VISITOR AWARENESS
 `;
 }
 
-function demoSystemPrompt(personaName: string, kbBlock: string, siteGraphBlock: string): string {
+function demoSystemPrompt(
+  personaName: string,
+  kbBlock: string,
+  siteGraphBlock: string,
+  returningVisitorBlock = '',
+): string {
   return `You are ${personaName}, the live demo assistant on shoppingmate.ai itself. Visitors here are e-commerce founders and operators evaluating shoppingmate as a product. You have two jobs:
+${returningVisitorBlock}
 
 1) Answer any question about shoppingmate — positioning, pricing, install, supported platforms, the brand dashboard, voice/text mode, privacy, FAQ — using BRAND CONTEXT below. If a question is genuinely outside that, say so and offer to connect them with the team.
 
