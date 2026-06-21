@@ -1,10 +1,40 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setReactValue, formFill, formRead } from './form-control.js';
+import { setReactValue, formFill, formRead, resolveFieldCached } from './form-control.js';
 import { resolveField } from './ax-tree.js';
 
 beforeEach(() => {
   document.body.innerHTML = '';
+  try { localStorage.clear(); } catch { /* ignore */ }
+});
+
+describe('resolveFieldCached (learn-once + heal)', () => {
+  it('learns a durable selector on first resolve, then re-uses it without crawling', () => {
+    document.body.innerHTML = '<label for="em">Email address</label><input id="em" />';
+    expect(resolveFieldCached('Email')?.id).toBe('em');
+    const cache = JSON.parse(localStorage.getItem('sm_selector_cache_v1') ?? '{}');
+    expect(cache[`${location.pathname}::Email`]).toBe('#em');
+    // Remove the label so the ax-tree heuristic would FAIL — the cached `#em`
+    // still resolves it directly (proves no re-crawl needed after learning).
+    document.body.innerHTML = '<input id="em" />';
+    expect(resolveFieldCached('Email')?.id).toBe('em');
+  });
+
+  it('heals when the cached selector no longer matches (layout changed)', () => {
+    document.body.innerHTML = '<input id="em" name="email" />';
+    resolveFieldCached('Email'); // learns #em
+    document.body.innerHTML = '<label for="e2">Email address</label><input id="e2" />';
+    expect(resolveFieldCached('Email')?.id).toBe('e2'); // re-resolved + re-learned
+    const cache = JSON.parse(localStorage.getItem('sm_selector_cache_v1') ?? '{}');
+    expect(cache[`${location.pathname}::Email`]).toBe('#e2');
+  });
+
+  it('prefers a data-sm-field anchor as the durable selector', () => {
+    document.body.innerHTML = '<input data-sm-field="phone" id="p" />';
+    resolveFieldCached('phone');
+    const cache = JSON.parse(localStorage.getItem('sm_selector_cache_v1') ?? '{}');
+    expect(cache[`${location.pathname}::phone`]).toBe('[data-sm-field="phone"]');
+  });
 });
 
 describe('setReactValue', () => {
