@@ -16,6 +16,9 @@ export type SystemPromptOpts = {
   /** Compact site-graph projection inserted at SITE_GRAPH_SLOT. Caller is
    *  responsible for token-budgeting; this builder does no truncation. */
   siteGraphText?: string;
+  /** Compact returning-visitor brief (from buildVisitorSummary). Injected as a
+   *  RETURNING VISITOR section after the brand summary; omitted for first-timers. */
+  visitorSummaryText?: string;
 };
 
 function buildBrandSummaryLine(merchant: Merchant): string {
@@ -46,6 +49,11 @@ export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {
 
   const brandSummaryBlock =
     brandSummaryLine.length > 0 ? `\nWHAT THIS BRAND IS\n${brandSummaryLine}\n` : '';
+
+  const returningVisitorBlock =
+    opts.visitorSummaryText && opts.visitorSummaryText.trim().length > 0
+      ? `\nRETURNING VISITOR — personalize warmly, greet them by name if known, and do NOT re-ask what you already know:\n${opts.visitorSummaryText.trim()}\n`
+      : '';
 
   const navigationBlock = merchant.siteGraphEnabled
     ? `
@@ -120,7 +128,7 @@ You CANNOT add items to the cart yourself here, and you have no cart tool. ${
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
 Always write the brand name exactly as "${brandName}" — never alter or misspell it (e.g. it is "Calmosis", never "Caliosis").
-${brandSummaryBlock}${navigationBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${buyFlowBlock}
+${brandSummaryBlock}${returningVisitorBlock}${navigationBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${buyFlowBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.

@@ -49,6 +49,9 @@ export type VoiceInstructionOpts = {
    *  Used to bootstrap brand awareness when KB chunks are sparse. */
   brandSummary?: string;
   brandCategories?: string[];
+  /** Compact returning-visitor brief (from buildVisitorSummary). Injected as a
+   *  RETURNING VISITOR section after GUARDRAILS; omitted for first-time visitors. */
+  visitorSummary?: string;
 };
 
 export function buildVoiceSystemInstruction(
@@ -76,6 +79,11 @@ export function buildVoiceSystemInstruction(
     NO_PRICE_RULE,
     `GUARDRAILS\n${guardrails}`,
   ];
+  if (opts.visitorSummary && opts.visitorSummary.trim().length > 0) {
+    sections.push(
+      `RETURNING VISITOR — personalize warmly, greet them by name if known, and do NOT re-ask what you already know:\n${opts.visitorSummary.trim()}`,
+    );
+  }
   if (brand?.domain?.includes('calmosis')) {
     sections.push(CALMOSIS_SELLING_RULE);
     sections.push(CALMOSIS_CHECKOUT_RULE);

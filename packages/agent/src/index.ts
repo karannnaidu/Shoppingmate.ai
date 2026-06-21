@@ -80,3 +80,4 @@ export {
   type IntentRecord,
   type ConversationFacts,
 } from './intent-profiler.js';
+export { buildVisitorSummary } from './visitor-summary.js';

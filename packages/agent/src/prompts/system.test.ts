@@ -165,6 +165,21 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
   });
 });
 
+describe('RETURNING VISITOR section', () => {
+  it('injects the visitor summary when visitorSummaryText is provided', () => {
+    const p = buildSystemPrompt(merchant, {
+      visitorSummaryText: 'Karan from Mumbai (visit #3).',
+    });
+    expect(p).toContain('RETURNING VISITOR');
+    expect(p).toContain('Karan from Mumbai (visit #3).');
+  });
+
+  it('omits the RETURNING VISITOR section for first-time visitors (no summary)', () => {
+    const p = buildSystemPrompt(merchant);
+    expect(p).not.toContain('RETURNING VISITOR');
+  });
+});
+
 describe('SITE_GRAPH_SLOT injection', () => {
   it('uses raw slot placeholder when siteGraphText is missing', () => {
     const m = {

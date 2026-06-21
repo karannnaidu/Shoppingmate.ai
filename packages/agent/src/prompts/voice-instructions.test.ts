@@ -77,6 +77,19 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).not.toContain('TOUR TOOLS');
   });
 
+  it('injects a RETURNING VISITOR section when visitorSummary is provided', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, {
+      visitorSummary: 'Karan from Mumbai (visit #3).',
+    });
+    expect(out).toContain('RETURNING VISITOR');
+    expect(out).toContain('Karan from Mumbai (visit #3).');
+  });
+
+  it('omits the RETURNING VISITOR section for first-time visitors (no summary)', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!);
+    expect(out).not.toContain('RETURNING VISITOR');
+  });
+
   it('demo mode also mirrors the visitor language and does not force English-only', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
     expect(out).toMatch(/same language|match their language|reply in (that|the same)/i);
