@@ -73,3 +73,10 @@ export {
   type CheckoutDetails,
   type ContactDetails,
 } from './checkout-fields.js';
+export {
+  extractConversationProfile,
+  INTENTS,
+  type Intent,
+  type IntentRecord,
+  type ConversationFacts,
+} from './intent-profiler.js';
