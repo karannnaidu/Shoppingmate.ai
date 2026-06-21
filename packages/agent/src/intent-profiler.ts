@@ -1,28 +1,10 @@
 import type { ChatFn } from './checkout-extract.js';
+import { INTENTS, type Intent, type IntentRecord, type ConversationFacts } from '@shoppingmate/shared';
 
-export const INTENTS = [
-  'browsing', 'researching', 'comparing', 'ready_to_buy', 'price_sensitive',
-  'support_issue', 'medical_consult', 'bulk_b2b', 'post_purchase',
-] as const;
-export type Intent = (typeof INTENTS)[number];
-
-export type ConversationFacts = {
-  cartAdds: number;
-  checkoutReached: boolean;
-  purchased: boolean;
-  mode: 'voice' | 'text';
-};
-
-export type IntentRecord = {
-  intent: Intent;
-  intentConfidence: number;
-  needs: string[];
-  objections: string[];
-  preferences: { products?: string[]; flavours?: string[]; blissClub?: boolean; coupon?: string };
-  affect: { sentiment: 'positive' | 'neutral' | 'negative'; confused?: boolean };
-  identity: { name?: string; phone?: string; email?: string; city?: string; pincode?: string; age?: number; language?: string };
-  dropStage: string | null;
-};
+// Re-export the shared intent contract so existing `@shoppingmate/agent`
+// consumers keep importing these symbols from here.
+export { INTENTS };
+export type { Intent, IntentRecord, ConversationFacts };
 
 export type ProfileResult = { ok: true; record: IntentRecord };
 

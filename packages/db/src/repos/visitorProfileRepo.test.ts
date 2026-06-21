@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mergeProfile } from './visitorProfileRepo.js';
-import type { IntentRecord } from '@shoppingmate/agent';
+import type { IntentRecord } from '@shoppingmate/shared';
 
 const rec = (over: Partial<IntentRecord>): IntentRecord => ({
   intent: 'ready_to_buy', intentConfidence: 0.8, needs: ['sleep'], objections: ['price'],

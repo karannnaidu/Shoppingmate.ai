@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import type { IntentRecord } from '@shoppingmate/agent';
+import type { IntentRecord } from '@shoppingmate/shared';
 import { db } from '../client.js';
 import { visitorProfiles } from '../schema/visitorProfiles.js';
 
