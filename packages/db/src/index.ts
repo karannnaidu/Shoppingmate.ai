@@ -14,6 +14,7 @@ export {
   mergeProfile,
 } from './repos/visitorProfileRepo.js';
 export type { ProfileRow } from './repos/visitorProfileRepo.js';
+export { loadBrandPlaybook, upsertBrandPlaybook } from './repos/brandPlaybookRepo.js';
 export { submitConsultationRequest } from './notify/submitConsultation.js';
 export type { SubmitConsultationArgs } from './notify/submitConsultation.js';
 

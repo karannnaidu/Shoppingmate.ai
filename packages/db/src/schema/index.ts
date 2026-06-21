@@ -12,3 +12,4 @@ export * from './conversationSessions.js';
 export * from './recommendationEvents.js';
 export * from './consultationRequests.js';
 export * from './visitorProfiles.js';
+export * from './brandPlaybooks.js';
