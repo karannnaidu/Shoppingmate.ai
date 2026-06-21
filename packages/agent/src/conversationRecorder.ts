@@ -1,3 +1,5 @@
+import type { IntentRecord } from './intent-profiler.js';
+
 export type TranscriptRole = 'user' | 'agent' | 'tool' | 'card';
 export type TranscriptTurn = { role: TranscriptRole; content: string; timestamp: number };
 
@@ -11,6 +13,8 @@ export type ConversationTags = {
   cart_adds: number;
   checkout_reached: boolean;
   transcript: TranscriptTurn[];
+  /** Structured intent record from the session-end profiler (Phase 1). */
+  intent?: IntentRecord;
 };
 
 export type ConversationRecorder = {
