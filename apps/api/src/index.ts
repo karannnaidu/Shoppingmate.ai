@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server';
 import { InMemorySessionState, type WSTransport, getAdapter } from '@shoppingmate/adapters';
 import { db, schema, submitConsultationRequest } from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
-import { env, logger } from '@shoppingmate/shared';
+import { chat, env, logger } from '@shoppingmate/shared';
 import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -10,7 +10,9 @@ import { Redis } from 'ioredis';
 import {
   NoOpWSTransport,
   type SessionState,
+  type ChatFn,
   createConversationRecorder,
+  extractConversationProfile,
   createSession,
   decodeWidgetMessage,
   encodeAgentEvent,
@@ -102,6 +104,12 @@ const pendingHostActions = new Map<
 >();
 let hostActionCounter = 0;
 
+// Session-end intent profiler model (mirrors the voice worker's checkoutModel).
+const profileModel =
+  process.env.OPENROUTER_CHECKOUT_MODEL ?? process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
+const profileChat: ChatFn = (messages) =>
+  chat({ model: profileModel, messages, responseFormat: 'json', maxTokens: 512 });
+
 // Per-session conversation recorders. Accumulate visitor/bot turns + funnel
 // flags across a session so we can emit one conversationCompleted metric (with
 // tags.transcript) on session_end — the writer the dashboard readers expect.
@@ -160,8 +168,30 @@ mountAgentWs(server, {
       if (rec) {
         recorders.delete(sessionId);
         const tags = rec.finish({ mode: 'text', nowMs: Date.now() });
-        db.insert(schema.metricEvents)
-          .values({ merchantId, metricName: 'conversationCompleted', tags })
+        // Phase 1 — structured intent capture for the conversation record. The text
+        // WS has no stable visitor_id yet (widget localStorage sm_visitor_id is not
+        // forwarded through this path), so we attach the intent to the conversation
+        // row but DEFER the per-visitor profile upsert to Phase 2 (which plumbs
+        // visitorId through here). extractConversationProfile is self-safe, and this
+        // stays fire-and-forget so session_closed is sent without waiting on the LLM.
+        const transcriptText = tags.transcript.map((t) => `${t.role}: ${t.content}`).join('\n');
+        extractConversationProfile(
+          transcriptText,
+          {
+            cartAdds: tags.cart_adds,
+            checkoutReached: tags.checkout_reached,
+            purchased: tags.outcome === 'purchased',
+            mode: 'text',
+          },
+          profileChat,
+        )
+          .then(({ record }) => {
+            tags.intent = record;
+            logger.info({ sessionId, intent: record.intent }, 'intent profile captured (text)');
+            return db
+              .insert(schema.metricEvents)
+              .values({ merchantId, metricName: 'conversationCompleted', tags });
+          })
           .catch((err) => logger.error({ err, sessionId }, 'conversationCompleted emit failed'));
       }
       send(encodeAgentEvent({ type: 'session_closed', reason: 'user' }));

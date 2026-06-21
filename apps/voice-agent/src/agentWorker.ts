@@ -16,6 +16,7 @@ import { Redis } from 'ioredis';
 import {
   NoOpWSTransport,
   createConversationRecorder,
+  extractConversationProfile,
   decodeWidgetMessage,
   loadSession,
   runTurn,
@@ -25,7 +26,7 @@ import {
   type SessionStore,
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
-import { db, schema, submitConsultationRequest } from '@shoppingmate/db';
+import { db, schema, submitConsultationRequest, upsertVisitorProfile } from '@shoppingmate/db';
 import { type ChatFn, extractCheckoutDetails, extractContactDetails } from '@shoppingmate/agent';
 import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
@@ -942,15 +943,46 @@ const agentDefinition = defineAgent({
       // Conversations page, transcript drill-down, and Conversations KPI light
       // up. Plus a voiceConversation marker for the voice-ratio KPI. Best-effort.
       const tags = recorder.finish({ mode: 'voice', nowMs: Date.now() });
-      db.insert(schema.metricEvents)
-        .values({ merchantId: merchant.id, metricName: 'conversationCompleted', tags })
-        .then(() =>
-          db.insert(schema.metricEvents).values({
-            merchantId: merchant.id,
-            metricName: 'voiceConversation',
-            tags: { session_id: sessionId },
-          }),
-        )
+      // Phase 1 — structured intent capture. Run the session-end profiler over the
+      // finished transcript, attach the record to the conversation row, then upsert
+      // the per-visitor profile. extractConversationProfile is self-safe (returns a
+      // browsing-default record on any failure), so conversationCompleted is always
+      // emitted. `extractChat` and `visitorId` are already in scope in this handler.
+      const transcriptText = tags.transcript.map((t) => `${t.role}: ${t.content}`).join('\n');
+      extractConversationProfile(
+        transcriptText,
+        {
+          cartAdds: tags.cart_adds,
+          checkoutReached: tags.checkout_reached,
+          purchased: tags.outcome === 'purchased',
+          mode: 'voice',
+        },
+        extractChat,
+      )
+        .then(({ record }) => {
+          tags.intent = record;
+          log.info(
+            { sessionId, intent: record.intent, intentConfidence: record.intentConfidence },
+            'intent profile captured',
+          );
+          return db
+            .insert(schema.metricEvents)
+            .values({ merchantId: merchant.id, metricName: 'conversationCompleted', tags })
+            .then(() =>
+              db.insert(schema.metricEvents).values({
+                merchantId: merchant.id,
+                metricName: 'voiceConversation',
+                tags: { session_id: sessionId },
+              }),
+            )
+            .then(() =>
+              upsertVisitorProfile(merchant.id, visitorId, record, {
+                outcome: tags.outcome,
+                attributedCents: tags.attributed_cents,
+              }),
+            )
+            .then(() => log.info({ sessionId, visitorId }, 'visitor profile upserted'));
+        })
         .catch((err) => log.warn({ err, sessionId }, 'conversationCompleted emit failed'));
       log.info({ sessionId }, 'voice-agent job ended');
     });
