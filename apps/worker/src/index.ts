@@ -1,13 +1,14 @@
 import { type OnboardingJobData, createRedisConnection, siteGraphCrawlQueue as crawlQueue, siteGraphExtractQueue } from '@shoppingmate/jobs';
 import { db, schema } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
-import { logger } from '@shoppingmate/shared';
+import { chat, logger } from '@shoppingmate/shared';
 import { Queue, Worker } from 'bullmq';
 import { onboardingHandler } from './handlers/onboarding.js';
 import { ingestKbDoc } from './jobs/ingestKbDoc.js';
 import { runCrawlSite } from './jobs/crawlSite.js';
 import { runExtractSiteGraph } from './jobs/extractSiteGraph.js';
 import { runDriftDetect } from './cron/driftDetect.js';
+import { runPlaybookRefresh } from './cron/refreshPlaybooks.js';
 import { downloadKbObject } from './r2-download.js';
 
 const worker = new Worker<OnboardingJobData>(
@@ -101,6 +102,40 @@ driftWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'site-graph-
 driftWorker.on('failed', (job, err) =>
   logger.error({ jobId: job?.id, err: err.message }, 'site-graph-drift failed'));
 
+// Nightly brand selling-playbook refresh cron: distils each merchant's last-90d
+// conversation outcomes into a fresh selling playbook at 4am UTC.
+const playbookChat = (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) =>
+  chat({
+    model: process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6',
+    messages,
+    responseFormat: 'text',
+    maxTokens: 700,
+  });
+
+const playbookQueue = new Queue('brand-playbook-refresh', { connection: createRedisConnection() });
+await playbookQueue.add('refresh', {}, { repeat: { pattern: '0 4 * * *' } });
+
+const playbookWorker = new Worker(
+  'brand-playbook-refresh',
+  async () => {
+    const merchants = await db.query.merchants.findMany();
+    for (const merchant of merchants) {
+      try {
+        const r = await runPlaybookRefresh({ merchantId: merchant.id, chat: playbookChat });
+        logger.info({ merchantId: merchant.id, ...r }, 'playbook refresh done');
+      } catch (err) {
+        logger.error({ merchantId: merchant.id, err: (err as Error).message }, 'playbook refresh failed');
+      }
+    }
+  },
+  { connection: createRedisConnection(), concurrency: 1 },
+);
+
+playbookWorker.on('ready', () => logger.info('brand-playbook-refresh worker ready'));
+playbookWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'brand-playbook-refresh completed'));
+playbookWorker.on('failed', (job, err) =>
+  logger.error({ jobId: job?.id, err: err.message }, 'brand-playbook-refresh failed'));
+
 const shutdown = async (signal: string) => {
   logger.info({ signal }, 'worker shutting down');
   await Promise.all([
@@ -110,6 +145,8 @@ const shutdown = async (signal: string) => {
     siteGraphExtractWorker.close(),
     driftWorker.close(),
     driftQueue.close(),
+    playbookWorker.close(),
+    playbookQueue.close(),
   ]);
   process.exit(0);
 };

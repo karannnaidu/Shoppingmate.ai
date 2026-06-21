@@ -172,6 +172,9 @@ importers:
       '@shoppingmate/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
+      '@shoppingmate/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@shoppingmate/db':
         specifier: workspace:*
         version: link:../../packages/db
