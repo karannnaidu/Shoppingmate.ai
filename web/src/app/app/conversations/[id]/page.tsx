@@ -1,7 +1,8 @@
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { getDashboardSession } from '@/lib/session';
-import { getConversation } from '@/lib/conversations-repo';
+import type * as React from 'react';
+import { getConversation, type ConversationDetail } from '@/lib/conversations-repo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default async function ConversationDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -51,6 +52,78 @@ export default async function ConversationDetailPage({ params }: { params: Promi
           </p>
         </CardContent>
       </Card>
+      {convo.intent && <IntentCard intent={convo.intent} />}
     </div>
+  );
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-border bg-surface-muted px-2.5 py-1 text-xs font-medium text-text-primary">
+      {children}
+    </span>
+  );
+}
+
+function IntentCard({ intent }: { intent: NonNullable<ConversationDetail['intent']> }) {
+  const id = intent.identity ?? {};
+  const identityFields: { label: string; value: unknown }[] = [
+    { label: 'Name', value: id.name },
+    { label: 'City', value: id.city },
+    { label: 'Email', value: id.email },
+    { label: 'Phone', value: id.phone },
+  ].filter((f) => f.value != null && String(f.value).trim() !== '');
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Intent &amp; signals</CardTitle></CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="font-medium text-text-primary">{intent.intent}</span>
+          <span className="text-text-secondary">
+            {Math.round(intent.intentConfidence * 100)}% confidence
+          </span>
+        </div>
+
+        {intent.needs.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">Needs</p>
+            <div className="flex flex-wrap gap-2">
+              {intent.needs.map((n) => <Chip key={n}>{n}</Chip>)}
+            </div>
+          </div>
+        )}
+
+        {intent.objections.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">Objections</p>
+            <div className="flex flex-wrap gap-2">
+              {intent.objections.map((o) => <Chip key={o}>{o}</Chip>)}
+            </div>
+          </div>
+        )}
+
+        {identityFields.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">Captured identity</p>
+            <dl className="flex flex-col gap-1 text-sm">
+              {identityFields.map((f) => (
+                <div key={f.label} className="flex gap-2">
+                  <dt className="text-text-secondary">{f.label}:</dt>
+                  <dd className="text-text-primary">{String(f.value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {intent.dropStage && (
+          <div className="text-sm">
+            <span className="text-text-secondary">Drop-off stage: </span>
+            <span className="text-text-primary">{intent.dropStage}</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

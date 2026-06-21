@@ -8,6 +8,8 @@ const CALMOSIS_MERCHANT_ID = 'SM-2SCCLZ';
 const BASE_NAV = [
   { href: '/app', label: 'Home' },
   { href: '/app/conversations', label: 'Conversations' },
+  { href: '/app/intents', label: 'Intents' },
+  { href: '/app/audience', label: 'Audience' },
   { href: '/app/audit', label: 'Audit' },
   { href: '/app/knowledge', label: 'Knowledge' },
   { href: '/app/settings', label: 'Settings' },
