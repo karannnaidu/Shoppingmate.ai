@@ -28,7 +28,14 @@ import {
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import { db, schema, loadVisitorProfile, submitConsultationRequest, upsertVisitorProfile } from '@shoppingmate/db';
-import { type ChatFn, extractCheckoutDetails, extractContactDetails } from '@shoppingmate/agent';
+import {
+  type ChatFn,
+  classifyLiveSignal,
+  extractCheckoutDetails,
+  extractContactDetails,
+  nextNudge,
+  signalSteerLine,
+} from '@shoppingmate/agent';
 import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
@@ -601,6 +608,10 @@ const agentDefinition = defineAgent({
     let checkoutEntered = false;
     let orderPlaced = false;
     let completingOrder = false;
+    // Phase 4 — live in-session signal state. liveTurn counts completed assistant
+    // turns; nudgeState rate-limits the (flag-gated) spoken nudge.
+    let liveTurn = 0;
+    const nudgeState = { lastNudgeTurn: 0 };
     // Contact-us / inquiry form (separate from checkout + consultation).
     let contactMode = false;
     let contactFilled = false;
@@ -861,6 +872,31 @@ const agentDefinition = defineAgent({
           // Feed Gemini's spoken turn to the side-channel executor so it reasons
           // over the real dialogue (and can map answers→fields for checkout.fill).
           bridge.noteAssistantTurn(clean);
+          // Phase 4 — live signal (best-effort, never blocks the call). Classify
+          // the spoken conversation-so-far, steer the NEXT runTurn's prompt, and
+          // (only when LIVE_NUDGE_ENABLED=1) optionally speak one proactive nudge.
+          void (async () => {
+            try {
+              liveTurn += 1;
+              const snap = recorder.snapshot();
+              if (snap.filter((t) => t.role === 'user').length < 2) return;
+              const transcript = snap.map((t) => `${t.role}: ${t.content}`).join('\n');
+              const sig = await classifyLiveSignal(transcript, extractChat);
+              const steer = signalSteerLine(sig);
+              bridge.setLiveSignal(steer || undefined);
+              if (steer) log.info({ sessionId, steer }, 'live signal (voice)');
+              if (process.env.LIVE_NUDGE_ENABLED === '1') {
+                const n = nextNudge(sig, liveTurn, nudgeState);
+                if (n) {
+                  nudgeState.lastNudgeTurn = liveTurn;
+                  ground(n);
+                  log.info({ sessionId }, 'live nudge spoken');
+                }
+              }
+            } catch (err) {
+              log.warn({ err, sessionId }, 'live signal (voice) failed');
+            }
+          })();
           // The contact form is the only flow that asks for a "subject" / "message"
           // — if the bot asks for those, we're filling the contact form, not
           // checkout (even though a phone number set checkoutEntered).

@@ -72,6 +72,9 @@ export type Bridge = {
   handleBargeIn: () => void;
   dispatchHostAction?: (action: HostAction) => Promise<HostActionResult>;
   deliverHostActionResult?: (msg: { callId: string; result: HostActionResult }) => void;
+  // Phase 4 — stash a live-signal steer line computed after a completed voice
+  // turn; applied to session.liveSignal right before the NEXT runTurn.
+  setLiveSignal: (s: string | undefined) => void;
 };
 
 const HOST_ACTION_TIMEOUT_MS = 5000;
@@ -88,6 +91,9 @@ export function createBridge(deps: BridgeDeps): Bridge {
   // Gemini cheerfully says "order placed". The executor's own (suppressed)
   // replies are intentionally NOT recorded — Gemini's are the canonical voice.
   const voiceHistory: SessionState['history'] = [];
+  // Phase 4 — live-signal steer for the next turn's system prompt. Set by the
+  // worker's post-turn classifier; consumed in handleUserText before runTurn.
+  let pendingLiveSignal: string | undefined;
   const pending = new Map<
     string,
     { resolve: (r: HostActionResult) => void; timer: ReturnType<typeof setTimeout> }
@@ -114,6 +120,10 @@ export function createBridge(deps: BridgeDeps): Bridge {
       let prior = [...voiceHistory];
       while (prior.length > 0 && prior[0]?.role === 'assistant') prior = prior.slice(1);
       session.history = prior;
+      // Phase 4 — fold the live-signal steer (computed after the prior turn) into
+      // this turn's system prompt. runtime.ts passes session.liveSignal into
+      // buildSystemPrompt. Best-effort hint only; undefined leaves prompt unchanged.
+      session.liveSignal = pendingLiveSignal || undefined;
       voiceHistory.push({ role: 'user', content: text });
       const widgetMsg: WidgetMessage = {
         type: 'user_text',
@@ -163,6 +173,9 @@ export function createBridge(deps: BridgeDeps): Bridge {
     noteAssistantTurn(text) {
       const t = text.trim();
       if (t.length > 0) voiceHistory.push({ role: 'assistant', content: t });
+    },
+    setLiveSignal(s) {
+      pendingLiveSignal = s || undefined;
     },
     handleBargeIn() {
       aborted = true;

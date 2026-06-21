@@ -18,8 +18,10 @@ import {
   type SessionState,
   type ChatFn,
   buildVisitorSummary,
+  classifyLiveSignal,
   createConversationRecorder,
   extractConversationProfile,
+  signalSteerLine,
   createSession,
   decodeWidgetMessage,
   encodeAgentEvent,
@@ -116,6 +118,10 @@ const profileModel =
   process.env.OPENROUTER_CHECKOUT_MODEL ?? process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
 const profileChat: ChatFn = (messages) =>
   chat({ model: profileModel, messages, responseFormat: 'json', maxTokens: 512 });
+// Phase 4 — live in-session signal classifier (cheaper/smaller cap than the
+// profiler; reuses the same model). Used per-turn to steer the NEXT prompt.
+const classifierChat: ChatFn = (messages) =>
+  chat({ model: profileModel, messages, responseFormat: 'json', maxTokens: 256 });
 
 // Per-session conversation recorders. Accumulate visitor/bot turns + funnel
 // flags across a session so we can emit one conversationCompleted metric (with
@@ -343,6 +349,26 @@ mountAgentWs(server, {
       }
       if (ev.type === 'checkout_redirect') recorder.markCheckoutReached();
       send(encodeAgentEvent(ev));
+    }
+
+    if (msg.type === 'user_text') {
+      // Phase 4 — live in-session signal: classify the conversation-so-far and stash a
+      // steer line for the NEXT turn's system prompt. Best-effort; runs after the reply
+      // is already sent so it never delays the user. Skip the very first user turn.
+      try {
+        const snap = recorder.snapshot();
+        const userTurns = snap.filter((t) => t.role === 'user').length;
+        if (userTurns >= 2) {
+          const transcript = snap.map((t) => `${t.role}: ${t.content}`).join('\n');
+          const sig = await classifyLiveSignal(transcript, classifierChat);
+          const steer = signalSteerLine(sig);
+          session.liveSignal = steer || undefined;
+          await saveSession(redis, session);
+          if (steer) logger.info({ sessionId, steer }, 'live signal');
+        }
+      } catch (err) {
+        logger.warn({ err, sessionId }, 'live signal classify failed');
+      }
     }
   },
 });
