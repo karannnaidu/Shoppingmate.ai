@@ -88,3 +88,4 @@ export {
   type LiveSignal,
   type NudgeState,
 } from './live-signal.js';
+export { aggregateBrandStats, distilBrandPlaybook, type BrandRecord, type BrandStats, type RateRow, type ObjectionRow } from './brand-playbook.js';
