@@ -19,6 +19,9 @@ export type VoiceContextOpts = {
   /** Compact returning-visitor brief (from buildVisitorSummary). Threaded into
    *  buildVoiceSystemInstruction's opts; empty/omitted for first-time visitors. */
   visitorSummary?: string;
+  /** Data-driven brand selling-playbook (from loadBrandPlaybook). Spread into
+   *  buildVoiceSystemInstruction's opts; omitted when the brand has no playbook. */
+  brandPlaybook?: string;
 };
 
 export function resolveVoiceContext(

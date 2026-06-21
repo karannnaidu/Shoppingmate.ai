@@ -55,6 +55,10 @@ export type VoiceInstructionOpts = {
   /** Per-turn live-signal steer (Phase 4). Injected as a LIVE SIGNAL section
    *  right after the returning-visitor section; omitted when empty. */
   liveSignal?: string;
+  /** Data-driven brand playbook (from loadBrandPlaybook). Injected as a
+   *  WHAT'S WORKING FOR THIS BRAND section AFTER the brand summary / KB sections
+   *  (so it can steer but never contradict the brand facts); omitted when empty. */
+  brandPlaybook?: string;
 };
 
 export function buildVoiceSystemInstruction(
@@ -102,6 +106,11 @@ export function buildVoiceSystemInstruction(
   }
   if (opts.kbText && opts.kbText.trim().length > 0) {
     sections.push(`BRAND CONTEXT\n${opts.kbText.trim()}`);
+  }
+  if (opts.brandPlaybook && opts.brandPlaybook.trim().length > 0) {
+    sections.push(
+      `WHAT'S WORKING FOR THIS BRAND (data-driven — follow it, never contradict brand facts):\n${opts.brandPlaybook.trim()}`,
+    );
   }
   return sections.join('\n\n');
 }

@@ -27,7 +27,7 @@ import {
   type SessionStore,
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
-import { db, schema, loadVisitorProfile, submitConsultationRequest, upsertVisitorProfile } from '@shoppingmate/db';
+import { db, schema, loadVisitorProfile, loadBrandPlaybook, submitConsultationRequest, upsertVisitorProfile } from '@shoppingmate/db';
 import {
   type ChatFn,
   classifyLiveSignal,
@@ -354,6 +354,11 @@ const agentDefinition = defineAgent({
       log.warn({ err, sessionId }, 'visitor profile load failed (voice)');
     }
 
+    // Data-driven brand selling-playbook: fold the data-derived guidance into
+    // the voice system instruction. Best-effort — a DB miss or no playbook leaves
+    // it undefined and the prompt is unchanged.
+    const pb = await loadBrandPlaybook(merchant.id).catch(() => null);
+
     const voice = resolveVoiceContext(
       merchant.personaId,
       { name: merchant.name, domain: merchant.domain },
@@ -363,6 +368,7 @@ const agentDefinition = defineAgent({
         brandSummary: merchant.brandSummary ?? undefined,
         brandCategories: merchant.brandCategories ?? undefined,
         visitorSummary,
+        brandPlaybook: pb?.playbook,
       },
     );
 

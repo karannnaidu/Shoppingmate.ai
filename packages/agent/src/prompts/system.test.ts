@@ -195,6 +195,21 @@ describe('LIVE SIGNAL section (Phase 4)', () => {
   });
 });
 
+describe("WHAT'S WORKING FOR THIS BRAND section (brand playbook)", () => {
+  it('injects the brand playbook when brandPlaybook is provided', () => {
+    const p = buildSystemPrompt(merchant, {
+      brandPlaybook: 'LEAD WITH ready_to_buy.',
+    });
+    expect(p).toContain("WHAT'S WORKING FOR THIS BRAND");
+    expect(p).toContain('LEAD WITH ready_to_buy.');
+  });
+
+  it('omits the brand playbook section when brandPlaybook is unset', () => {
+    const p = buildSystemPrompt(merchant);
+    expect(p).not.toContain("WHAT'S WORKING FOR THIS BRAND");
+  });
+});
+
 describe('SITE_GRAPH_SLOT injection', () => {
   it('uses raw slot placeholder when siteGraphText is missing', () => {
     const m = {

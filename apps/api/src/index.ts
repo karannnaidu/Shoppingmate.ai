@@ -4,6 +4,7 @@ import {
   db,
   schema,
   loadVisitorProfile,
+  loadBrandPlaybook,
   submitConsultationRequest,
   upsertVisitorProfile,
 } from '@shoppingmate/db';
@@ -401,6 +402,7 @@ async function loadPromptOpts(
   demoMode?: boolean;
   siteGraphText?: string;
   visitorSummaryText?: string;
+  brandPlaybook?: string;
 }> {
   const chunks = await db
     .select({ text: schema.brandKbChunks.text })
@@ -431,10 +433,15 @@ async function loadPromptOpts(
       logger.warn({ err, merchantId, visitorId }, 'visitor profile load failed (text)');
     }
   }
+  // Data-driven brand selling-playbook: fold the data-derived guidance into the
+  // system prompt. Best-effort — a DB miss or no playbook leaves brandPlaybook
+  // undefined and the prompt is unchanged.
+  const pb = await loadBrandPlaybook(merchantId).catch(() => null);
   return {
     kbText,
     demoMode: merchantId === env.SHOPPINGMATE_DEMO_MERCHANT_ID,
     siteGraphText: projection?.output,
     visitorSummaryText,
+    brandPlaybook: pb?.playbook,
   };
 }

@@ -103,6 +103,19 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).not.toContain('LIVE SIGNAL');
   });
 
+  it("injects a WHAT'S WORKING FOR THIS BRAND section when brandPlaybook is provided", () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, {
+      brandPlaybook: 'LEAD WITH ready_to_buy.',
+    });
+    expect(out).toContain("WHAT'S WORKING FOR THIS BRAND");
+    expect(out).toContain('LEAD WITH ready_to_buy.');
+  });
+
+  it('omits the brand playbook section when brandPlaybook is unset/empty', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { brandPlaybook: '' });
+    expect(out).not.toContain("WHAT'S WORKING FOR THIS BRAND");
+  });
+
   it('demo mode also mirrors the visitor language and does not force English-only', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
     expect(out).toMatch(/same language|match their language|reply in (that|the same)/i);
