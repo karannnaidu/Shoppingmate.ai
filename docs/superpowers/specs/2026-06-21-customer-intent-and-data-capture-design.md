@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-21
 **Status:** Approved (brainstorm) → ready for implementation plan
-**Drives:** (1) brand dashboard insights, (3) personalization — live *and* cross-session, voice-first (voice **and** text).
+**Drives:** (1) brand dashboard insights, (3) personalization — live *and* cross-session, voice-first (voice **and** text), and (4) **brand-level auto-learning** — the bot learns to sell better as conversations accumulate.
 **Deferred (later phases):** retargeting/ads audiences, sales/ops lead routing, consent UI/retention/deletion.
 
 ## Problem
@@ -67,6 +67,20 @@ Extends the existing conversations/consultations/audit pages:
 - **Audience** — visitor-profile list (identity + top intents + LTV + last seen) → spot high-value/returning visitors.
 - **Per-conversation** — the existing detail page gains the extracted intent/needs/objections/identity tags.
 
+## 5b. Brand-level auto-learning (sell better over time)
+
+The captured conversation records are the substrate for the bot improving at selling for each brand — the core "auto-learning" requirement. This is the **consumption** side of capture; it depends on (and is built after) the capture foundation.
+
+**Loop:**
+1. **Aggregate** — per merchant, on a schedule or every N new conversations, compute stats over the conversation records: conversion rate by intent/need, objection frequency + which were overcome, recommendation→purchase lift, offer/coupon lift, top drop stages.
+2. **Distil** — a short LLM pass turns the stats into a compact **brand selling playbook** (~200–400 tokens): what to lead with for each need, which objections to pre-empt and how, which products/offers convert, where to slow down vs push. Grounded ONLY in the stats.
+3. **Apply** — inject the playbook into the brand's system prompt as a `WHAT'S WORKING FOR THIS BRAND` section (voice + text), so every conversation benefits.
+4. **Refine** — re-run as volume grows → the playbook sharpens → the bot sells better. More conversations = better selling. *This is the auto-learning.*
+
+**Guardrails:** derived from real outcomes only (no hallucinated tactics); never overrides brand facts/guardrails or invents claims; regenerated (not appended) so it can't grow unbounded; gated by a minimum-conversation threshold (don't "learn" from a handful of chats).
+
+**Dependency:** requires the Phase 1 capture foundation to have accumulated conversation records. **Cannot precede it.**
+
 ## 6. Privacy (v1 minimal)
 
 - Full identity is captured and stored (merchant's call). Profiles/identity are visible **only to the merchant** via existing dashboard auth — never exposed publicly.
@@ -79,6 +93,7 @@ Extends the existing conversations/consultations/audit pages:
 2. **Cross-session personalization** — load profile at session start, bake summary into the system instruction/prompt (voice + text).
 3. **Dashboard views** — intent overview, demand/unmet-demand, friction, audience, per-conversation tags.
 4. **Live signal** — per-turn classifier + executor steering + event-driven voice nudges.
+5. **Brand-level auto-learning** — aggregate the accumulated records → distil a brand selling playbook → inject into the system prompt → refine as volume grows (§5b). Depends on Phase 1 having captured data; benefits from conversation volume.
 
 ## Open questions / non-goals
 
