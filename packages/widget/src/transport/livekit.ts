@@ -26,9 +26,37 @@ type RoomShape = {
   localParticipant: {
     setMicrophoneEnabled: (b: boolean) => Promise<void>;
     publishData: (bytes: Uint8Array, opts?: { reliable?: boolean }) => Promise<void>;
+    getTrackPublication?: (source: string) =>
+      | { audioTrack?: TrackWithProcessor; track?: TrackWithProcessor }
+      | undefined;
   };
   disconnect: () => Promise<void>;
 };
+
+type TrackWithProcessor = { setProcessor?: (p: unknown) => Promise<void> };
+
+// Krisp AI noise filter — far better and more consistent across devices (esp.
+// mobile, where the browser's native noiseSuppression is weak/ignored) than the
+// getUserMedia constraints. Lazy-loaded from CDN and applied to the mic track.
+// ANY failure (unsupported device, load/WASM error) is a SILENT no-op that
+// leaves the browser-native cleanup in place — so it can never break voice.
+const KRISP_VERSION = '0.3.0';
+type KrispModule = { KrispNoiseFilter: () => unknown; isKrispNoiseFilterSupported?: () => boolean };
+let _krispImport: Promise<KrispModule | null> | null = null;
+function loadKrisp(): Promise<KrispModule | null> {
+  if (_krispImport) return _krispImport;
+  const url = `${DEFAULT_CDN_BASE}/@livekit/krisp-noise-filter@${KRISP_VERSION}/dist/index.mjs`;
+  _krispImport = (import(/* @vite-ignore */ url) as Promise<KrispModule>).catch(() => null);
+  return _krispImport;
+}
+async function applyKrisp(room: RoomShape): Promise<void> {
+  const mod = await loadKrisp();
+  if (!mod?.KrispNoiseFilter) return;
+  if (mod.isKrispNoiseFilterSupported && !mod.isKrispNoiseFilterSupported()) return;
+  const pub = room.localParticipant.getTrackPublication?.('microphone');
+  const track = pub?.audioTrack ?? pub?.track;
+  if (track?.setProcessor) await track.setProcessor(mod.KrispNoiseFilter());
+}
 
 // Cache the dynamic import promise so subsequent callers share the network
 // request. Without this, calling preloadLiveKit() at widget init then again
@@ -123,7 +151,11 @@ export async function connectToRoom(opts: {
 
   await room.connect(opts.wsUrl, opts.token);
   return {
-    setMicEnabled: (enabled) => room.localParticipant.setMicrophoneEnabled(enabled),
+    setMicEnabled: async (enabled) => {
+      await room.localParticipant.setMicrophoneEnabled(enabled);
+      // Best-effort AI noise suppression on top of the browser-native cleanup.
+      if (enabled) void applyKrisp(room).catch(() => { /* no-op: browser NS remains */ });
+    },
     onData: (cb) => {
       room.on('dataReceived', (payload: unknown) => {
         if (payload instanceof Uint8Array) cb(payload);
