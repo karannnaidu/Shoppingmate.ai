@@ -1,6 +1,12 @@
 import { serve } from '@hono/node-server';
 import { InMemorySessionState, type WSTransport, getAdapter } from '@shoppingmate/adapters';
-import { db, schema, submitConsultationRequest } from '@shoppingmate/db';
+import {
+  db,
+  schema,
+  loadVisitorProfile,
+  submitConsultationRequest,
+  upsertVisitorProfile,
+} from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
 import { chat, env, logger } from '@shoppingmate/shared';
 import { and, asc, eq } from 'drizzle-orm';
@@ -11,6 +17,7 @@ import {
   NoOpWSTransport,
   type SessionState,
   type ChatFn,
+  buildVisitorSummary,
   createConversationRecorder,
   extractConversationProfile,
   createSession,
@@ -158,6 +165,10 @@ mountAgentWs(server, {
     }
 
     if (msg.type === 'session_end') {
+      // Capture the visitorId BEFORE deleting the session — the upsert below
+      // needs it, and redis.del wipes it on the next line.
+      const endingSession = await loadSession(redis, sessionId);
+      const endingVisitorId = endingSession?.visitorId;
       await redis.del(`session:${sessionId}`);
       const sessionPending = pendingHostActions.get(sessionId);
       if (sessionPending) {
@@ -168,12 +179,14 @@ mountAgentWs(server, {
       if (rec) {
         recorders.delete(sessionId);
         const tags = rec.finish({ mode: 'text', nowMs: Date.now() });
-        // Phase 1 — structured intent capture for the conversation record. The text
-        // WS has no stable visitor_id yet (widget localStorage sm_visitor_id is not
-        // forwarded through this path), so we attach the intent to the conversation
-        // row but DEFER the per-visitor profile upsert to Phase 2 (which plumbs
-        // visitorId through here). extractConversationProfile is self-safe, and this
-        // stays fire-and-forget so session_closed is sent without waiting on the LLM.
+        // Structured intent capture for the conversation record + cross-session
+        // visitor profile upsert. The widget now forwards its localStorage
+        // sm_visitor_id on every user_text frame, so when endingVisitorId is set
+        // we roll this session's intent record into the per-visitor profile
+        // (read by buildVisitorSummary at the next session start). Anon sessions
+        // (no visitorId) still record the conversation but skip the upsert.
+        // extractConversationProfile is self-safe and this stays fire-and-forget
+        // so session_closed is sent without waiting on the LLM.
         const transcriptText = tags.transcript.map((t) => `${t.role}: ${t.content}`).join('\n');
         extractConversationProfile(
           transcriptText,
@@ -190,7 +203,21 @@ mountAgentWs(server, {
             logger.info({ sessionId, intent: record.intent }, 'intent profile captured (text)');
             return db
               .insert(schema.metricEvents)
-              .values({ merchantId, metricName: 'conversationCompleted', tags });
+              .values({ merchantId, metricName: 'conversationCompleted', tags })
+              .then(() => {
+                if (endingVisitorId) {
+                  return upsertVisitorProfile(merchantId, endingVisitorId, record, {
+                    outcome: tags.outcome,
+                    attributedCents: tags.attributed_cents,
+                  }).then(() => {
+                    logger.info(
+                      { sessionId, visitorId: endingVisitorId },
+                      'visitor profile upserted (text)',
+                    );
+                  });
+                }
+                return undefined;
+              });
           })
           .catch((err) => logger.error({ err, sessionId }, 'conversationCompleted emit failed'));
       }
@@ -213,6 +240,7 @@ mountAgentWs(server, {
         merchantId,
         mode: msg.mode,
         nowMs: Date.now(),
+        visitorId: msg.visitorId,
       });
     }
 
@@ -275,7 +303,8 @@ mountAgentWs(server, {
           .values({ merchantId: merchant.id, metricName: name, tags })
           .onConflictDoNothing();
       },
-      loadPromptOpts: async (m: typeof merchant) => loadPromptOpts(m.id),
+      loadPromptOpts: async (m: typeof merchant, visitorId?: string) =>
+        loadPromptOpts(m.id, visitorId),
       dispatchHostAction,
       submitConsultation: (req: {
         name: string;
@@ -338,10 +367,14 @@ function verbForAction(a: string): string {
 // rank chunks by relevance if quality gets thin.
 const KB_CHUNK_LIMIT = 32;
 
-async function loadPromptOpts(merchantId: string): Promise<{
+async function loadPromptOpts(
+  merchantId: string,
+  visitorId?: string,
+): Promise<{
   kbText?: string;
   demoMode?: boolean;
   siteGraphText?: string;
+  visitorSummaryText?: string;
 }> {
   const chunks = await db
     .select({ text: schema.brandKbChunks.text })
@@ -356,9 +389,26 @@ async function loadPromptOpts(merchantId: string): Promise<{
       eq(schema.projectionCache.consumer, 'sonnet_addendum'),
     ),
   });
+  // Cross-session personalization: fold a compact returning-visitor brief into
+  // the system prompt. Best-effort — a DB miss or first-time/anon visitor leaves
+  // visitorSummaryText undefined and the prompt is unchanged.
+  let visitorSummaryText: string | undefined;
+  if (visitorId) {
+    try {
+      const vp = await loadVisitorProfile(merchantId, visitorId);
+      const summary = buildVisitorSummary(vp);
+      if (summary) {
+        visitorSummaryText = summary;
+        logger.info({ merchantId, visitorId, sessionCount: vp?.sessionCount }, 'personalization: returning visitor (text)');
+      }
+    } catch (err) {
+      logger.warn({ err, merchantId, visitorId }, 'visitor profile load failed (text)');
+    }
+  }
   return {
     kbText,
     demoMode: merchantId === env.SHOPPINGMATE_DEMO_MERCHANT_ID,
     siteGraphText: projection?.output,
+    visitorSummaryText,
   };
 }

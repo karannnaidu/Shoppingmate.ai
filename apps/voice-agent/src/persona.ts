@@ -16,6 +16,9 @@ export type VoiceContextOpts = {
   demoMode?: boolean;
   brandSummary?: string;
   brandCategories?: string[];
+  /** Compact returning-visitor brief (from buildVisitorSummary). Threaded into
+   *  buildVoiceSystemInstruction's opts; empty/omitted for first-time visitors. */
+  visitorSummary?: string;
 };
 
 export function resolveVoiceContext(

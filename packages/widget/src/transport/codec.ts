@@ -14,7 +14,7 @@ export type CardItem = {
 };
 
 export type WidgetMessage =
-  | { type: 'user_text'; sessionId: string; text: string; mode: Mode }
+  | { type: 'user_text'; sessionId: string; text: string; mode: Mode; visitorId?: string }
   | {
       type: 'card_tap';
       sessionId: string;

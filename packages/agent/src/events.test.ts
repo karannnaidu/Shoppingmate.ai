@@ -28,6 +28,12 @@ describe('decodeWidgetMessage()', () => {
     const r = decodeWidgetMessage('{"type":"user_text","sessionId":"s","text":"hi","mode":"text"}');
     expect(r).toEqual({ type: 'user_text', sessionId: 's', text: 'hi', mode: 'text' });
   });
+  it('decodes user_text preserving visitorId', () => {
+    const r = decodeWidgetMessage(
+      '{"type":"user_text","sessionId":"s","text":"hi","mode":"text","visitorId":"v_abc"}',
+    );
+    expect(r).toEqual({ type: 'user_text', sessionId: 's', text: 'hi', mode: 'text', visitorId: 'v_abc' });
+  });
   it('decodes card_tap', () => {
     const r = decodeWidgetMessage(
       '{"type":"card_tap","sessionId":"s","action":"cartAdd","variantId":null,"sku":"A","qty":1}',

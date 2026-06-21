@@ -15,6 +15,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import {
   NoOpWSTransport,
+  buildVisitorSummary,
   createConversationRecorder,
   extractConversationProfile,
   decodeWidgetMessage,
@@ -26,7 +27,7 @@ import {
   type SessionStore,
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
-import { db, schema, submitConsultationRequest, upsertVisitorProfile } from '@shoppingmate/db';
+import { db, schema, loadVisitorProfile, submitConsultationRequest, upsertVisitorProfile } from '@shoppingmate/db';
 import { type ChatFn, extractCheckoutDetails, extractContactDetails } from '@shoppingmate/agent';
 import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
@@ -326,6 +327,26 @@ const agentDefinition = defineAgent({
     const kbText = [kbChunkText, siteGraphText].filter((s) => s.trim().length > 0).join('\n\n') || undefined;
     const demoMode = merchant.id === sharedEnv.SHOPPINGMATE_DEMO_MERCHANT_ID;
 
+    // Cross-session personalization: load the returning-visitor profile and fold
+    // a compact brief into the system instruction. Best-effort — a DB miss or
+    // first-time visitor leaves visitorSummary='' and the prompt is unchanged.
+    // Guard on session.visitorId (NOT the anon fallback) so anon sessions, which
+    // never have a profile, don't issue a pointless query.
+    let visitorSummary = '';
+    try {
+      if (session.visitorId) {
+        const vp = await loadVisitorProfile(merchant.id, session.visitorId);
+        visitorSummary = buildVisitorSummary(vp);
+        if (vp)
+          log.info(
+            { sessionId, visitorId, sessionCount: vp.sessionCount },
+            'personalization: returning visitor (voice)',
+          );
+      }
+    } catch (err) {
+      log.warn({ err, sessionId }, 'visitor profile load failed (voice)');
+    }
+
     const voice = resolveVoiceContext(
       merchant.personaId,
       { name: merchant.name, domain: merchant.domain },
@@ -334,6 +355,7 @@ const agentDefinition = defineAgent({
         demoMode,
         brandSummary: merchant.brandSummary ?? undefined,
         brandCategories: merchant.brandCategories ?? undefined,
+        visitorSummary,
       },
     );
 

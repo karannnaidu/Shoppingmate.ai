@@ -5,6 +5,7 @@ import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
 import { type Ambience, createAmbience } from './audio/ambience.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
 import { startActivityTracker } from './host/activity.js';
+import { getOrCreateVisitorId } from './identity.js';
 import { executeHostAction } from './host/actions.js';
 import { type PersonaDisplay, getPersonaDisplay, getPersonaPlaceholder } from './persona.js';
 import { type Store, createStore } from './state/store.js';
@@ -165,6 +166,7 @@ class WidgetElement extends HTMLElement {
             sessionId: result.sessionId,
             text,
             mode: 'voice',
+            visitorId: getOrCreateVisitorId(),
           }),
         );
       });
@@ -341,7 +343,15 @@ class WidgetElement extends HTMLElement {
   private userText(text: string, mode: 'voice' | 'text') {
     this.store.dispatch({ type: 'user_input', text, mode });
     const sid = this.store.get().sessionId;
-    this.socket?.send(encodeWidgetMessage({ type: 'user_text', sessionId: sid, text, mode }));
+    this.socket?.send(
+      encodeWidgetMessage({
+        type: 'user_text',
+        sessionId: sid,
+        text,
+        mode,
+        visitorId: getOrCreateVisitorId(),
+      }),
+    );
   }
 
   private handleLiveKitData(bytes: Uint8Array) {

@@ -118,7 +118,7 @@ export type RunTurnDeps = {
   // Optional fetcher for system-prompt opts (KB text, demo-mode flag). When
   // omitted, buildSystemPrompt runs with no KB text and demoMode=false — the
   // pre-Phase-2 behavior tests rely on.
-  loadPromptOpts?: (merchant: Merchant) => Promise<SystemPromptOpts>;
+  loadPromptOpts?: (merchant: Merchant, visitorId?: string) => Promise<SystemPromptOpts>;
   // Optional dispatcher for site.* host actions (navigations, scrolls, etc.).
   // When omitted, site.* calls return an unsupported envelope.
   dispatchHostAction?: (action: HostAction) => Promise<HostActionResult>;
@@ -152,7 +152,9 @@ export async function* runTurn(
   }
 
   const callChatTools = deps.chatToolsImpl ?? chatTools;
-  const promptOpts = deps.loadPromptOpts ? await deps.loadPromptOpts(merchant) : {};
+  const promptOpts = deps.loadPromptOpts
+    ? await deps.loadPromptOpts(merchant, session.visitorId)
+    : {};
   // Default to Sonnet; a session may carry a cheap-model override for smoke runs.
   const turnModel = pickTurnModel(message, session.model, session.inCheckout);
   // Becomes true once we're in checkout (this turn or earlier) so the next turn

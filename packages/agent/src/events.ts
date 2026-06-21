@@ -37,7 +37,13 @@ export function decodeWidgetMessage(raw: string): WidgetMessage | null {
     case 'user_text':
       if (typeof obj.sessionId !== 'string' || typeof obj.text !== 'string') return null;
       if (obj.mode !== 'voice' && obj.mode !== 'text') return null;
-      return { type: 'user_text', sessionId: obj.sessionId, text: obj.text, mode: obj.mode };
+      return {
+        type: 'user_text',
+        sessionId: obj.sessionId,
+        text: obj.text,
+        mode: obj.mode,
+        ...(typeof obj.visitorId === 'string' ? { visitorId: obj.visitorId } : {}),
+      };
     case 'card_tap':
       if (typeof obj.sessionId !== 'string' || typeof obj.sku !== 'string') return null;
       if (obj.action !== 'cartAdd') return null;
