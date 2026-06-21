@@ -11,3 +11,4 @@ export * from './siteGraph.js';
 export * from './conversationSessions.js';
 export * from './recommendationEvents.js';
 export * from './consultationRequests.js';
+export * from './visitorProfiles.js';
