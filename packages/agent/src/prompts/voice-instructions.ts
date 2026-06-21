@@ -52,6 +52,9 @@ export type VoiceInstructionOpts = {
   /** Compact returning-visitor brief (from buildVisitorSummary). Injected as a
    *  RETURNING VISITOR section after GUARDRAILS; omitted for first-time visitors. */
   visitorSummary?: string;
+  /** Per-turn live-signal steer (Phase 4). Injected as a LIVE SIGNAL section
+   *  right after the returning-visitor section; omitted when empty. */
+  liveSignal?: string;
 };
 
 export function buildVoiceSystemInstruction(
@@ -83,6 +86,9 @@ export function buildVoiceSystemInstruction(
     sections.push(
       `RETURNING VISITOR — personalize warmly, greet them by name if known, and do NOT re-ask what you already know:\n${opts.visitorSummary.trim()}`,
     );
+  }
+  if (opts.liveSignal && opts.liveSignal.trim().length > 0) {
+    sections.push(`LIVE SIGNAL (act on it): ${opts.liveSignal.trim()}`);
   }
   if (brand?.domain?.includes('calmosis')) {
     sections.push(CALMOSIS_SELLING_RULE);

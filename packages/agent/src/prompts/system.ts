@@ -19,6 +19,9 @@ export type SystemPromptOpts = {
   /** Compact returning-visitor brief (from buildVisitorSummary). Injected as a
    *  RETURNING VISITOR section after the brand summary; omitted for first-timers. */
   visitorSummaryText?: string;
+  /** Per-turn live-signal steer (Phase 4). When set, injected as a LIVE SIGNAL
+   *  line right after the returning-visitor block; omitted when empty. */
+  liveSignal?: string;
 };
 
 function buildBrandSummaryLine(merchant: Merchant): string {
@@ -48,8 +51,13 @@ export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {
       ? `\nRETURNING VISITOR — personalize warmly, greet them by name if known, and do NOT re-ask what you already know:\n${opts.visitorSummaryText.trim()}\n`
       : '';
 
+  const liveSignalBlock =
+    opts.liveSignal && opts.liveSignal.trim().length > 0
+      ? `\nLIVE SIGNAL (this turn — act on it): ${opts.liveSignal.trim()}\n`
+      : '';
+
   if (opts.demoMode) {
-    return demoSystemPrompt(persona.name, kbBlock, siteGraphBlock, returningVisitorBlock);
+    return demoSystemPrompt(persona.name, kbBlock, siteGraphBlock, returningVisitorBlock, liveSignalBlock);
   }
 
   const brandSummaryBlock =
@@ -128,7 +136,7 @@ You CANNOT add items to the cart yourself here, and you have no cart tool. ${
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
 Always write the brand name exactly as "${brandName}" — never alter or misspell it (e.g. it is "Calmosis", never "Caliosis").
-${brandSummaryBlock}${returningVisitorBlock}${navigationBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${buyFlowBlock}
+${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${buyFlowBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.
@@ -175,9 +183,10 @@ function demoSystemPrompt(
   kbBlock: string,
   siteGraphBlock: string,
   returningVisitorBlock = '',
+  liveSignalBlock = '',
 ): string {
   return `You are ${personaName}, the live demo assistant on shoppingmate.ai itself. Visitors here are e-commerce founders and operators evaluating shoppingmate as a product. You have two jobs:
-${returningVisitorBlock}
+${returningVisitorBlock}${liveSignalBlock}
 
 1) Answer any question about shoppingmate — positioning, pricing, install, supported platforms, the brand dashboard, voice/text mode, privacy, FAQ — using BRAND CONTEXT below. If a question is genuinely outside that, say so and offer to connect them with the team.
 

@@ -180,6 +180,21 @@ describe('RETURNING VISITOR section', () => {
   });
 });
 
+describe('LIVE SIGNAL section (Phase 4)', () => {
+  it('injects the LIVE SIGNAL line when liveSignal is provided', () => {
+    const p = buildSystemPrompt(merchant, {
+      liveSignal: 'intent=ready_to_buy · urgency=high',
+    });
+    expect(p).toContain('LIVE SIGNAL');
+    expect(p).toContain('intent=ready_to_buy · urgency=high');
+  });
+
+  it('omits the LIVE SIGNAL line when liveSignal is unset', () => {
+    const p = buildSystemPrompt(merchant);
+    expect(p).not.toContain('LIVE SIGNAL');
+  });
+});
+
 describe('SITE_GRAPH_SLOT injection', () => {
   it('uses raw slot placeholder when siteGraphText is missing', () => {
     const m = {

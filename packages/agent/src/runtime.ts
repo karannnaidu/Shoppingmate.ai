@@ -226,7 +226,7 @@ export async function* runTurn(
     const ackArgs = {
       model: turnModel,
       messages: [
-        { role: 'system' as const, content: buildSystemPrompt(merchant, promptOpts) },
+        { role: 'system' as const, content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) },
         ...cardTapSession.history,
         {
           role: 'user' as const,
@@ -285,7 +285,7 @@ export async function* runTurn(
   // raw PII — stored history keeps the redacted form.
   const redactedUserText = redactPii(message.text);
   const history: AnthropicMessage[] = [
-    { role: 'system', content: buildSystemPrompt(merchant, promptOpts) },
+    { role: 'system', content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) },
     ...session.history,
     { role: 'user', content: message.text },
   ];

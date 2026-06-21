@@ -90,6 +90,19 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).not.toContain('RETURNING VISITOR');
   });
 
+  it('injects a LIVE SIGNAL section when liveSignal is provided (Phase 4)', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, {
+      liveSignal: 'intent=ready_to_buy · urgency=high',
+    });
+    expect(out).toContain('LIVE SIGNAL');
+    expect(out).toContain('intent=ready_to_buy · urgency=high');
+  });
+
+  it('omits the LIVE SIGNAL section when liveSignal is unset (Phase 4)', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!);
+    expect(out).not.toContain('LIVE SIGNAL');
+  });
+
   it('demo mode also mirrors the visitor language and does not force English-only', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
     expect(out).toMatch(/same language|match their language|reply in (that|the same)/i);

@@ -81,3 +81,10 @@ export {
   type ConversationFacts,
 } from './intent-profiler.js';
 export { buildVisitorSummary } from './visitor-summary.js';
+export {
+  classifyLiveSignal,
+  signalSteerLine,
+  nextNudge,
+  type LiveSignal,
+  type NudgeState,
+} from './live-signal.js';
