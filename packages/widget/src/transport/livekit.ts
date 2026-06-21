@@ -96,22 +96,41 @@ export function preloadLiveKit(): void {
   });
 }
 
+// Opt-in to the heavier mic pipeline (autoGainControl + Krisp) for noisy rooms.
+// Checked at call-connect time so it can be toggled per-call with no redeploy:
+// `?smAudioFull=1` on the page URL, or `window.__SM_AUDIO_FULL__ = true`.
+function audioFullRequested(): boolean {
+  try {
+    if (typeof window !== 'undefined' && (window as { __SM_AUDIO_FULL__?: boolean }).__SM_AUDIO_FULL__) {
+      return true;
+    }
+    const q = new URLSearchParams(location.search).get('smAudioFull');
+    return q === '1' || q === 'true';
+  } catch {
+    return false;
+  }
+}
+
 export async function connectToRoom(opts: {
   wsUrl: string;
   token: string;
   roomName: string;
 }): Promise<LiveKitHandle> {
   const lk = await loadLiveKit();
-  // Turn ON the browser's audio cleanup for the mic capture. Without these,
-  // background room noise and the bot's own voice (echo from the speaker) reach
-  // Gemini, wrecking its transcription (garbled names/emails). echoCancellation
-  // removes the bot voice the mic picks up; noiseSuppression cuts ambient noise;
-  // autoGainControl normalizes a quiet/distant mic. mono keeps it clean for STT.
+  // Mic capture cleanup. echoCancellation + noiseSuppression + mono are ESSENTIAL
+  // for clean STT (echoCancellation stops the bot transcribing its own voice;
+  // noiseSuppression cuts ambient noise; mono keeps it simple). autoGainControl
+  // and the Krisp ML filter, however, were found to OVER-process accented /
+  // code-switched speech and DEGRADE Gemini's transcription (garbled names &
+  // emails — 2026-06-21 report), so they are OFF by default. To restore the
+  // heavier pipeline for very noisy environments, add `?smAudioFull=1` to the
+  // page URL or set `window.__SM_AUDIO_FULL__ = true` before the widget loads.
+  const audioFull = audioFullRequested();
   const room = new lk.Room({
     audioCaptureDefaults: {
       echoCancellation: true,
       noiseSuppression: true,
-      autoGainControl: true,
+      autoGainControl: audioFull,
       channelCount: 1,
     },
   });
@@ -153,8 +172,10 @@ export async function connectToRoom(opts: {
   return {
     setMicEnabled: async (enabled) => {
       await room.localParticipant.setMicrophoneEnabled(enabled);
-      // Best-effort AI noise suppression on top of the browser-native cleanup.
-      if (enabled) void applyKrisp(room).catch(() => { /* no-op: browser NS remains */ });
+      // Krisp ML noise filter is OFF by default (it can distort accented speech
+      // and hurt transcription); only apply it when the heavier pipeline is
+      // explicitly requested via the `smAudioFull` flag (noisy-environment opt-in).
+      if (enabled && audioFull) void applyKrisp(room).catch(() => { /* no-op: browser NS remains */ });
     },
     onData: (cb) => {
       room.on('dataReceived', (payload: unknown) => {
