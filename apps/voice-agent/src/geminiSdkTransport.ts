@@ -36,6 +36,7 @@ export function createGeminiSdkTransport(): GeminiTransport {
   // Reconnect state.
   let voiceId = '';
   let baseInstruction = '';
+  let getResumeContext: (() => string) | undefined;
   let intentionalClose = false;
   let reconnects = 0;
   let healthyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -146,7 +147,18 @@ export function createGeminiSdkTransport(): GeminiTransport {
           const delay = 250 * reconnects;
           log.info({ reconnects, delay, code: c?.code }, 'gemini reconnecting after unexpected close');
           setTimeout(() => {
-            const resumeNote = `${baseInstruction}\n\n(NOTE: this call is ALREADY IN PROGRESS after a brief reconnection — do NOT greet, re-introduce yourself, or restart; just continue helping the visitor from where you left off.)`;
+            // Re-ground the fresh session with a COMPACT recent transcript (the
+            // full one is what overflowed in the first place), so the bot resumes
+            // mid-conversation instead of blank — but doesn't immediately re-bloat.
+            let ctx = '';
+            try {
+              ctx = getResumeContext?.() ?? '';
+            } catch {
+              ctx = '';
+            }
+            const resumeNote = ctx
+              ? `${baseInstruction}\n\nCALL IN PROGRESS — you briefly reconnected. Do NOT greet, re-introduce yourself, or restart. Here is the recent conversation so you can continue seamlessly:\n${ctx}\nContinue naturally from where you left off; if you were collecting details, pick up at the next field.`
+              : `${baseInstruction}\n\n(NOTE: this call is ALREADY IN PROGRESS after a brief reconnection — do NOT greet, re-introduce yourself, or restart; just continue helping the visitor from where you left off.)`;
             connect(resumeNote).catch((err) => {
               log.error({ err }, 'gemini reconnect failed');
               emit({ type: 'error', error: err as Error });
@@ -158,9 +170,10 @@ export function createGeminiSdkTransport(): GeminiTransport {
   }
 
   return {
-    async open({ voiceId: vId, systemInstruction }) {
+    async open({ voiceId: vId, systemInstruction, getResumeContext: grc }) {
       voiceId = vId;
       baseInstruction = systemInstruction;
+      getResumeContext = grc;
       intentionalClose = false;
       reconnects = 0;
       await connect(systemInstruction);

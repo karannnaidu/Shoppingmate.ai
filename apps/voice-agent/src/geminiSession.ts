@@ -17,7 +17,14 @@ export type GeminiTransportEvent =
   | { type: 'error'; error: Error };
 
 export type GeminiTransport = {
-  open: (cfg: { voiceId: string; systemInstruction: string }) => Promise<void>;
+  open: (cfg: {
+    voiceId: string;
+    systemInstruction: string;
+    // Called at RECONNECT time (not first open) to fetch a compact recent
+    // transcript, so the fresh Gemini session resumes the conversation with
+    // awareness instead of starting blank. Returns '' when there's nothing yet.
+    getResumeContext?: () => string;
+  }) => Promise<void>;
   pushAudio: (frame: Uint8Array) => void;
   speak: (text: string) => Promise<void>;
   interrupt: () => void;
@@ -43,11 +50,12 @@ export function createGeminiSession(opts: {
   voiceId: string;
   systemInstruction: string;
   allowedSpeechTokens?: Set<string>;
+  getResumeContext?: () => string;
 }): GeminiSession {
-  const { transport, voiceId, systemInstruction } = opts;
+  const { transport, voiceId, systemInstruction, getResumeContext } = opts;
   let allowed = new Set(opts.allowedSpeechTokens ?? []);
   return {
-    open: () => transport.open({ voiceId, systemInstruction }),
+    open: () => transport.open({ voiceId, systemInstruction, getResumeContext }),
     pushAudio: (f) => transport.pushAudio(f),
     speak: async (text) => {
       if (NUMERIC_PRICE.test(text) && !isFullyCoveredByAllowed(text, allowed)) {

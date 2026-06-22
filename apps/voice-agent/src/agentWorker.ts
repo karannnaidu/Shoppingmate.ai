@@ -479,6 +479,15 @@ const agentDefinition = defineAgent({
       transport,
       voiceId: voice.voiceId,
       systemInstruction: voice.systemInstruction,
+      // On an unexpected Gemini reconnect, hand the fresh session the LAST ~12
+      // turns so it resumes the conversation seamlessly. Capped on purpose — the
+      // full transcript is what overflowed and triggered the reconnect.
+      getResumeContext: () =>
+        recorder
+          .snapshot()
+          .slice(-12)
+          .map((t) => `${t.role === 'user' ? 'Visitor' : 'You'}: ${t.content}`)
+          .join('\n'),
     });
     await gemini.open();
     const tReady = Date.now();
