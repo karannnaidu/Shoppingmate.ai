@@ -15,7 +15,7 @@ const EMPTY: IntentRecord = {
 
 const SYSTEM = `You analyze a finished shopping conversation transcript (English/Hindi/Hinglish) and output ONE JSON object with keys: intent, intentConfidence, needs, objections, preferences, affect, identity, dropStage.
 - intent MUST be one of: ${INTENTS.join(', ')}.
-- intentConfidence: 0..1. needs/objections: short lowercase tags. preferences: {products[],flavours[],blissClub,coupon}. affect: {sentiment: positive|neutral|negative, confused}. identity: only fields the visitor actually gave (name,phone,email,city,pincode,age,language). dropStage: where they stopped, or null.
+- intentConfidence: 0..1. needs/objections: short lowercase tags. preferences: {products[],flavours[],blissClub,coupon}. affect: {sentiment: positive|neutral|negative, confused}. identity: only fields the visitor actually gave (name,phone,email,address[street/house/area],city,state,pincode,age,language). dropStage: where they stopped, or null.
 - NEVER invent identity values. If unsure, omit.`;
 
 export async function extractConversationProfile(

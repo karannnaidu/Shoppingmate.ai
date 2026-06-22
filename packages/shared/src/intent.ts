@@ -24,6 +24,6 @@ export type IntentRecord = {
   objections: string[];
   preferences: { products?: string[]; flavours?: string[]; blissClub?: boolean; coupon?: string };
   affect: { sentiment: 'positive' | 'neutral' | 'negative'; confused?: boolean };
-  identity: { name?: string; phone?: string; email?: string; city?: string; pincode?: string; age?: number; language?: string };
+  identity: { name?: string; phone?: string; email?: string; address?: string; city?: string; state?: string; pincode?: string; age?: number; language?: string };
   dropStage: string | null;
 };
