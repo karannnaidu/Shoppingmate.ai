@@ -66,10 +66,19 @@ export function createGeminiSdkTransport(): GeminiTransport {
         realtimeInputConfig: {
           automaticActivityDetection: {
             disabled: false,
-            startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
-            endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_HIGH,
-            prefixPaddingMs: 20,
-            silenceDurationMs: 500,
+            // START = HIGH so the bot reliably HEARS the visitor (esp. softer /
+            // accented onsets) and so barge-in works DURING the bot's own speech
+            // (incl. the intro) — visitor can talk over it. Was LOW (2026-06-15,
+            // to dodge background voices), but that dropped words + blocked
+            // barge-in; echoCancellation + noiseSuppression now handle noise.
+            startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
+            // END = LOW so a brief mid-sentence pause (common in accented/slower
+            // speech) doesn't prematurely end the turn and cut the visitor off.
+            endOfSpeechSensitivity: EndSensitivity.END_SENSITIVITY_LOW,
+            // 300ms (was 20) keeps enough audio BEFORE detected speech so the
+            // first word isn't clipped before the model hears it.
+            prefixPaddingMs: 300,
+            silenceDurationMs: 600,
           },
         },
         // Sliding-window context compression lets long conversations run without

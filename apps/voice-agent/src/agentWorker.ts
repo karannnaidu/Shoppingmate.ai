@@ -946,13 +946,17 @@ const agentDefinition = defineAgent({
           .then(() => audioSource.captureFrame(frame))
           .catch((err) => log.warn({ err }, 'captureFrame failed'));
       } else if (e.type === 'interrupted') {
-        // Visitor barged in — drop bot audio still queued in the AudioSource so
-        // Sage stops talking at once instead of finishing the buffered reply.
+        // Visitor barged in. Two things must happen for it to feel like a real
+        // conversation: (1) drop bot audio still queued in the AudioSource so
+        // Sage stops talking AT ONCE instead of finishing the buffered reply,
+        // and (2) abort the in-flight executor turn so it doesn't keep producing
+        // 'say' events and resume speaking right after.
         try {
           audioSource.clearQueue();
         } catch (err) {
           log.warn({ err }, 'clearQueue on interrupt failed');
         }
+        bridge.handleBargeIn();
         captureChain = Promise.resolve();
       } else if (e.type === 'error') {
         log.error({ err: e.error }, 'gemini transport error');
