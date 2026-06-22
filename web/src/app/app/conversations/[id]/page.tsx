@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { getDashboardSession } from '@/lib/session';
 import type * as React from 'react';
 import { getConversation, type ConversationDetail } from '@/lib/conversations-repo';
@@ -12,7 +12,25 @@ export default async function ConversationDetailPage({ params }: { params: Promi
   if (!session?.merchant) redirect('/app/onboarding?step=2');
 
   const convo = await getConversation({ merchantId: session.merchant.id, sessionId: id });
-  if (!convo) notFound();
+  // Degrade gracefully instead of a hard 404: many older sessions predate
+  // transcript recording (or weren't captured), and links to them shouldn't
+  // dead-end. New conversations record automatically.
+  if (!convo) {
+    return (
+      <div className="flex flex-col gap-6 max-w-3xl">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Conversation</h1>
+        <Card>
+          <CardHeader><CardTitle>Transcript unavailable</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm text-text-secondary">
+              This conversation isn&apos;t available — it predates transcript recording or wasn&apos;t captured.
+              New conversations are recorded and appear here automatically.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const expiresAt = new Date(convo.startedAt.getTime() + 24 * 3600 * 1000);
 
