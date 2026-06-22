@@ -133,6 +133,9 @@ export function createVoiceModeLiveKit(opts: {
     setMuted: (m) => {
       muted = m;
       handle?.setMicEnabled(!m).catch(() => {});
+      // Muting the mic also silences the bot — the visitor shouldn't hear Sage
+      // keep talking while they're muted.
+      handle?.setAgentAudioMuted(m);
       if (m) set('muted');
       else if (state === 'muted') set('listening');
     },

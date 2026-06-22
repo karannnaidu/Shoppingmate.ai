@@ -8,6 +8,8 @@ declare global {
 
 export type LiveKitHandle = {
   setMicEnabled: (enabled: boolean) => Promise<void>;
+  // Mute/unmute the BOT's audio playback (so muting the mic also silences Sage).
+  setAgentAudioMuted: (muted: boolean) => void;
   onData: (cb: (bytes: Uint8Array) => void) => void;
   onAgentSpeaking: (cb: (speaking: boolean) => void) => void;
   // Fires after LiveKit auto-reconnects the room (mobile network blip, or the
@@ -147,11 +149,15 @@ export async function connectToRoom(opts: {
   // that gate playback behind a user gesture still apply correctly (the
   // start() click that opened the call counts as the gesture).
   const attached = new Map<unknown, HTMLMediaElement>();
+  // When the visitor mutes, they should NOT hear the bot either — mute the
+  // agent's audio playback, not just our mic. Applied to current + future tracks.
+  let agentAudioMuted = false;
   room.on('trackSubscribed', (track: unknown) => {
     const t = track as RemoteTrackShape;
     if (t.kind !== 'audio') return;
     const el = t.attach();
     el.style.display = 'none';
+    el.muted = agentAudioMuted;
     document.body.appendChild(el);
     attached.set(track, el);
   });
@@ -189,6 +195,10 @@ export async function connectToRoom(opts: {
     },
     onAgentSpeaking: (cb) => {
       speakingListeners.push(cb);
+    },
+    setAgentAudioMuted: (m) => {
+      agentAudioMuted = m;
+      for (const el of attached.values()) el.muted = m;
     },
     onReconnected: (cb) => {
       room.on('reconnected', () => cb());
