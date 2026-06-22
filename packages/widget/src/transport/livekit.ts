@@ -10,6 +10,11 @@ export type LiveKitHandle = {
   setMicEnabled: (enabled: boolean) => Promise<void>;
   onData: (cb: (bytes: Uint8Array) => void) => void;
   onAgentSpeaking: (cb: (speaking: boolean) => void) => void;
+  // Fires after LiveKit auto-reconnects the room (mobile network blip, or the
+  // voice-agent worker restarting). On reconnect LiveKit dispatches a NEW agent
+  // job that waits for start_voice — so the caller must re-send it or the bot
+  // hangs silent. See voiceModeLiveKit.
+  onReconnected: (cb: () => void) => void;
   publishData: (bytes: Uint8Array) => Promise<void>;
   disconnect: () => Promise<void>;
 };
@@ -184,6 +189,9 @@ export async function connectToRoom(opts: {
     },
     onAgentSpeaking: (cb) => {
       speakingListeners.push(cb);
+    },
+    onReconnected: (cb) => {
+      room.on('reconnected', () => cb());
     },
     publishData: (bytes) => room.localParticipant.publishData(bytes, { reliable: true }),
     disconnect: async () => {

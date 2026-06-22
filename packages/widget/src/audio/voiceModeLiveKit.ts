@@ -14,6 +14,10 @@ export function createVoiceModeLiveKit(opts: {
   let warmingP: Promise<LiveKitHandle> | null = null;
   let muted = false;
   let sageHasJoined = false;
+  // True once the visitor has actually started the call (start_voice sent). Used
+  // to decide whether a LiveKit reconnect should re-send start_voice (active
+  // call) or stay quiet (pre-warm only).
+  let started = false;
   const listeners: ((s: VoiceModeState) => void)[] = [];
   const errorListeners: ((info: { code: string; message: string }) => void)[] = [];
   const set = (s: VoiceModeState) => {
@@ -37,6 +41,16 @@ export function createVoiceModeLiveKit(opts: {
     for (const cb of errorListeners) cb({ code, message });
   };
 
+  // Enable the mic and tell the voice-agent to open Gemini (Phase B). Shared by
+  // the initial start() and the reconnect handler so both stay in sync.
+  const sendStartVoice = async (h: LiveKitHandle): Promise<void> => {
+    await h.setMicEnabled(!muted);
+    const startMsg = new TextEncoder().encode(
+      encodeWidgetMessage({ type: 'start_voice', sessionId: opts.sessionId }),
+    );
+    await h.publishData(startMsg);
+  };
+
   // Pre-connect to the room without enabling the mic. Idempotent — repeated
   // calls share the same in-flight connect promise. The voice-agent dispatch
   // begins as soon as we join the room, so by the time the visitor clicks,
@@ -56,6 +70,18 @@ export function createVoiceModeLiveKit(opts: {
         if (speaking) sageHasJoined = true;
         if (!sageHasJoined) return;
         set(speaking ? 'speaking' : 'listening');
+      });
+      // On a LiveKit reconnect (mobile network blip, or the voice-agent worker
+      // restarting), the rejoined room gets a FRESH agent job that's waiting for
+      // start_voice — without re-sending it the bot hangs silent (greeted-then-
+      // dead). Re-send it so Gemini re-opens. Only when a call is actually active.
+      h.onReconnected(() => {
+        if (!started) return;
+        set('connecting');
+        sageHasJoined = false;
+        sendStartVoice(h).catch((err) =>
+          console.warn('[voiceModeLiveKit] re-start after reconnect failed', err),
+        );
       });
       handle = h;
       return h;
@@ -79,14 +105,11 @@ export function createVoiceModeLiveKit(opts: {
       (async () => {
         try {
           const h = await warm();
-          await h.setMicEnabled(!muted);
           // Signal Phase B start. The voice-agent has been idling since
           // agent_warmed; this triggers gemini.open(). It responds with
           // agent_ready when the WS handshake completes.
-          const startMsg = new TextEncoder().encode(
-            encodeWidgetMessage({ type: 'start_voice', sessionId: opts.sessionId }),
-          );
-          await h.publishData(startMsg);
+          await sendStartVoice(h);
+          started = true;
           if (muted) set('muted');
         } catch (err) {
           set('idle');
@@ -101,6 +124,7 @@ export function createVoiceModeLiveKit(opts: {
       handle?.disconnect().catch(() => {});
       handle = null;
       warmingP = null;
+      started = false;
       set('idle');
     },
     speak: async () => {
