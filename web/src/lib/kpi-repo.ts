@@ -12,6 +12,39 @@ export type Kpis = {
   voiceConversations: number;
 };
 
+export type VoiceHealth = { recordedToday: number; lastRecordedAt: Date | null };
+
+// Recording-health check: how many voice calls produced a conversation record
+// since midnight UTC, plus the most recent one ever. A live `voiceConversation`
+// marker is written alongside each `conversationCompleted`, so a non-zero count
+// (or a recent timestamp) confirms voice recording is working end to end.
+export async function voiceRecordedToday(args: { merchantId: string }): Promise<VoiceHealth> {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const [todayRows, latestRows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(metricEvents)
+      .where(
+        and(
+          eq(metricEvents.merchantId, args.merchantId),
+          eq(metricEvents.metricName, 'voiceConversation'),
+          gte(metricEvents.ts, startOfDay),
+        ),
+      ),
+    db
+      .select({ latest: sql<Date | null>`max(${metricEvents.ts})` })
+      .from(metricEvents)
+      .where(
+        and(
+          eq(metricEvents.merchantId, args.merchantId),
+          eq(metricEvents.metricName, 'voiceConversation'),
+        ),
+      ),
+  ]);
+  return { recordedToday: todayRows[0]?.count ?? 0, lastRecordedAt: latestRows[0]?.latest ?? null };
+}
+
 export async function computeKpis(args: { merchantId: string; days: number }): Promise<Kpis> {
   const since = new Date(Date.now() - args.days * 24 * 3600 * 1000);
 

@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDashboardSession } from '@/lib/session';
-import { computeKpis } from '@/lib/kpi-repo';
+import { computeKpis, voiceRecordedToday } from '@/lib/kpi-repo';
 import { computeFunnel } from '@/lib/funnel-repo';
 import { recentConversations } from '@/lib/conversations-repo';
 import { db } from '@/lib/db';
@@ -20,12 +20,22 @@ export default async function HomePage() {
   if (!session?.merchant) redirect('/app/onboarding?step=2');
 
   const merchantId = session.merchant.id;
-  const [kpis, rows, productCountRow, merchantRow] = await Promise.all([
+  const [kpis, voice, rows, productCountRow, merchantRow] = await Promise.all([
     computeKpis({ merchantId, days: 7 }),
+    voiceRecordedToday({ merchantId }),
     recentConversations({ merchantId, limit: 20 }),
     db.select({ count: sql<number>`count(*)::int` }).from(products).where(eq(products.merchantId, merchantId)),
     db.query.merchants.findFirst({ where: eq(merchants.id, merchantId) }),
   ]);
+
+  const ago = (d: Date): string => {
+    const m = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  };
 
   const funnel = await computeFunnel({
     merchantId,
@@ -64,6 +74,11 @@ export default async function HomePage() {
           label="Voice ratio"
           value={`${(kpis.voiceRatio * 100).toFixed(0)}%`}
           hint={kpis.voiceRatio > 0.2 ? `Surcharge active: $0.30 × ${kpis.voiceConversations}` : undefined}
+        />
+        <KpiTile
+          label="Voice recorded today"
+          value={String(voice.recordedToday)}
+          hint={voice.lastRecordedAt ? `last call recorded ${ago(voice.lastRecordedAt)}` : 'no voice calls recorded yet'}
         />
       </div>
 
