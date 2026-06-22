@@ -1001,62 +1001,77 @@ const agentDefinition = defineAgent({
       if (remoteSpeaking) gemini.interrupt();
     });
 
+    // Emit the conversation record in an AWAITED shutdown callback — NOT
+    // fire-and-forget in Disconnected. The per-job worker tears down right after
+    // the room ends, so a fire-and-forget DB write loses the race and never
+    // lands (this is why the dashboard showed ZERO conversations despite heavy
+    // voice traffic — mid-call metrics persist because the worker is alive then,
+    // but the end-of-call record didn't). addShutdownCallback is awaited by the
+    // agents runtime, so the insert is guaranteed to complete before exit.
+    let recordEmitted = false;
+    const emitConversationRecord = async () => {
+      if (recordEmitted) return;
+      recordEmitted = true;
+      const tags = recorder.finish({ mode: 'voice', nowMs: Date.now() });
+      // Nothing was said — a pre-warm/abandoned connection that never became a
+      // real call. Don't create an empty conversation row.
+      if (tags.turns === 0) return;
+      // Intent enrichment is BEST-EFFORT and BOUNDED (4s): it must never block or
+      // delay the conversation record. On timeout/failure we still emit the row
+      // (without intent), so the dashboard always gets the conversation.
+      const transcriptText = tags.transcript.map((t) => `${t.role}: ${t.content}`).join('\n');
+      try {
+        const profiled = await Promise.race([
+          extractConversationProfile(
+            transcriptText,
+            {
+              cartAdds: tags.cart_adds,
+              checkoutReached: tags.checkout_reached,
+              purchased: tags.outcome === 'purchased',
+              mode: 'voice',
+            },
+            extractChat,
+          ),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+        ]);
+        if (profiled) tags.intent = profiled.record;
+      } catch (err) {
+        log.warn({ err, sessionId }, 'intent profiling failed; emitting record without intent');
+      }
+      try {
+        await db
+          .insert(schema.metricEvents)
+          .values({ merchantId: merchant.id, metricName: 'conversationCompleted', tags });
+        await db.insert(schema.metricEvents).values({
+          merchantId: merchant.id,
+          metricName: 'voiceConversation',
+          tags: { session_id: sessionId },
+        });
+        if (tags.intent && session.visitorId) {
+          await upsertVisitorProfile(merchant.id, visitorId, tags.intent, {
+            outcome: tags.outcome,
+            attributedCents: tags.attributed_cents,
+          });
+        }
+        log.info(
+          { sessionId, turns: tags.turns, intent: tags.intent?.intent },
+          'conversationCompleted emitted',
+        );
+      } catch (err) {
+        log.error({ err, sessionId }, 'conversationCompleted insert failed');
+      }
+    };
+    job.addShutdownCallback(emitConversationRecord);
+
     job.room.on(RoomEvent.Disconnected, () => {
       clearInterval(tickInterval);
       metrics.flush();
       gemini.close().catch(() => {});
-      // Fire-and-forget: a DB hiccup must not surface as an unhandled
-      // rejection in the worker. Closing the row is best-effort — the
-      // attribution path treats a null ended_at as "still active" and
-      // sorts those ahead of ended rows when ranking sessions by recency.
+      // Closing the row is best-effort — the attribution path treats a null
+      // ended_at as "still active" and sorts those ahead of ended rows.
       sessionStore
         .closeSession({ sessionId })
         .catch((err) => log.warn({ err, sessionId }, 'closeSession failed'));
-      // Emit conversationCompleted (with transcript) so the dashboard's
-      // Conversations page, transcript drill-down, and Conversations KPI light
-      // up. Plus a voiceConversation marker for the voice-ratio KPI. Best-effort.
-      const tags = recorder.finish({ mode: 'voice', nowMs: Date.now() });
-      // Phase 1 — structured intent capture. Run the session-end profiler over the
-      // finished transcript, attach the record to the conversation row, then upsert
-      // the per-visitor profile. extractConversationProfile is self-safe (returns a
-      // browsing-default record on any failure), so conversationCompleted is always
-      // emitted. `extractChat` and `visitorId` are already in scope in this handler.
-      const transcriptText = tags.transcript.map((t) => `${t.role}: ${t.content}`).join('\n');
-      extractConversationProfile(
-        transcriptText,
-        {
-          cartAdds: tags.cart_adds,
-          checkoutReached: tags.checkout_reached,
-          purchased: tags.outcome === 'purchased',
-          mode: 'voice',
-        },
-        extractChat,
-      )
-        .then(({ record }) => {
-          tags.intent = record;
-          log.info(
-            { sessionId, intent: record.intent, intentConfidence: record.intentConfidence },
-            'intent profile captured',
-          );
-          return db
-            .insert(schema.metricEvents)
-            .values({ merchantId: merchant.id, metricName: 'conversationCompleted', tags })
-            .then(() =>
-              db.insert(schema.metricEvents).values({
-                merchantId: merchant.id,
-                metricName: 'voiceConversation',
-                tags: { session_id: sessionId },
-              }),
-            )
-            .then(() =>
-              upsertVisitorProfile(merchant.id, visitorId, record, {
-                outcome: tags.outcome,
-                attributedCents: tags.attributed_cents,
-              }),
-            )
-            .then(() => log.info({ sessionId, visitorId }, 'visitor profile upserted'));
-        })
-        .catch((err) => log.warn({ err, sessionId }, 'conversationCompleted emit failed'));
       log.info({ sessionId }, 'voice-agent job ended');
     });
   },
