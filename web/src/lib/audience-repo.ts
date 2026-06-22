@@ -1,5 +1,6 @@
 import { desc, eq } from 'drizzle-orm';
 import { visitorProfiles } from '@shoppingmate/db/schema';
+import { loadVisitorProfile, type ProfileRow } from '@shoppingmate/db';
 import { db } from './db';
 
 export type AudienceRow = {
@@ -35,4 +36,11 @@ export async function listAudience(args: { merchantId: string; limit?: number })
       lastSeen: r.lastSeen,
     };
   });
+}
+
+export async function getAudienceProfile(args: {
+  merchantId: string;
+  visitorId: string;
+}): Promise<ProfileRow | null> {
+  return loadVisitorProfile(args.merchantId, args.visitorId);
 }

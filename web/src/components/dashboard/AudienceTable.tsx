@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { AudienceRow } from '@/lib/audience-repo';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -42,7 +43,14 @@ export function AudienceTable({ rows }: { rows: AudienceRow[] }) {
                 key={r.visitorId}
                 className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors"
               >
-                <td className="px-6 py-3 font-medium">{visitorLabel(r)}</td>
+                <td className="px-6 py-3 font-medium">
+                  <Link
+                    href={`/app/audience/${r.visitorId}`}
+                    className="text-violet hover:underline"
+                  >
+                    {visitorLabel(r)}
+                  </Link>
+                </td>
                 <td className="text-text-secondary">{r.city ?? '—'}</td>
                 <td className="tabular-nums">{r.sessionCount}</td>
                 <td className="text-text-secondary">
