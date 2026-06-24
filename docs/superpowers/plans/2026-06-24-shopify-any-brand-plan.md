@@ -23,7 +23,16 @@ Legend: ☐ todo · ✅ done. Each phase ends green (typecheck + tests) before t
 > **Discovery (2026-06-24):** much Shopify plumbing ALREADY exists and is reusable:
 > `apps/worker/src/steps/catalogClients/shopify.ts` (catalog client), `apps/api/src/routes/webhooks/shopify.ts` (+orders attribution via `services/attributeOrder.ts`), `packages/adapters/src/shopify.ts` (adapter), `apps/worker/src/handlers/onboarding.ts` (platform detection), `web/src/app/api/composio/connect-shopify/route.ts`, and `merchants.platform` enum. Phases 2–3 are mostly **wire-up + generalize**, not greenfield — must reconcile with these before editing.
 
+## STATUS (2026-06-24) — core transactional + prompt generalization DONE on `feat/shopify-any-brand`
+- ✅ **Phase 1** widget Shopify Cart AJAX bridge + platform routing (141 widget tests).
+- ✅ **Phase 2 (routing core)** tool surface + runtime: Shopify gets host-action cart tools (`STOREFRONT_CART_TOOLS`, variantId-based) dispatched to the widget bridge; native checkout via `checkout.url`; Calmosis-bespoke tools stay gated. `isShopify`/`usesStorefrontBridge` helpers (244 agent tests).
+- ✅ **Phase 4 (text)** generic SELLING + NATIVE-CHECKOUT system-prompt block; de-Calmosis'd two shared-prompt leaks (245).
+- ✅ **Phase 4 (voice)** generic storefront selling + native-checkout voice rules; `platform` threaded through `resolveVoiceContext` (246 agent + 52 voice-agent).
+- ⏳ **Remaining:** catalog-sync wire-check (existing `catalogClients/shopify.ts` pulls public `/products.json` w/ variant ids — confirm onboarding sets `platform='shopify'` + triggers sync + products carry `variantId` the bot can pass to `cart.add`); Phase 3 brand auto-gen; Phase 5 onboarding UX + attribution verify + runbook; industry auto-detection (consultation/membership) — deferred.
+- **No prod deploy** (protects live Calmosis until user OKs).
+
 ## Phase 2 — Spec 2a: Catalog sync (Admin GraphQL)
+> **Reconciled:** the existing `catalogClients/shopify.ts` already pulls ANY store via the **public `/products.json`** (no Admin token) and normalizes variants with numeric ids — so this is a WIRE-CHECK, not a build. Admin GraphQL only needed for private data later.
 - ☐ `packages/adapters/src/shopifyAdmin.ts` (or extend `shopify.ts`): Admin GraphQL client using per-merchant token; `bulkPullProducts()` → {title, descriptionHtml→text, priceRange, featuredImage, variants[{id, sku, price, title}], tags, collections}.
 - ☐ `apps/worker` job `syncShopifyCatalog`: upsert into `products` (populate numeric `variantId`, sku, price, image, tags). Idempotent.
 - ☐ Webhook handlers in `apps/api`: `products/create|update|delete` → upsert/delete product rows (HMAC-verified).
