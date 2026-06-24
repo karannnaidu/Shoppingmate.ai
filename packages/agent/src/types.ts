@@ -47,6 +47,12 @@ export type AgentEvent =
   | { type: 'checkout_redirect'; url: string }
   | { type: 'cap_warning'; reason: 'turns' | 'voice_ms' | 'duration_ms'; remaining: number }
   | { type: 'end_of_turn' }
+  // The side-channel executor (OpenRouter) failed this turn after a retry. In
+  // VOICE mode the executor's spoken `say` is suppressed (Gemini owns voice), so
+  // without this signal the visitor hears Gemini's optimistic "added it" while no
+  // tool actually ran. The voice worker grounds Gemini honestly on this. kind
+  // 'exhausted' = out-of-credits (402) so ops can be alerted distinctly.
+  | { type: 'executor_error'; kind: 'exhausted' | 'error' }
   | { type: 'session_closed'; reason: 'user' | 'cap' | 'error' }
   | { type: 'host_action_request'; callId: string; action: HostAction }
   | { type: 'persona_swap'; personaId: string }

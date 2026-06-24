@@ -80,11 +80,13 @@ export function validateCheckoutDetails(
   const address = (d.address ?? '').trim();
   if (!address) return { ok: false, reason: 'The street address is missing — ask the visitor for it.' };
 
+  // City + state are NOT collected or required: the Calmosis checkout page derives
+  // them from the pincode (entering a valid 6-digit pincode auto-populates both),
+  // so the fill never types them and asking the visitor for them just lengthens
+  // the call. We keep them as optional pass-through (whatever the transcript
+  // happened to mention) but never block checkout on them.
   const city = (d.city ?? '').trim();
-  if (!city) return { ok: false, reason: 'The city is missing — ask the visitor for it.' };
-
   const state = (d.state ?? '').trim();
-  if (!state) return { ok: false, reason: 'The state is missing — ask the visitor for it.' };
 
   const pincode = (d.pincode ?? '').replace(/\D/g, '');
   if (pincode.length !== 6) return { ok: false, reason: reasonFor.pincode((d.pincode ?? '').trim()) };

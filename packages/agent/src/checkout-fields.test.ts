@@ -33,6 +33,17 @@ describe('validateCheckoutDetails', () => {
     expect(validateCheckoutDetails({ ...goodDetails, name: '  ' }).ok).toBe(false);
   });
 
+  it('does NOT require city or state (the checkout page derives them from the pincode)', () => {
+    const r = validateCheckoutDetails({ ...goodDetails, city: '', state: '' });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.details.city).toBe('');
+      expect(r.details.state).toBe('');
+      // The fields that ARE required still validate/normalize as before.
+      expect(r.details.pincode).toBe('560038');
+    }
+  });
+
   it('with requireEmail:false, accepts a blank/garbled email and blanks it (voice flow)', () => {
     const blank = validateCheckoutDetails({ ...goodDetails, email: '' }, { requireEmail: false });
     expect(blank.ok).toBe(true);

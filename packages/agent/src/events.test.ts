@@ -52,4 +52,18 @@ describe('decodeWidgetMessage()', () => {
   it('returns null for missing sessionId on user_text', () => {
     expect(decodeWidgetMessage('{"type":"user_text","text":"hi","mode":"text"}')).toBeNull();
   });
+  it('decodes host_action_result preserving values (cart_get / form_read / checkout_state)', () => {
+    const r = decodeWidgetMessage(
+      '{"type":"host_action_result","callId":"ha_1","result":{"ok":true,"values":{"count":"2","items":"green-mantra x1"}}}',
+    );
+    expect(r).toEqual({
+      type: 'host_action_result',
+      callId: 'ha_1',
+      result: { ok: true, values: { count: '2', items: 'green-mantra x1' } },
+    });
+  });
+  it('decodes a bare ok host_action_result without values', () => {
+    const r = decodeWidgetMessage('{"type":"host_action_result","callId":"ha_2","result":{"ok":true}}');
+    expect(r).toEqual({ type: 'host_action_result', callId: 'ha_2', result: { ok: true } });
+  });
 });

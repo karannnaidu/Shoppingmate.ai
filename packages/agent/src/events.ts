@@ -8,7 +8,19 @@ export function encodeAgentEvent(ev: AgentEvent): string {
 function parseHostActionResult(value: unknown): HostActionResult | null {
   if (!value || typeof value !== 'object') return null;
   const o = value as Record<string, unknown>;
-  if (o.ok === true) return { ok: true };
+  if (o.ok === true) {
+    // Preserve the data payload (form-read / checkout-state / cart-get return
+    // values; checkout fill returns `filled`). Without this they were silently
+    // dropped, so the voice worker could never read back real page/cart state.
+    const ok: HostActionResult = { ok: true };
+    if (o.values && typeof o.values === 'object') {
+      ok.values = o.values as Record<string, string>;
+    }
+    if (Array.isArray(o.filled)) {
+      ok.filled = o.filled as Exclude<HostActionResult, { ok: false }>['filled'];
+    }
+    return ok;
+  }
   if (o.ok === false && typeof o.reason === 'string') {
     const reasons: HostActionResult extends { reason: infer R } ? R[] : never = [
       'not_found',

@@ -7,9 +7,33 @@ import type {
 } from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
 import { describe, expect, it } from 'vitest';
-import { buildToolSurface, dispatchTool } from './tools.js';
+import { buildToolSurface, dispatchTool, normalizeCalmosisSku } from './tools.js';
 
 const merchant = { adapterType: 'shopify' } as unknown as Merchant;
+
+describe('normalizeCalmosisSku()', () => {
+  it('passes through the exact canonical SKUs', () => {
+    for (const sku of ['peace-mantra', 'sleep-mantra', 'green-mantra', 'dog-mantra', 'bliss-club']) {
+      expect(normalizeCalmosisSku(sku)).toBe(sku);
+    }
+  });
+
+  it('coerces loose model phrasings the hook would otherwise reject', () => {
+    expect(normalizeCalmosisSku('green')).toBe('green-mantra');
+    expect(normalizeCalmosisSku('Green Mantra')).toBe('green-mantra');
+    expect(normalizeCalmosisSku('green mantra')).toBe('green-mantra');
+    expect(normalizeCalmosisSku('greenmantra')).toBe('green-mantra');
+    expect(normalizeCalmosisSku('green_mantra')).toBe('green-mantra');
+    expect(normalizeCalmosisSku('  PEACE  ')).toBe('peace-mantra');
+    expect(normalizeCalmosisSku('bliss club')).toBe('bliss-club');
+    expect(normalizeCalmosisSku('blissclub')).toBe('bliss-club');
+  });
+
+  it('leaves a genuinely unknown reference unchanged (hook will reject honestly)', () => {
+    expect(normalizeCalmosisSku('gift-card')).toBe('gift-card');
+    expect(normalizeCalmosisSku('')).toBe('');
+  });
+});
 
 describe('buildToolSurface()', () => {
   it('returns six tools with dot-namespaced names', () => {
@@ -49,6 +73,32 @@ describe('buildToolSurface()', () => {
     expect(t?.function.parameters).toMatchObject({
       required: ['sku', 'qty'],
     });
+  });
+
+  it('Shopify storefront merchant gets host-action cart tools (variantId), native checkout, NO adapter cart or Calmosis-bespoke tools', () => {
+    const shop = {
+      id: 'SM-SHOP01',
+      platform: 'shopify',
+      adapterType: 'shopify',
+      siteGraphEnabled: true,
+    } as unknown as Merchant;
+    const tools = buildToolSurface(shop);
+    const names = tools.map((t) => t.function.name);
+    // Host-action cart tools present + native checkout + nav + product search.
+    expect(names).toEqual(
+      expect.arrayContaining(['products.search', 'products.get', 'checkout.url', 'site.navigate', 'cart.add', 'cart.update', 'cart.clear', 'coupon.apply']),
+    );
+    // cart.add is the host-action variant (keyed by variantId, not the adapter sku/lineId one).
+    const cartAdd = tools.find((t) => t.function.name === 'cart.add');
+    expect(cartAdd?.function.parameters).toMatchObject({ required: ['variantId'] });
+    // Calmosis-bespoke tools must NOT leak to other brands.
+    expect(names).not.toContain('checkout.fill');
+    expect(names).not.toContain('checkout.place');
+    expect(names).not.toContain('checkout.state');
+    expect(names).not.toContain('consultation.request');
+    expect(names).not.toContain('page.fill');
+    // Only one cart.add (no duplicate adapter + host-action versions).
+    expect(names.filter((n) => n === 'cart.add')).toHaveLength(1);
   });
 
   it('omits cart-mutation tools for dom adapters (cart.add there fakes success)', () => {

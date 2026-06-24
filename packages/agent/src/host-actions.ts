@@ -13,6 +13,10 @@ export type HostAction =
   | { type: 'cart_set_qty'; sku: string; qty: number }
   // Calmosis stitch: empty the entire cart (window.__shoppingmateClearCart__).
   | { type: 'cart_clear' }
+  // Read the live cart (window.__shoppingmateGetCart__) so the bot knows what's
+  // actually in it — returns values { count, items, subtotal }. Used to avoid
+  // navigating to checkout with an empty cart and to ground the bot on real state.
+  | { type: 'cart_get' }
   | { type: 'apply_coupon'; code: string }
   // Generic DOM control: fill the live page's form fields and read back the
   // values actually present (the read-back). form_read returns current values.

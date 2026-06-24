@@ -30,10 +30,53 @@ export function isCalmosisStitch(merchant: Pick<Merchant, 'id'>): boolean {
   return merchant.id === CALMOSIS_MERCHANT_ID;
 }
 
+/** A Shopify-platform merchant. Its cart is driven CLIENT-SIDE from the widget via
+ *  Shopify's Cart AJAX (`/cart/*.js`) — see packages/widget/src/shopifyCart.ts. */
+export function isShopify(merchant: Pick<Merchant, 'platform'>): boolean {
+  return merchant.platform === 'shopify';
+}
+
+/** True when the merchant drives the REAL storefront cart through the widget's
+ *  host-action bridge (Calmosis custom hooks, or Shopify Cart AJAX) rather than a
+ *  server-side adapter cart. These get host-action cart tools, not adapter ones —
+ *  a server cart would be a different cart than the shopper's own session. */
+export function usesStorefrontBridge(merchant: Pick<Merchant, 'id' | 'platform'>): boolean {
+  return isCalmosisStitch(merchant) || isShopify(merchant);
+}
+
 // Calmosis cart/coupon tools are HOST ACTIONS (executed by the widget against
 // the storefront's __shoppingmate*__ hooks), not adapter calls.
 const CALMOSIS_SKU_DESC =
   'One of: peace-mantra, sleep-mantra, green-mantra, dog-mantra, or bliss-club (the Bliss Club membership)';
+
+export const CALMOSIS_CANON_SKUS = [
+  'peace-mantra',
+  'sleep-mantra',
+  'green-mantra',
+  'dog-mantra',
+  'bliss-club',
+] as const;
+
+/**
+ * Coerce a loosely-phrased product reference the model emits ("green", "Green
+ * Mantra", "green mantra", "greenmantra", "bliss club") to the EXACT canonical
+ * SKU the Calmosis `__shoppingmateCartAdd__` hook requires. The hook rejects
+ * anything but the exact hyphenated-lowercase form (verified live: "green" and
+ * "Green Mantra" both return false), so a drifted SKU silently fails the add and
+ * the cart stays empty. Returns the input unchanged if nothing matches — the
+ * hook then honestly rejects it (and we surface that, see honest-failure ground).
+ */
+export function normalizeCalmosisSku(raw: string): string {
+  const hyphenated = raw.trim().toLowerCase().replace(/[\s_]+/g, '-');
+  if ((CALMOSIS_CANON_SKUS as readonly string[]).includes(hyphenated)) return hyphenated;
+  const flat = hyphenated.replace(/[^a-z]/g, '');
+  if (!flat) return raw;
+  for (const sku of CALMOSIS_CANON_SKUS) {
+    const base = sku.split('-')[0] ?? sku; // peace | sleep | green | dog | bliss
+    if (flat === base || flat.startsWith(base)) return sku;
+  }
+  return raw;
+}
 const CALMOSIS_CART_TOOLS: ToolDef[] = [
   {
     type: 'function',
@@ -87,6 +130,61 @@ const CALMOSIS_CART_TOOLS: ToolDef[] = [
         properties: { code: { type: 'string' } },
         required: ['code'],
       },
+    },
+  },
+];
+
+// Generic storefront-bridge cart tools for NON-Calmosis bridge merchants (Shopify).
+// Same host actions as Calmosis (cart_add / cart_set_qty / cart_clear / apply_coupon)
+// so the widget drives the REAL cart — but brand-agnostic: the model passes the
+// variantId it got from products.search/products.get (Shopify Cart AJAX keys by
+// numeric variant id). No hardcoded SKUs.
+const STOREFRONT_CART_TOOLS: ToolDef[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'cart.add',
+      description:
+        "Add a product to the visitor's cart. Pass the variantId from products.search / products.get (NOT the title). Call again to add one more. Only claim it's added if this returns ok.",
+      parameters: {
+        type: 'object',
+        properties: {
+          variantId: { type: 'string', description: 'The numeric variant id from products.search/get' },
+          qty: { type: 'integer', minimum: 1, default: 1 },
+        },
+        required: ['variantId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cart.update',
+      description: "Set the EXACT quantity of a variant already in the cart. qty 0 REMOVES it.",
+      parameters: {
+        type: 'object',
+        properties: {
+          variantId: { type: 'string' },
+          qty: { type: 'integer', minimum: 0 },
+        },
+        required: ['variantId', 'qty'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cart.clear',
+      description: "Empty the visitor's ENTIRE cart. Use only when they ask to clear/empty/start over.",
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'coupon.apply',
+      description: 'Apply a discount/coupon code. The discount shows at checkout. Only claim it worked if this returns ok.',
+      parameters: { type: 'object', properties: { code: { type: 'string' } }, required: ['code'] },
     },
   },
 ];
@@ -319,15 +417,26 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
   if (merchant.id === SHOPPINGMATE_DEMO_MERCHANT_ID) {
     return [...productTools, ...cartTools, ...checkoutTools, ...DEMO_TOOLS];
   }
-  // Drop cart-mutation tools for adapters that can't really change a cart
-  // (dom/suggest) so the model can't claim it added something it didn't.
-  const base = merchantCanMutateCart(merchant)
-    ? [...productTools, ...cartTools, ...checkoutTools]
-    : [...productTools, ...checkoutTools];
+  // Storefront-bridge merchants (Calmosis, Shopify) drive the REAL cart via
+  // host actions, so they DON'T get the server-adapter cart tools — those would
+  // operate a different cart than the shopper's session. They get host-action
+  // cart tools below. Other mutate-capable adapters keep the adapter cart tools;
+  // dom/suggest (can't really mutate) get none, so the model can't fake an add.
+  const adapterCartTools =
+    usesStorefrontBridge(merchant) || !merchantCanMutateCart(merchant) ? [] : cartTools;
+  const base = [...productTools, ...adapterCartTools, ...checkoutTools];
   if (merchant.siteGraphEnabled) {
-    const siteTools = isCalmosisStitch(merchant)
-      ? [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS, ...CALMOSIS_CHECKOUT_TOOLS, ...PAGE_CONTROL_TOOLS, CALMOSIS_CONSULT_TOOL]
-      : SITE_NAV_TOOLS;
+    let siteTools: ToolDef[];
+    if (isCalmosisStitch(merchant)) {
+      siteTools = [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS, ...CALMOSIS_CHECKOUT_TOOLS, ...PAGE_CONTROL_TOOLS, CALMOSIS_CONSULT_TOOL];
+    } else if (isShopify(merchant)) {
+      // Shopify: nav + host-action cart tools. Checkout is NATIVE (checkout.url
+      // redirect, already in base) — no checkout.fill/place/state, no page.* DOM
+      // control, no consultation (those are Calmosis-bespoke).
+      siteTools = [...SITE_NAV_TOOLS, ...STOREFRONT_CART_TOOLS];
+    } else {
+      siteTools = SITE_NAV_TOOLS;
+    }
     return [...base, ...siteTools];
   }
   return base;

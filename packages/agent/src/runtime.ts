@@ -7,7 +7,14 @@ import { redactPii, segmentSay, stripPrices, stripToolSyntax } from './postproce
 import { validateConsultationRequest } from './consultation.js';
 import { validateCheckoutDetails, validateCheckoutFill } from './checkout-fields.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
-import { type ToolResultEnvelope, buildToolSurface, dispatchTool, isCalmosisStitch } from './tools.js';
+import {
+  type ToolResultEnvelope,
+  buildToolSurface,
+  dispatchTool,
+  isCalmosisStitch,
+  normalizeCalmosisSku,
+  usesStorefrontBridge,
+} from './tools.js';
 import type {
   AgentEvent,
   AnthropicMessage,
@@ -258,6 +265,7 @@ export async function* runTurn(
           errorType: classifyError(e2),
           retryCount: 1,
         });
+        yield { type: 'executor_error', kind: executorErrorKind(e2) };
         yield {
           type: 'say',
           text: "Sorry — I'm having trouble reaching my brain. Try again in a moment?",
@@ -330,6 +338,7 @@ export async function* runTurn(
           errorType: classifyError(e2),
           retryCount: 1,
         });
+        yield { type: 'executor_error', kind: executorErrorKind(e2) };
         yield {
           type: 'say',
           text: "Sorry — I'm having trouble reaching my brain. Try again in a moment?",
@@ -372,19 +381,26 @@ export async function* runTurn(
           // bad arguments JSON from the model — surface as unsupported via dispatchTool
         }
         const start = Date.now();
-        const isCalmosisCart =
-          isCalmosisStitch(merchant) &&
+        // Storefront-bridge cart tools (Calmosis OR Shopify) dispatch as HOST
+        // ACTIONS so the widget drives the shopper's REAL cart.
+        const isBridgeCart =
+          usesStorefrontBridge(merchant) &&
           (call.name === 'cart.add' ||
             call.name === 'cart.open' ||
             call.name === 'cart.update' ||
             call.name === 'cart.clear' ||
-            call.name === 'coupon.apply' ||
-            call.name === 'checkout.fill' ||
+            call.name === 'coupon.apply');
+        // Checkout-fill / page-control host actions are Calmosis-bespoke (Shopify
+        // uses native checkout via checkout.url, no custom form fill).
+        const isCalmosisCheckout =
+          isCalmosisStitch(merchant) &&
+          (call.name === 'checkout.fill' ||
             call.name === 'checkout.place' ||
             call.name === 'checkout.state' ||
             call.name === 'page.fill' ||
             call.name === 'page.read' ||
             call.name === 'page.click');
+        const isCalmosisCart = isBridgeCart || isCalmosisCheckout;
         if (CHECKOUT_FLOW_TOOLS.has(call.name)) usedCheckoutFlowTool = true;
         if (call.name === 'consultation.request') {
           const v = validateConsultationRequest(args);
@@ -436,6 +452,15 @@ export async function* runTurn(
               const v = validateCheckoutDetails(action.details);
               if (!v.ok) fillError = v.reason;
               else action = { ...action, details: { ...action.details, ...v.details } };
+            } else if (
+              (action.type === 'cart_add' || action.type === 'cart_set_qty') &&
+              isCalmosisStitch(merchant)
+            ) {
+              // The model often emits a loose SKU ("green", "Green Mantra") that the
+              // storefront hook rejects outright, silently failing the add. Coerce
+              // it to the exact canonical SKU before dispatch so the cart actually
+              // updates.
+              action = { ...action, sku: normalizeCalmosisSku(action.sku) };
             }
             if (fillError) {
               envelope = { ok: false, kind: 'unsupported', reason: fillError };
@@ -629,6 +654,15 @@ function classifyError(err: Error): string {
   return 'other';
 }
 
+/** Distinguish an out-of-credits 402 (the executor is *exhausted* — an ops/billing
+ *  problem, every turn will fail until topped up) from a transient error, so the
+ *  voice worker can alert distinctly and ground Gemini appropriately. */
+function executorErrorKind(err: Error): 'exhausted' | 'error' {
+  const m = (err.message ?? '').toLowerCase();
+  if (m.includes('402') || m.includes('insufficient credit')) return 'exhausted';
+  return 'error';
+}
+
 function gracefulCloseText(reason: 'turns' | 'voice_ms' | 'duration_ms'): string {
   if (reason === 'turns') return "We've covered a lot — should I send you to checkout?";
   if (reason === 'voice_ms') return "We've been chatting a while — let me send you to checkout.";
@@ -688,11 +722,21 @@ export function toHostAction(name: string, args: Record<string, unknown>): HostA
     case 'site.demo_click':
       return { type: 'demo_click', intent: String(args.intent ?? '') };
     case 'cart.add':
-      return { type: 'cart_add', sku: String(args.sku ?? ''), qty: Number(args.qty) || 1 };
+      // Calmosis passes `sku` (canonical); Shopify passes `variantId` (numeric).
+      // The host action carries it in `sku`; the widget routes to the right cart.
+      return {
+        type: 'cart_add',
+        sku: String(args.variantId ?? args.sku ?? ''),
+        qty: Number(args.qty) || 1,
+      };
     case 'cart.open':
       return { type: 'open_cart' };
     case 'cart.update':
-      return { type: 'cart_set_qty', sku: String(args.sku ?? ''), qty: Math.max(0, Number(args.qty) || 0) };
+      return {
+        type: 'cart_set_qty',
+        sku: String(args.variantId ?? args.sku ?? ''),
+        qty: Math.max(0, Number(args.qty) || 0),
+      };
     case 'cart.clear':
       return { type: 'cart_clear' };
     case 'page.fill':
