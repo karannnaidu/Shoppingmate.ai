@@ -12,12 +12,16 @@ Legend: ☐ todo · ✅ done. Each phase ends green (typecheck + tests) before t
 - ☐ Token encryption helper (reuse existing secret/HMAC util or AES-GCM with an env key) in `packages/db` or `packages/shared`.
 - ☐ `isShopify(merchant)` helper + `merchantCanMutateCart` returns true for shopify.
 
-## Phase 1 — Spec 1: Shopify transactional foundation
-- ☐ `packages/widget/src/host/shopifyCart.ts`: `cartAdd(variantId, qty)`, `cartGet()`, `cartSetQty(variantId, qty)`, `cartClear()`, `applyCoupon(code)` via Cart AJAX; each verify-after-read; return `HostActionResult` (cart_get → `values:{count,items,subtotal}`).
-- ☐ Platform routing in `packages/widget/src/host/actions.ts`: detect Shopify (config flag from widget bootstrap `data-sm-platform="shopify"` or presence of Shopify globals) → route `cart_add/cart_get/cart_set_qty/cart_clear/apply_coupon/open_cart` to `shopifyCart`. Calmosis `__shoppingmate*__` path unchanged.
-- ☐ Native checkout: `cart.add`→ bot offers checkout → host action `navigate('/checkout')`. Ensure Calmosis-only `checkout_fill/place/state` tools are NOT exposed for shopify (already gated by `isCalmosisStitch`).
-- ☐ Widget bootstrap: read `platform` from the script tag dataset; thread into the host dispatcher.
-- ☐ Tests: mock `fetch`; assert add→verify, get mapping, coupon, routing picks shopifyCart for shopify and hooks for Calmosis.
+## Phase 1 — Spec 1: Shopify transactional foundation  ✅ DONE (commit on feat/shopify-any-brand)
+- ✅ `packages/widget/src/shopifyCart.ts`: `shopifyCartAdd/Get/SetQty/Clear/ApplyCoupon` via Cart AJAX; each verify-after-read; return `HostActionResult` (cart_get → `values:{count,items,subtotal}`).
+- ✅ Platform routing in `packages/widget/src/host/actions.ts` (`setHostPlatform` + `window.Shopify` auto-detect) → cart actions route to `shopifyCart` on Shopify, custom hooks otherwise.
+- ✅ `open_cart` → `/cart` nav on Shopify. Calmosis-only `checkout_fill/place/state` already gated off for non-Calmosis.
+- ✅ Bootstrap threads `platform` from the install response into `setHostPlatform`.
+- ✅ Tests: 9 new (add+verify, sold-out, non-numeric ref, get mapping, clear, coupon, routing). 141 widget tests green.
+- ☐ (deferred to Phase 4) Native-checkout instruction (bot → `/checkout`) is a PROMPT concern.
+
+> **Discovery (2026-06-24):** much Shopify plumbing ALREADY exists and is reusable:
+> `apps/worker/src/steps/catalogClients/shopify.ts` (catalog client), `apps/api/src/routes/webhooks/shopify.ts` (+orders attribution via `services/attributeOrder.ts`), `packages/adapters/src/shopify.ts` (adapter), `apps/worker/src/handlers/onboarding.ts` (platform detection), `web/src/app/api/composio/connect-shopify/route.ts`, and `merchants.platform` enum. Phases 2–3 are mostly **wire-up + generalize**, not greenfield — must reconcile with these before editing.
 
 ## Phase 2 — Spec 2a: Catalog sync (Admin GraphQL)
 - ☐ `packages/adapters/src/shopifyAdmin.ts` (or extend `shopify.ts`): Admin GraphQL client using per-merchant token; `bulkPullProducts()` → {title, descriptionHtml→text, priceRange, featuredImage, variants[{id, sku, price, title}], tags, collections}.
