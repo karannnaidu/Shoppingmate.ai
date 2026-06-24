@@ -2,6 +2,31 @@ import { resolveIntent } from './ax-tree.js';
 import { hideCursor, moveCursorTo, pulseCursorClick } from './cursor.js';
 import { showPulseRing } from './overlay.js';
 import { formFill, formRead } from './form-control.js';
+import {
+  shopifyApplyCoupon,
+  shopifyCartAdd,
+  shopifyCartClear,
+  shopifyCartGet,
+  shopifyCartSetQty,
+} from '../shopifyCart.js';
+
+// Cart actions route to the Shopify Cart AJAX bridge on a Shopify storefront, or
+// the custom window.__shoppingmate*__ hooks otherwise (Calmosis). The platform is
+// set from the merchant install config at bootstrap; we fall back to detecting
+// Shopify's storefront global so it works even if config is absent.
+let hostPlatform: string | null = null;
+export function setHostPlatform(platform: string | null | undefined): void {
+  hostPlatform = platform ?? null;
+}
+function isShopifyHost(): boolean {
+  if (hostPlatform === 'shopify') return true;
+  if (hostPlatform) return false; // explicitly another platform → use custom hooks
+  try {
+    return typeof (window as unknown as { Shopify?: unknown }).Shopify !== 'undefined';
+  } catch {
+    return false;
+  }
+}
 
 export type HostAction =
   | { type: 'navigate'; path: string }
@@ -14,6 +39,7 @@ export type HostAction =
   | { type: 'open_cart' }
   | { type: 'cart_set_qty'; sku: string; qty: number }
   | { type: 'cart_clear' }
+  | { type: 'cart_get' }
   | { type: 'apply_coupon'; code: string }
   | { type: 'checkout_fill'; details: CheckoutDetails }
   | { type: 'checkout_place' }
@@ -51,15 +77,19 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
     case 'demo_click':
       return demoClick(action.intent);
     case 'cart_add':
-      return cartAdd(action.sku, action.qty);
+      return isShopifyHost() ? shopifyCartAdd(action.sku, action.qty) : cartAdd(action.sku, action.qty);
     case 'open_cart':
-      return openCart();
+      return isShopifyHost() ? navigate('/cart') : openCart();
     case 'cart_set_qty':
-      return cartSetQty(action.sku, action.qty);
+      return isShopifyHost()
+        ? shopifyCartSetQty(action.sku, action.qty)
+        : cartSetQty(action.sku, action.qty);
     case 'cart_clear':
-      return clearCart();
+      return isShopifyHost() ? shopifyCartClear() : clearCart();
+    case 'cart_get':
+      return isShopifyHost() ? shopifyCartGet() : cartGet();
     case 'apply_coupon':
-      return applyCoupon(action.code);
+      return isShopifyHost() ? shopifyApplyCoupon(action.code) : applyCoupon(action.code);
     case 'checkout_fill':
       return checkoutFill(action.details);
     case 'checkout_place':
@@ -142,6 +172,33 @@ function openCart(): HostActionResult {
   try {
     fn();
     return { ok: true };
+  } catch {
+    return { ok: false, reason: 'not_found' };
+  }
+}
+
+type CartItem = { sku?: string; name?: string; quantity?: number };
+type GetCartHook = () => { items?: CartItem[]; count?: number; subtotal?: number } | null;
+
+// Read the live storefront cart so the bot can be cart-aware (e.g. not navigate
+// to checkout with an empty cart). Returns values { count, items, subtotal };
+// absent hook → not_found.
+function cartGet(): HostActionResult {
+  const fn = (window as unknown as { __shoppingmateGetCart__?: GetCartHook }).__shoppingmateGetCart__;
+  if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
+  try {
+    const cart = fn();
+    const items = (cart?.items ?? [])
+      .map((i) => `${i.sku ?? i.name ?? 'item'} x${i.quantity ?? 1}`)
+      .join(', ');
+    return {
+      ok: true,
+      values: {
+        count: String(cart?.count ?? 0),
+        items,
+        subtotal: cart?.subtotal != null ? String(cart.subtotal) : '',
+      },
+    };
   } catch {
     return { ok: false, reason: 'not_found' };
   }

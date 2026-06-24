@@ -103,18 +103,26 @@ export function preloadLiveKit(): void {
   });
 }
 
-// Opt-in to the heavier mic pipeline (autoGainControl + Krisp) for noisy rooms.
-// Checked at call-connect time so it can be toggled per-call with no redeploy:
-// `?smAudioFull=1` on the page URL, or `window.__SM_AUDIO_FULL__ = true`.
+// Heavier mic pipeline (autoGainControl + Krisp ML noise filter). ON by default
+// as of 2026-06-23: a soft / accented "hey Calmio" was under-picked-up under the
+// lean pipeline. AGC normalizes loudness so quiet/distant speech is still
+// captured cleanly; Krisp strips ambient noise more aggressively than the
+// browser's native suppression. This reverses the 2026-06-21 default-off stance
+// (AGC/Krisp were found to over-process accented speech) — being A/B'd live.
+// Toggle OFF per-call with NO redeploy if it degrades transcription:
+// `?smAudioFull=0` on the page URL, or `window.__SM_AUDIO_FULL__ = false`.
 function audioFullRequested(): boolean {
   try {
-    if (typeof window !== 'undefined' && (window as { __SM_AUDIO_FULL__?: boolean }).__SM_AUDIO_FULL__) {
-      return true;
+    if (typeof window !== 'undefined') {
+      const w = window as { __SM_AUDIO_FULL__?: boolean };
+      if (typeof w.__SM_AUDIO_FULL__ === 'boolean') return w.__SM_AUDIO_FULL__;
     }
     const q = new URLSearchParams(location.search).get('smAudioFull');
-    return q === '1' || q === 'true';
+    if (q === '0' || q === 'false') return false;
+    // Default ON (any other value, including absent, enables the heavier pipeline).
+    return true;
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -127,11 +135,9 @@ export async function connectToRoom(opts: {
   // Mic capture cleanup. echoCancellation + noiseSuppression + mono are ESSENTIAL
   // for clean STT (echoCancellation stops the bot transcribing its own voice;
   // noiseSuppression cuts ambient noise; mono keeps it simple). autoGainControl
-  // and the Krisp ML filter, however, were found to OVER-process accented /
-  // code-switched speech and DEGRADE Gemini's transcription (garbled names &
-  // emails — 2026-06-21 report), so they are OFF by default. To restore the
-  // heavier pipeline for very noisy environments, add `?smAudioFull=1` to the
-  // page URL or set `window.__SM_AUDIO_FULL__ = true` before the widget loads.
+  // is now ON by default (2026-06-23) so soft/distant speech is normalized up
+  // and actually picked up — see audioFullRequested(). Disable per-call with
+  // `?smAudioFull=0` if AGC over-processes accented speech.
   const audioFull = audioFullRequested();
   const room = new lk.Room({
     audioCaptureDefaults: {
@@ -183,9 +189,9 @@ export async function connectToRoom(opts: {
   return {
     setMicEnabled: async (enabled) => {
       await room.localParticipant.setMicrophoneEnabled(enabled);
-      // Krisp ML noise filter is OFF by default (it can distort accented speech
-      // and hurt transcription); only apply it when the heavier pipeline is
-      // explicitly requested via the `smAudioFull` flag (noisy-environment opt-in).
+      // Krisp ML noise filter is ON by default as of 2026-06-23 (part of the
+      // heavier pipeline). Disable per-call via `?smAudioFull=0` if it distorts
+      // accented speech; the browser's native NS remains as the fallback.
       if (enabled && audioFull) void applyKrisp(room).catch(() => { /* no-op: browser NS remains */ });
     },
     onData: (cb) => {

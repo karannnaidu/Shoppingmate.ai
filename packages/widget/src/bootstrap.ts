@@ -1,4 +1,5 @@
 import { getOrCreateVisitorId } from './identity.js';
+import { setHostPlatform } from './host/actions.js';
 import { injectShopifyCartAttribute } from './shopifyCart.js';
 
 export type BootstrapInput = {
@@ -83,6 +84,10 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       personaId?: string | null;
       platform?: string | null;
     };
+
+    // Route the bot's cart host-actions to the Shopify Cart AJAX bridge (vs the
+    // custom __shoppingmate*__ hooks) based on the merchant's platform.
+    setHostPlatform(installBody.platform ?? null);
 
     // Fire-and-forget: stamp visitor id onto Shopify cart attributes so the
     // orders/create webhook can attribute the conversion. No-op on other platforms.

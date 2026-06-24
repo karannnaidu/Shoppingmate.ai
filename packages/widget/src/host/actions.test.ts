@@ -1,10 +1,43 @@
 /** @vitest-environment happy-dom */
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { executeHostAction } from './actions.js';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { executeHostAction, setHostPlatform } from './actions.js';
 
 beforeEach(() => {
   document.body.innerHTML = '';
   vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  setHostPlatform(null);
+  delete (window as unknown as { Shopify?: unknown }).Shopify;
+});
+
+describe('cart action platform routing', () => {
+  it('on Shopify, cart_add goes through the Cart AJAX bridge (/cart/add.js)', async () => {
+    setHostPlatform('shopify');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async (url: string | URL | Request) => {
+        const u = String(url);
+        if (u === '/cart/add.js') return { ok: true, json: async () => ({ id: 111 }) } as Response;
+        if (u === '/cart.js')
+          return { ok: true, json: async () => ({ item_count: 1, items: [{ id: 111, quantity: 1 }], total_price: 100 }) } as Response;
+        return { ok: true, json: async () => ({}) } as Response;
+      });
+    const r = await executeHostAction({ type: 'cart_add', sku: '111', qty: 1 });
+    expect(r.ok).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledWith('/cart/add.js', expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('off Shopify, cart_add uses the custom __shoppingmateCartAdd__ hook', async () => {
+    setHostPlatform('custom');
+    const hook = vi.fn().mockReturnValue(true);
+    (window as unknown as { __shoppingmateCartAdd__: unknown }).__shoppingmateCartAdd__ = hook;
+    const r = await executeHostAction({ type: 'cart_add', sku: 'green-mantra', qty: 1 });
+    expect(r.ok).toBe(true);
+    expect(hook).toHaveBeenCalledWith('green-mantra', 1);
+    delete (window as unknown as { __shoppingmateCartAdd__?: unknown }).__shoppingmateCartAdd__;
+  });
 });
 
 describe('executeHostAction()', () => {
