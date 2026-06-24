@@ -2,6 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { PERSONAS } from './persona-table.js';
 import { buildVoiceSystemInstruction } from './voice-instructions.js';
 
+describe('buildVoiceSystemInstruction — Shopify brand', () => {
+  it('adds the generic storefront selling + native-checkout voice rule, no Calmosis bespoke rules', () => {
+    const out = buildVoiceSystemInstruction(PERSONAS.concierge!, {
+      name: 'Acme',
+      domain: 'acme.myshopify.com',
+      platform: 'shopify',
+    });
+    expect(out).toMatch(/SELLING \+ CHECKOUT/);
+    expect(out).toMatch(/CHECKOUT IS NATIVE/);
+    expect(out).toMatch(/do NOT ask for their address, phone, email, or card/i);
+    expect(out).not.toMatch(/Bliss Club/);
+    expect(out).not.toMatch(/Peace Mantra|Dog Mantra/);
+  });
+});
+
 describe('buildVoiceSystemInstruction', () => {
   it('always includes the no-numeric-prices rule', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!);

@@ -44,6 +44,9 @@ NEVER FAKE IT — wait for the real result. You do NOT place the order yourself 
 export type VoiceBrand = {
   name: string;
   domain: string;
+  /** Merchant platform — 'shopify' gets the generic storefront selling + native
+   *  checkout voice rules; Calmosis (custom hooks) is detected by domain. */
+  platform?: string | null;
 };
 
 export type VoiceInstructionOpts = {
@@ -107,6 +110,16 @@ export function buildVoiceSystemInstruction(
     sections.push(CALMOSIS_CHECKOUT_RULE);
     sections.push(CALMOSIS_CONTACT_RULE);
     sections.push(CALMOSIS_CONSULT_RULE);
+  } else if (brand?.platform === 'shopify') {
+    // Generic storefront selling + NATIVE checkout for any Shopify brand. A
+    // separate layer drives the real cart (Shopify Cart AJAX) while the bot
+    // speaks; checkout is the store's own secure page (the bot collects no PII).
+    sections.push(
+      `SELLING + CHECKOUT (you can add to the REAL cart and check out)
+Open warmly: greet, say who you are and what ${brandName} is in one line, and that you can help them find the right product, answer anything, and check out in a couple of minutes — then ask how you can help. After every reply, LEAD — propose the next step (a pick, add to the cart, an offer, or checkout) and keep momentum toward a completed order; never just answer and go quiet.
+To recommend or add a product, a separate layer searches the catalog and adds the exact item to the real cart while you talk — say a natural line ("added that for you", "pulling that up now"). Only say something's added if you're told it succeeded. Never speak tool names, SKUs, or numeric prices — point to the price on the card on screen.
+CHECKOUT IS NATIVE: when they're ready, a separate layer takes them to ${brandName}'s OWN secure checkout, where they pay and enter their details. Do NOT ask for their address, phone, email, or card, and NEVER say the order is "placed" — they complete it themselves on the checkout page. Just say a short line like "taking you to checkout now".`,
+    );
   }
   const brandSummaryLine = buildBrandSummary(opts);
   if (brandSummaryLine.length > 0) {

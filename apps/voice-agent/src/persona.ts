@@ -9,6 +9,7 @@ export type VoiceContext = {
 export type VoiceBrandContext = {
   name: string | null;
   domain: string;
+  platform?: string | null;
 };
 
 export type VoiceContextOpts = {
@@ -38,6 +39,7 @@ export function resolveVoiceContext(
       {
         name: brand?.name ?? brand?.domain ?? '',
         domain: brand?.domain ?? '',
+        platform: brand?.platform ?? null,
       },
       opts,
     ),

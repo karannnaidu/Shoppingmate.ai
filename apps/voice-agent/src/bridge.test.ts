@@ -68,6 +68,22 @@ describe('createBridge — STT-final → runTurn → say → speak', () => {
     expect(deps.publishData).toHaveBeenCalledWith({ type: 'say', text: 'Hi there.' });
   });
 
+  it('routes an executor_error event to onExecutorError (so the worker grounds Gemini honestly)', async () => {
+    const onExecutorError = vi.fn();
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      onExecutorError,
+      runTurn: fakeRunTurn([
+        { type: 'executor_error', kind: 'exhausted' },
+        { type: 'say', text: "Sorry — I'm having trouble reaching my brain." },
+        { type: 'end_of_turn' },
+      ]) as unknown as BridgeDeps['runTurn'],
+    };
+    const bridge = createBridge(deps);
+    await bridge.handleUserText('add green mantra');
+    expect(onExecutorError).toHaveBeenCalledWith('exhausted');
+  });
+
   it('feeds Gemini’s spoken turns into the executor history (real dialogue, not blind utterances)', async () => {
     const histories: Array<Array<{ role: string; content: string }>> = [];
     const capture = vi.fn(async function* (_d: unknown, _m: unknown, session: { history?: unknown }) {

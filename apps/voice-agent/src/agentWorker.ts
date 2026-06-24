@@ -23,6 +23,7 @@ import {
   runTurn,
   saveSession as saveSessionAgent,
   stripToolSyntax,
+  type HostActionResult,
   type RecommendationStore,
   type SessionStore,
 } from '@shoppingmate/agent';
@@ -44,6 +45,7 @@ import { createMetricsLedger, defaultSink } from './metrics.js';
 import { voiceEnv } from './env.js';
 import { createGeminiSdkTransport } from './geminiSdkTransport.js';
 import { createGeminiSession } from './geminiSession.js';
+import { alertExecutorExhausted } from './opsAlert.js';
 import { resolveVoiceContext } from './persona.js';
 
 const log = childLogger({ mod: 'agent-worker' });
@@ -349,6 +351,17 @@ const agentDefinition = defineAgent({
             { sessionId, visitorId, sessionCount: vp.sessionCount },
             'personalization: returning visitor (voice)',
           );
+        // PII-DIAG (Phase 0, remove after root-cause confirmed): see apps/api index.ts.
+        const _id = (vp?.identity ?? {}) as Record<string, unknown>;
+        log.info(
+          {
+            evt: 'pii_diag', phase: 'load', source: 'voice', sessionId,
+            requestedVisitorId: session.visitorId, loadedVisitorId: vp?.visitorId ?? null,
+            sessionCount: vp?.sessionCount ?? 0, injectedPii: Boolean(visitorSummary),
+            has: { name: Boolean(_id.name), phone: Boolean(_id.phone), email: Boolean(_id.email), address: Boolean(_id.address) },
+          },
+          'PII-DIAG load',
+        );
       }
     } catch (err) {
       log.warn({ err, sessionId }, 'visitor profile load failed (voice)');
@@ -361,7 +374,7 @@ const agentDefinition = defineAgent({
 
     const voice = resolveVoiceContext(
       merchant.personaId,
-      { name: merchant.name, domain: merchant.domain },
+      { name: merchant.name, domain: merchant.domain, platform: merchant.platform },
       {
         kbText,
         demoMode,
@@ -498,6 +511,15 @@ const agentDefinition = defineAgent({
     // pricing.quote) can actually drive the browser from voice mode.
     // We drop the runtime's say/say_partial events — Gemini already speaks
     // and captions — and only forward tool-action events to the widget.
+    const recordMetric = async (
+      name: string,
+      tags: Record<string, string | number | boolean>,
+    ): Promise<void> => {
+      await db
+        .insert(schema.metricEvents)
+        .values({ merchantId: merchant.id, metricName: name, tags })
+        .onConflictDoNothing();
+    };
     const bridge = createBridge({
       sessionId,
       merchantId: merchant.id,
@@ -517,11 +539,32 @@ const agentDefinition = defineAgent({
         return s;
       },
       saveSession: (s) => saveSessionAgent(redis(), s),
-      recordMetric: async (name, tags) => {
-        await db
-          .insert(schema.metricEvents)
-          .values({ merchantId: merchant.id, metricName: name, tags })
-          .onConflictDoNothing();
+      recordMetric,
+      // The side-channel executor (OpenRouter) failed this turn. Gemini may have
+      // already optimistically said "added it" — ground it with the truth so it
+      // corrects instead of lying. 'exhausted' = out-of-credits 402: also record a
+      // dedicated metric + error log so the outage is visible immediately (it has
+      // silently broken cart/checkout for days before). Top up restores it.
+      onExecutorError: (kind) => {
+        void gemini
+          .speak(
+            kind === 'exhausted'
+              ? 'SYSTEM: the action system is temporarily unavailable, so nothing was added, filled, or placed this turn. Warmly tell the visitor you hit a brief technical issue completing that and ask them to try again in a moment. Do NOT claim anything was added, placed, or done.'
+              : "SYSTEM: that action didn't go through. Honestly tell the visitor you couldn't complete it just now and offer to try again. Do NOT claim anything was added, placed, or done.",
+          )
+          .catch((err) => log.warn({ err, sessionId }, 'executor-error grounding failed'));
+        if (kind === 'exhausted') {
+          log.error(
+            { sessionId, merchantId: merchant.id },
+            'OpenRouter executor EXHAUSTED (402 insufficient credits) — tools are down until topped up: https://openrouter.ai/settings/credits',
+          );
+          void recordMetric('agent.executor.exhausted', {
+            sessionId,
+            merchantId: merchant.id,
+            provider: 'openrouter',
+          }).catch(() => {});
+          void alertExecutorExhausted(merchant.id, sessionId).catch(() => {});
+        }
       },
       submitConsultation: (req) =>
         submitConsultationRequest({
@@ -667,7 +710,8 @@ const agentDefinition = defineAgent({
           .join('\n');
         // Email-optional: voice STT can't reliably spell emails, so we don't
         // block on it — the visitor types/confirms email on the page. We require
-        // name/phone/address/city/state/pincode (what voice CAN capture).
+        // name/phone/address/pincode (what voice CAN capture); city/state are NOT
+        // required — the checkout page derives them from the pincode.
         const extracted = await extractCheckoutDetails(transcript, extractChat, { requireEmail: false });
         log.info(
           { sessionId, ok: extracted.ok, reason: extracted.ok ? undefined : extracted.reason },
@@ -812,7 +856,7 @@ const agentDefinition = defineAgent({
         // so host_action tools can navigate / scroll / quote pricing while
         // Gemini speaks naturally over the top. The bridge's `say` events
         // are suppressed (Gemini's transcript is the canonical caption).
-        bridge
+        const turnDone = bridge
           .handleUserText(e.text)
           .catch((err) => log.warn({ err }, 'bridge.handleUserText failed'));
         // Demo tour: when Sage is on shoppingmate.ai itself and the visitor
@@ -835,10 +879,29 @@ const agentDefinition = defineAgent({
         // the shop page" divergence: Gemini narrates it AND the page actually moves.
         // Navigating to /checkout when already there is a client-router no-op.
         if (merchant.siteGraphEnabled && bridge.dispatchHostAction && wantsCheckoutNavigation(e.text)) {
-          checkoutEntered = true;
-          void bridge
-            .dispatchHostAction({ type: 'navigate', path: '/checkout' })
-            .catch((err) => log.warn({ err }, 'deterministic checkout nav failed'));
+          const dispatch = bridge.dispatchHostAction;
+          // Run AFTER the executor turn so any cart.add from THIS same utterance
+          // ("add green mantra and check me out") has landed before we read the
+          // cart. Then GATE the checkout navigation on the REAL cart so we never
+          // strand the visitor on an empty checkout (0 items can't be ordered —
+          // the exact "add failed → empty checkout" bug). On an unavailable read
+          // we fall back to navigating, so a read hiccup never regresses the flow.
+          void turnDone.then(async () => {
+            const cart = await dispatch({ type: 'cart_get' }).catch(
+              () => ({ ok: false, reason: 'timeout' }) as HostActionResult,
+            );
+            const count = cart.ok ? Number(cart.values?.count ?? '0') : Number.NaN;
+            if (count === 0) {
+              ground(
+                "SYSTEM: the cart is empty, so checkout can't open. Warmly tell the visitor there's nothing in the cart yet and ask which product they'd like to add first. Do NOT say you're taking them to checkout, and do NOT claim anything was added.",
+              );
+              return;
+            }
+            checkoutEntered = true;
+            await dispatch({ type: 'navigate', path: '/checkout' }).catch((err) =>
+              log.warn({ err }, 'deterministic checkout nav failed'),
+            );
+          });
         }
         // Belt-and-suspenders product-page nav: "show me the peace mantra page"
         // navigates deterministically even if the executor's site.navigate misses.
@@ -1056,6 +1119,17 @@ const agentDefinition = defineAgent({
             outcome: tags.outcome,
             attributedCents: tags.attributed_cents,
           });
+          // PII-DIAG (Phase 0, remove after root-cause confirmed): which silo this
+          // session wrote into + which identity fields. Compare against what the
+          // visitor actually said vs what the bot spoke (write-amplification check).
+          const _wid = (tags.intent.identity ?? {}) as Record<string, unknown>;
+          log.info(
+            {
+              evt: 'pii_diag', phase: 'write', source: 'voice', sessionId, visitorId,
+              wrote: { name: Boolean(_wid.name), phone: Boolean(_wid.phone), email: Boolean(_wid.email), address: Boolean(_wid.address) },
+            },
+            'PII-DIAG write',
+          );
         }
         log.info(
           { sessionId, turns: tags.turns, intent: tags.intent?.intent },

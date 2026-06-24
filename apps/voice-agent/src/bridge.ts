@@ -62,6 +62,10 @@ export type BridgeDeps = {
   recommendationStore?: RecommendationStore;
   // Persist + notify boundary for consultation.request — threaded into RunTurnDeps.
   submitConsultation?: RunTurnDeps['submitConsultation'];
+  // Called when the side-channel executor fails this turn (after a retry). In
+  // voice mode the executor's spoken error is suppressed, so the worker uses this
+  // to ground Gemini honestly (and alert on 'exhausted' = out-of-credits 402).
+  onExecutorError?: (kind: 'exhausted' | 'error') => void;
 };
 
 export type Bridge = {
@@ -237,6 +241,11 @@ async function routeEvent(event: AgentEvent, deps: BridgeDeps): Promise<void> {
       return;
     case 'persona_swap':
       deps.publishData({ type: 'persona_swap', personaId: event.personaId });
+      return;
+    case 'executor_error':
+      // Voice suppresses the executor's spoken `say`, so surface the failure to
+      // the worker which grounds Gemini honestly (and alerts on 'exhausted').
+      deps.onExecutorError?.(event.kind);
       return;
     case 'thinking':
     case 'tool_result':
