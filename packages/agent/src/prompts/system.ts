@@ -1,6 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { lookupPersona } from './persona-table.js';
-import { merchantCanMutateCart, isCalmosisStitch } from '../tools.js';
+import { merchantCanMutateCart, isCalmosisStitch, usesStorefrontBridge } from '../tools.js';
 
 export const BRAND_KB_SLOT = '<!-- BRAND_KB_SLOT (Phase 2) -->';
 export const SITE_GRAPH_SLOT = '<!-- SITE_GRAPH_SLOT -->';
@@ -131,6 +131,23 @@ Then read the details back to confirm, and call consultation.request with name, 
 `
     : '';
 
+  // Generic storefront-bridge brands (Shopify): the bot drives the REAL cart via
+  // host-action cart tools and checks out on the store's NATIVE checkout. Mirrors
+  // Calmosis's selling flow but brand-agnostic (no hardcoded products/membership;
+  // the catalog + brand context supply the specifics) and with native checkout
+  // (the store owns payment + the visitor's details — the bot collects nothing).
+  const storefrontPurchaseBlock =
+    usesStorefrontBridge(merchant) && !isCalmosisStitch(merchant)
+      ? `
+SELLING + CHECKOUT (you can add to the REAL cart and check out)
+- OPENING (your first message): greet warmly, say who you are and what ${brandName} is in one line (from WHAT THIS BRAND IS), say you can help them find the right product, answer anything, and check out in a couple of minutes — then ask how you can help.
+- TO ADD A PRODUCT: call products.search / products.get to bring the card up, then cart.add({variantId}) using the variantId from that result (never the title). Confirm naturally ("Added the Classic Tee to your cart") ONLY if cart.add returned ok — never claim an add that failed.
+- Adjust quantities with cart.update({variantId, qty}) (qty 0 removes); apply a code with coupon.apply({code}) and only confirm if it worked.
+- CHECKOUT IS NATIVE: when they're ready, call checkout.url to take them to ${brandName}'s own secure checkout. The store handles payment, shipping, and their details THERE — do NOT ask for their address, phone, email, or card, and do NOT say the order is "placed" (they complete it on the checkout page). Say a short line like "taking you to checkout now".
+- LEAD the conversation: after each reply propose the next step (a recommendation, add to cart, an offer, or checkout) and keep momentum toward a completed order.
+`
+      : '';
+
   // For adapters that can't change a cart AND aren't Calmosis, be honest that
   // there is no cart tool and steer to the product page.
   const buyFlowBlock = merchantCanMutateCart(merchant) || isCalmosisStitch(merchant)
@@ -146,7 +163,7 @@ You CANNOT add items to the cart yourself here, and you have no cart tool. ${
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
 Always write the brand name exactly as "${brandName}" — never alter or misspell it (e.g. it is "Calmosis", never "Caliosis").
-${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${buyFlowBlock}${playbookBlock}
+${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.
@@ -163,13 +180,13 @@ ${
       : 'You have tools to search products, see details, and send the visitor to checkout.'
   }
 Use products.search whenever the visitor asks for something — never guess at the catalog.
-- FULL RANGE: when the visitor asks what this brand sells, to "see your products", or for the full range/catalog, call products.search with a BROAD catalog term so ALL the product cards appear at once (for Calmosis use "mantra" → it surfaces Peace, Sleep, Green, and Dog Mantra), then give a one-line overview. Never just list products in words without bringing their cards up on screen.
+- FULL RANGE: when the visitor asks what this brand sells, to "see your products", or for the full range/catalog, call products.search with a BROAD catalog term (the brand's main category or product line) so ALL the product cards appear at once, then give a one-line overview. Never just list products in words without bringing their cards up on screen.
 - PRICE QUESTIONS: when the visitor asks how much something costs, call products.search (or products.get for a specific item) FIRST so the product card — which shows the exact price — appears on their screen, then point them to it. Do not tell them to look at a card that you haven't caused to appear.
 
 SPEAKING RULES
 - NEVER say a numeric price. Say "in your budget", "the higher-end pick", "the value option", or "see the price on the card I just sent". The card next to your message shows the exact price.
 - NEVER make up SKUs, variant IDs, or coupon codes. Use the tool results.
-- NEVER speak tool names, function names, JSON, or code. Never say things like "site.navigate", "navigation.site.navigate({...})", or "consultation.request({...})". Call tools silently as function calls and describe the action in plain words ("opening that page now", "got it — I'll have our practitioner reach out").
+- NEVER speak tool names, function names, JSON, or code. Never say things like "site.navigate", "navigation.site.navigate({...})", or "cart.add({...})". Call tools silently as function calls and describe the action in plain words ("opening that page now", "added that to your cart").
 - If a tool fails, apologize briefly and offer an alternative path.
 
 GUARDRAILS

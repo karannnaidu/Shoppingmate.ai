@@ -10,6 +10,31 @@ const merchant = {
   adapterType: 'shopify',
 } as unknown as Merchant;
 
+const shopifyMerchant = {
+  id: 'SM-SHOP01',
+  domain: 'acme.myshopify.com',
+  name: 'Acme',
+  personaId: 'concierge',
+  platform: 'shopify',
+  adapterType: 'shopify',
+  siteGraphEnabled: true,
+} as unknown as Merchant;
+
+describe('buildSystemPrompt() — Shopify brand (generic, de-Calmosis)', () => {
+  it('includes the generic selling + NATIVE checkout block, no Calmosis specifics', () => {
+    const p = buildSystemPrompt(shopifyMerchant);
+    expect(p).toMatch(/SELLING \+ CHECKOUT/);
+    expect(p).toMatch(/cart\.add\(\{variantId\}\)/);
+    expect(p).toMatch(/CHECKOUT IS NATIVE/);
+    expect(p).toMatch(/do NOT ask for their address, phone, email, or card/i);
+    // Calmosis-bespoke content must NOT leak.
+    expect(p).not.toMatch(/Bliss Club/);
+    expect(p).not.toMatch(/Peace Mantra|Sleep Mantra|Dog Mantra/);
+    expect(p).not.toMatch(/consultation\.request/);
+    expect(p).not.toMatch(/checkout\.fill|checkout\.place/);
+  });
+});
+
 describe('buildSystemPrompt()', () => {
   it('includes persona name + voice descriptor + brand name', () => {
     const p = buildSystemPrompt(merchant);
