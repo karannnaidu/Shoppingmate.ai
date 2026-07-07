@@ -52,7 +52,7 @@ export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {
 
   const returningVisitorBlock =
     opts.visitorSummaryText && opts.visitorSummaryText.trim().length > 0
-      ? `\nRETURNING VISITOR — personalize warmly, greet them by name if known, and do NOT re-ask what you already know:\n${opts.visitorSummaryText.trim()}\n`
+      ? `\nRETURNING VISITOR — personalize warmly, greet them by name if known, and do NOT re-ask what you already know. Treat as known ONLY the specific facts written below — if a phone number, city, or address is not listed here, you do NOT have it on file, so ask for it normally and never invent one:\n${opts.visitorSummaryText.trim()}\n`
       : '';
 
   const liveSignalBlock =
