@@ -29,9 +29,20 @@ const POSITION_CLASSES = new Set([
   'bottom-left',
   'bottom-center',
   'center',
+  'center-left',
+  'center-right',
   'top-right',
   'top-left',
 ]);
+
+// Resting launcher shrinks to just the avatar after this many idle ms so it
+// stops covering the host page's own CTAs. Any hover / focus / tap wakes it.
+const COLLAPSE_IDLE_MS = 6000;
+
+// If a proactive "incoming call" invite is ignored for this long, drop it back
+// to the resting (collapsible) launcher instead of ringing forever over the
+// page. Keeps the nudge from permanently blocking content.
+const INVITE_DISMISS_MS = 12000;
 
 function resolveVoiceStack(): 'live-kit' | 'web-speech' {
   // Build-time replaced via esbuild `define`. Default ships as 'live-kit'.
@@ -54,6 +65,9 @@ class WidgetElement extends HTMLElement {
   private domain = window.location.host;
   private stopActivityTracker: (() => void) | null = null;
   private inviteTimer: ReturnType<typeof setTimeout> | null = null;
+  private inviteDismissTimer: ReturnType<typeof setTimeout> | null = null;
+  private collapseTimer: ReturnType<typeof setTimeout> | null = null;
+  private stopCollapse: (() => void) | null = null;
   private stopDrag: (() => void) | null = null;
   // Subtle office room tone during a live call. Configured in connectedCallback
   // from the data-ambience attribute ("off" disables). The switch the user asked
@@ -79,9 +93,14 @@ class WidgetElement extends HTMLElement {
     const root = document.createElement('div');
     // Placement override (stop-gap until Task 8 wires it through the
     // dashboard). Reads `data-position` from the host element: bottom-right
-    // (default), bottom-left, bottom-center, center, top-right, top-left.
-    // Invalid values fall back to bottom-right silently.
-    const position = (this.getAttribute('data-position') ?? 'bottom-right').toLowerCase();
+    // (default), bottom-left, bottom-center, center, center-left, center-right,
+    // top-right, top-left. Invalid values fall back to the merchant default.
+    // Calmosis defaults to center-left (mid of the left edge) so the launcher
+    // clears the storefront's right-aligned CTAs; the host can still override
+    // with an explicit data-position. Everyone else stays bottom-right.
+    const defaultPosition =
+      this.merchantId === CALMOSIS_MERCHANT_ID ? 'center-left' : 'bottom-right';
+    const position = (this.getAttribute('data-position') ?? defaultPosition).toLowerCase();
     const positionClass = POSITION_CLASSES.has(position) ? `pos-${position}` : 'pos-bottom-right';
     root.className = `root ${positionClass}`;
     sr.appendChild(root);
@@ -100,6 +119,9 @@ class WidgetElement extends HTMLElement {
       surface: this.pillHost,
       storageKey: `sm-widget-pos:${this.merchantId}`,
     });
+    // Shrink the resting launcher to just the avatar when the visitor isn't
+    // using it, so it stops covering the page's own buttons.
+    this.stopCollapse = this.setupAutoCollapse(root, this.pillHost);
     // Warm the livekit-client ESM import now (it's ~120KB lazy-loaded from a
     // CDN). If we wait until the visitor clicks voice, the click→listening
     // path eats the full fetch + parse latency (~500-1500ms first visit). This
@@ -115,7 +137,38 @@ class WidgetElement extends HTMLElement {
     this.ambience.stop();
     this.stopActivityTracker?.();
     if (this.inviteTimer) clearTimeout(this.inviteTimer);
+    if (this.inviteDismissTimer) clearTimeout(this.inviteDismissTimer);
+    if (this.collapseTimer) clearTimeout(this.collapseTimer);
+    this.stopCollapse?.();
     this.stopDrag?.();
+  }
+
+  // Auto-collapse the resting launcher to just the avatar after a few idle
+  // seconds (and immediately arm it on load) so it never blocks the host page's
+  // CTAs. Hover / focus / pointer activity on the launcher wakes it back to the
+  // full pill and re-arms the idle timer. The `collapsed` class only takes
+  // effect in the resting phase (see shadow.css) — a live call or an incoming
+  // invite always shows its controls.
+  private setupAutoCollapse(root: HTMLElement, surface: HTMLElement): () => void {
+    const arm = () => {
+      if (this.collapseTimer) clearTimeout(this.collapseTimer);
+      this.collapseTimer = setTimeout(() => root.classList.add('collapsed'), COLLAPSE_IDLE_MS);
+    };
+    const wake = () => {
+      root.classList.remove('collapsed');
+      arm();
+    };
+    surface.addEventListener('pointerenter', wake);
+    surface.addEventListener('pointerdown', wake);
+    surface.addEventListener('focusin', wake);
+    surface.addEventListener('pointerleave', arm);
+    arm();
+    return () => {
+      surface.removeEventListener('pointerenter', wake);
+      surface.removeEventListener('pointerdown', wake);
+      surface.removeEventListener('focusin', wake);
+      surface.removeEventListener('pointerleave', arm);
+    };
   }
 
   private async start() {
@@ -194,6 +247,16 @@ class WidgetElement extends HTMLElement {
       this.inviteTimer = setTimeout(() => {
         if (this.store.get().voiceState === 'idle' && this.store.get().mode === 'pill') {
           this.store.dispatch({ type: 'set_invited', invited: true });
+          // Ring briefly, then fall back to the resting launcher (which can
+          // collapse to the avatar) so an ignored nudge never keeps blocking
+          // the page. Accepting or opening chat clears it first via openCall/
+          // onChat, which makes this a no-op.
+          this.inviteDismissTimer = setTimeout(() => {
+            const s = this.store.get();
+            if (s.invited && s.voiceState === 'idle' && s.mode === 'pill') {
+              this.store.dispatch({ type: 'set_invited', invited: false });
+            }
+          }, INVITE_DISMISS_MS);
         }
       }, 5000);
     }

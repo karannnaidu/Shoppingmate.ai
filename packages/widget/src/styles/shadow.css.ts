@@ -24,6 +24,8 @@ export const SHADOW_CSS = `
 .root.pos-bottom-left  { bottom: 20px; left: 20px; right: auto; align-items: flex-start; }
 .root.pos-bottom-center{ bottom: 20px; left: 50%; right: auto; transform: translateX(-50%); align-items: center; }
 .root.pos-center       { top: 50%; left: 50%; right: auto; bottom: auto; transform: translate(-50%, -50%); align-items: center; }
+.root.pos-center-left  { top: 50%; left: 20px; right: auto; bottom: auto; transform: translateY(-50%); align-items: flex-start; }
+.root.pos-center-right { top: 50%; right: 20px; left: auto; bottom: auto; transform: translateY(-50%); align-items: flex-end; }
 .root.pos-top-right    { top: 20px; right: 20px; bottom: auto; align-items: flex-end; }
 .root.pos-top-left     { top: 20px; left: 20px; bottom: auto; right: auto; align-items: flex-start; }
 
@@ -61,8 +63,24 @@ export const SHADOW_CSS = `
     0 24px 48px -16px rgba(0,0,0,0.65),
     0 8px 20px -8px rgba(0,0,0,0.5);
   animation: tray-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  transition: box-shadow 300ms ease-out, border-color 300ms ease-out;
+  transition: box-shadow 300ms ease-out, border-color 300ms ease-out, padding 200ms ease-out;
 }
+
+/* ---- Minimized launcher (collapse-to-avatar) ---- */
+/* To stay out of the way of the page's own CTAs, the resting launcher shrinks
+   to just the persona avatar after a few idle seconds (and on first load), then
+   expands back to the full "Talk to {persona}" pill on hover / keyboard focus /
+   tap. Scoped to phase-resting so a live call or an incoming-call invite always
+   keep their controls — collapsing never hides an active call's buttons. */
+.root.collapsed .tray.phase-resting { padding: 5px; gap: 0; }
+.root.collapsed .tray.phase-resting .tray-meta,
+.root.collapsed .tray.phase-resting .tray-controls { display: none; }
+.root.collapsed .tray.phase-resting:hover,
+.root.collapsed .tray.phase-resting:focus-within { padding: 6px 8px 6px 6px; gap: 10px; }
+.root.collapsed .tray.phase-resting:hover .tray-meta,
+.root.collapsed .tray.phase-resting:focus-within .tray-meta { display: flex; }
+.root.collapsed .tray.phase-resting:hover .tray-controls,
+.root.collapsed .tray.phase-resting:focus-within .tray-controls { display: flex; }
 /* Incoming-call attention: magenta glow + a gentle breathing nudge so the
    launcher reads as "ringing" without being obnoxious. */
 .tray.phase-incoming {
