@@ -1,6 +1,7 @@
 import { db, schema } from '@shoppingmate/db';
 import { childLogger } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
+import { fetchCatalogWithFallback } from './catalogFallback.js';
 import { fetchBigCommerceCatalog } from './catalogClients/bigcommerce.js';
 import { fetchDomCatalog } from './catalogClients/domCrawl.js';
 import { fetchMagentoCatalog } from './catalogClients/magento.js';
@@ -31,22 +32,34 @@ export type CatalogSyncInput = {
   adapterType: schema.AdapterType;
   // optional injection for tests
   fetchCatalog?: (domain: string) => Promise<CatalogClientResult>;
+  // optional injection for tests — the DOM-crawl fallback used when a
+  // platform storefront endpoint (e.g. Shopify /products.json) is blocked.
+  fetchFallbackCatalog?: (domain: string) => Promise<CatalogClientResult>;
 };
 
 function pickClient(
   platform: schema.PlatformValue,
   adapterType: schema.AdapterType,
-): { source: string; fetch: (domain: string) => Promise<CatalogClientResult> } {
+): {
+  source: string;
+  fetch: (domain: string) => Promise<CatalogClientResult>;
+  fallback?: (domain: string) => Promise<CatalogClientResult>;
+} {
+  // Shopify/Woo pull a public JSON storefront endpoint; if the merchant has it
+  // disabled we degrade to a DOM crawl rather than failing onboarding outright.
+  const domFallback = (d: string) => fetchDomCatalog(d, { cap: 500, timeoutMs: 90_000 });
   switch (adapterType) {
     case 'shopify':
       return {
         source: 'shopify_storefront',
         fetch: (d) => fetchShopifyCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
+        fallback: domFallback,
       };
     case 'woo':
       return {
         source: 'woo_store_api',
         fetch: (d) => fetchWooCatalog(d, { cap: 5000, timeoutMs: 90_000 }),
+        fallback: domFallback,
       };
     case 'magento':
       return {
@@ -109,11 +122,28 @@ async function writeProducts(merchantId: string, products: NormalizedProduct[]):
 
 export async function catalogSync(input: CatalogSyncInput): Promise<CatalogSyncResult> {
   const start = Date.now();
-  const { source, fetch } = pickClient(input.platform, input.adapterType);
-  const fetchFn = input.fetchCatalog ?? fetch;
-  log.info({ merchantId: input.merchantId, domain: input.domain, source }, 'catalog sync start');
+  const picked = pickClient(input.platform, input.adapterType);
+  const fetchFn = input.fetchCatalog ?? picked.fetch;
+  const fallbackFn = input.fetchFallbackCatalog ?? picked.fallback ?? null;
+  log.info(
+    { merchantId: input.merchantId, domain: input.domain, source: picked.source },
+    'catalog sync start',
+  );
 
-  const result = await fetchFn(input.domain);
+  const { result, usedFallback } = await fetchCatalogWithFallback(
+    fetchFn,
+    fallbackFn,
+    input.domain,
+  );
+  // When the primary storefront endpoint was blocked we crawled the DOM instead;
+  // reflect that in the recorded source so onboarding/telemetry shows the degrade.
+  const source = usedFallback ? 'dom_crawl' : picked.source;
+  if (usedFallback) {
+    log.warn(
+      { merchantId: input.merchantId, domain: input.domain, primary: picked.source },
+      'catalog primary endpoint blocked — fell back to dom crawl (no variant ids)',
+    );
+  }
   if (result.kind === 'failed') {
     return { kind: 'failed', source, reason: result.reason };
   }
