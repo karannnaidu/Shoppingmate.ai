@@ -78,11 +78,29 @@ function PayStep() {
 
 function ConnectStep({ merchantId, status }: { merchantId: string; status: string }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   async function connectShopify() {
     setLoading(true);
-    const res = await fetch('/api/composio/connect-shopify', { method: 'POST' });
-    const json = await res.json();
-    if (json.auth_url) window.location.href = json.auth_url;
+    setError(null);
+    try {
+      const res = await fetch('/api/composio/connect-shopify', { method: 'POST' });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.auth_url) {
+        window.location.href = json.auth_url;
+        return;
+      }
+      // No auth_url (Composio not configured / errored): don't hang on
+      // "Connecting…" — surface it and steer to the reliable store-URL path.
+      setError(
+        json.error === 'no merchant'
+          ? 'Finish the earlier steps first, then try again.'
+          : "Auto-connect is unavailable right now. Use “Any other site” on the right — paste your store URL (it works for Shopify too).",
+      );
+    } catch {
+      setError('Auto-connect failed. Use the store-URL option on the right instead.');
+    } finally {
+      setLoading(false);
+    }
   }
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -97,6 +115,11 @@ function ConnectStep({ merchantId, status }: { merchantId: string; status: strin
           <Button onClick={connectShopify} disabled={loading}>
             {loading ? 'Connecting…' : 'Connect Shopify'}
           </Button>
+          {error && (
+            <p className="text-sm text-rose-500 mt-3" role="alert" aria-live="polite">
+              {error}
+            </p>
+          )}
           {!['pending', 'onboarding'].includes(status) && (
             <p className="text-xs text-text-secondary mt-3">
               Status: <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-text-primary">{status}</code>
