@@ -77,69 +77,32 @@ function PayStep() {
 }
 
 function ConnectStep({ merchantId, status }: { merchantId: string; status: string }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  async function connectShopify() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/composio/connect-shopify', { method: 'POST' });
-      const json = await res.json().catch(() => ({}));
-      if (res.ok && json.auth_url) {
-        window.location.href = json.auth_url;
-        return;
-      }
-      // No auth_url (Composio not configured / errored): don't hang on
-      // "Connecting…" — surface it and steer to the reliable store-URL path.
-      setError(
-        json.error === 'no merchant'
-          ? 'Finish the earlier steps first, then try again.'
-          : "Auto-connect is unavailable right now. Use “Any other site” on the right — paste your store URL (it works for Shopify too).",
-      );
-    } catch {
-      setError('Auto-connect failed. Use the store-URL option on the right instead.');
-    } finally {
-      setLoading(false);
-    }
-  }
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Connect Shopify</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-text-secondary mb-4">
-            Fastest path — auto-syncs your catalog and verifies install in one click.
+    <Card>
+      <CardHeader>
+        <CardTitle>Connect your store</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <p className="text-sm text-text-secondary">
+          Works on <strong>Shopify</strong>, WooCommerce, Magento, BigCommerce, Wix, Squarespace, or
+          any website. Enter your store URL — we auto-detect the platform, sync your catalog, and
+          scope the assistant to your domain.
+        </p>
+        <UrlForm merchantId={merchantId} />
+        <p className="text-xs text-text-muted">
+          On Shopify you finish by pasting a one-line snippet into your theme (next step). No app
+          install or access token required.
+        </p>
+        {!['pending', 'onboarding'].includes(status) && (
+          <p className="text-xs text-text-secondary">
+            Status:{' '}
+            <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-text-primary">
+              {status}
+            </code>
           </p>
-          <Button onClick={connectShopify} disabled={loading}>
-            {loading ? 'Connecting…' : 'Connect Shopify'}
-          </Button>
-          {error && (
-            <p className="text-sm text-rose-500 mt-3" role="alert" aria-live="polite">
-              {error}
-            </p>
-          )}
-          {!['pending', 'onboarding'].includes(status) && (
-            <p className="text-xs text-text-secondary mt-3">
-              Status: <code className="rounded bg-surface-muted px-1 py-0.5 font-mono text-text-primary">{status}</code>
-            </p>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Any other site</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-sm text-text-secondary">
-            Works on Woo, Magento, BigCommerce, Wix, Squarespace, or a plain HTML site. We need your
-            store URL to ingest your catalog and scope the agent to your domain.
-          </p>
-          <UrlForm merchantId={merchantId} />
-        </CardContent>
-      </Card>
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
