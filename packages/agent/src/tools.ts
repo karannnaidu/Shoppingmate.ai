@@ -3,6 +3,7 @@ import type { Merchant } from '@shoppingmate/db';
 import type { ToolDef } from '@shoppingmate/shared';
 import { findPlan } from './pricing/plans.js';
 import { formatPlanSpeech } from './pricing/speech.js';
+import { shapeProductForModel } from './variant.js';
 
 export const SHOPPINGMATE_DEMO_MERCHANT_ID =
   process.env.SHOPPINGMATE_DEMO_MERCHANT_ID ?? 'SM-XPK2EN';
@@ -600,14 +601,26 @@ export async function dispatchTool(
       if (r.kind === 'ok' && r.value.length === 0) {
         return { ok: false, kind: 'not_found', query: String(args.query ?? '') };
       }
+      // Shopify only: project each row to a lean shape with an explicit
+      // top-level `variantId` (single-variant) or a `variants` list to choose
+      // from (multi-variant), so the model can pass a numeric variantId to
+      // cart.add instead of digging it out of nested data. Other merchants
+      // (Calmosis, demo, DOM) keep the raw passthrough unchanged.
+      if (r.kind === 'ok' && isShopify(ctx.merchant)) {
+        return { ok: true, value: r.value.map(shapeProductForModel) };
+      }
       return toEnvelope(r);
     }
     case 'products.get': {
       const r = await adapter.getProduct(ctx, String(args.sku ?? ''));
-      if (r.kind === 'ok' && r.value === null) {
+      if (r.kind !== 'ok') return toEnvelope(r);
+      if (r.value === null) {
         return { ok: false, kind: 'not_found', query: String(args.sku ?? '') };
       }
-      return toEnvelope(r);
+      if (isShopify(ctx.merchant)) {
+        return { ok: true, value: shapeProductForModel(r.value) };
+      }
+      return { ok: true, value: r.value };
     }
     case 'cart.add': {
       const variantId = args.variantId == null ? null : String(args.variantId);

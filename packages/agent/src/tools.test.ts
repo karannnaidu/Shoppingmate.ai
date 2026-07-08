@@ -198,6 +198,29 @@ describe('dispatchTool()', () => {
     expect(r).toEqual({ ok: true, value: products });
   });
 
+  it('shapes products.search rows with a top-level variantId for a Shopify merchant', async () => {
+    const shopifyCtx: AdapterContext = {
+      merchant: { id: 'm', adapterType: 'shopify', platform: 'shopify' } as never,
+      cartToken: null,
+      sessionId: 's',
+    };
+    const products = [
+      {
+        sku: 'the-handle',
+        title: 'A',
+        merchantId: 'm',
+        productUrl: '/a',
+        variants: [{ id: '123', sku: 'A-1', options: {} }],
+      },
+    ] as unknown as Product[];
+    const adapter = makeAdapter({ searchProducts: async () => ({ kind: 'ok', value: products }) });
+    const r = await dispatchTool(adapter, shopifyCtx, 'products.search', { query: 'foo' });
+    expect(r.ok).toBe(true);
+    const value = (r as { ok: true; value: Array<Record<string, unknown>> }).value;
+    expect(value[0].variantId).toBe('123');
+    expect(value[0].sku).toBe('the-handle');
+  });
+
   it('routes cart.add and converts platform_error to envelope', async () => {
     const adapter = makeAdapter({
       cartAdd: async () => ({ kind: 'platform_error', status: 503, body: 'oops' }),

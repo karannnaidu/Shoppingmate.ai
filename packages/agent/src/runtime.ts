@@ -12,9 +12,11 @@ import {
   buildToolSurface,
   dispatchTool,
   isCalmosisStitch,
+  isShopify,
   normalizeCalmosisSku,
   usesStorefrontBridge,
 } from './tools.js';
+import { resolveVariant } from './variant.js';
 import type {
   AgentEvent,
   AnthropicMessage,
@@ -461,6 +463,19 @@ export async function* runTurn(
               // it to the exact canonical SKU before dispatch so the cart actually
               // updates.
               action = { ...action, sku: normalizeCalmosisSku(action.sku) };
+            } else if (action.type === 'cart_add' && isShopify(merchant)) {
+              // Shopify Cart AJAX keys by NUMERIC variant id. The model should
+              // pass one (products.search/get now expose it top-level), but if it
+              // sent a handle/title/sku instead, resolve it against the synced
+              // catalog so the add actually lands on a real variant. A value that
+              // is already a numeric variant id passes straight through.
+              const resolvedId = await resolveShopifyVariantId(
+                deps,
+                merchant,
+                session,
+                action.sku,
+              );
+              if (resolvedId) action = { ...action, sku: resolvedId };
             }
             if (fillError) {
               envelope = { ok: false, kind: 'unsupported', reason: fillError };
@@ -618,6 +633,40 @@ function makeCtx(merchant: Merchant, session: SessionState): AdapterContext {
   return { merchant, cartToken: session.cartToken, sessionId: session.sessionId };
 }
 
+// Coerce a cart.add reference to a NUMERIC Shopify variant id. The model usually
+// passes one directly (products.search/get now expose it top-level), in which
+// case it passes straight through. If it passed a handle/title/sku instead, look
+// the product up in the synced catalog and pick the right variant. Best-effort:
+// returns null (leaving the original ref) if nothing resolves.
+export async function resolveShopifyVariantId(
+  deps: RunTurnDeps,
+  merchant: Merchant,
+  session: SessionState,
+  ref: string,
+): Promise<string | null> {
+  const trimmed = ref.trim();
+  if (!trimmed) return null;
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  try {
+    const adapter = deps.loadAdapter(merchant, session.sessionId);
+    const ctx = makeCtx(merchant, session);
+    const got = await adapter.getProduct(ctx, trimmed);
+    if (got.kind === 'ok' && got.value) {
+      const id = resolveVariant(got.value, trimmed);
+      if (id) return id;
+    }
+    const found = await adapter.searchProducts(ctx, trimmed, 5);
+    const firstHit = found.kind === 'ok' ? found.value[0] : undefined;
+    if (firstHit) {
+      const id = resolveVariant(firstHit, trimmed);
+      if (id) return id;
+    }
+  } catch {
+    // best-effort resolution; leave the ref untouched on any failure
+  }
+  return null;
+}
+
 // Verticals available in the SM-XPK2EN showcase catalog. Matching is loose
 // because the model often paraphrases the visitor's choice ("dog food" →
 // "kibble for dogs", "supplements" → "vitamins"). Returns the canonical
@@ -690,7 +739,10 @@ function productToCard(p: unknown): CardItem | null {
     image: typeof obj.imageUrl === 'string' ? obj.imageUrl : null,
     title: obj.title,
     priceFormatted: priceCents == null ? '' : formatPrice(priceCents, currency),
-    variantId: null,
+    // Shaped Shopify products carry an explicit top-level `variantId` (single
+    // variant); everything else leaves it null exactly as before, so card
+    // tap-to-add can target the real variant on Shopify without a guess.
+    variantId: typeof obj.variantId === 'string' ? obj.variantId : null,
     sku: obj.sku,
     productUrl: typeof obj.productUrl === 'string' ? obj.productUrl : '',
   };
