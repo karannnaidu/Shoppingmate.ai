@@ -5,6 +5,7 @@ import type { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { catalogSync } from '../steps/catalogSync.js';
 import { fingerprint } from '../steps/fingerprint.js';
+import { syncMerchantBrand } from '../steps/syncMerchantBrand.js';
 import { safetyCheck } from '../steps/safetyCheck.js';
 import { selectorExtract } from '../steps/selectorExtract.js';
 import { smokeTest } from '../steps/smokeTest.js';
@@ -147,6 +148,19 @@ export async function onboardingHandler(
       products_count: catalog.productsCount,
       source: catalog.source,
     });
+  }
+
+  // Step 3.5 — Brand profile (best-effort; generates brand_summary +
+  // brand_categories from the store's own pages so the bot works on ANY store
+  // without manual setup). Never blocks onboarding — syncMerchantBrand swallows
+  // its own failures.
+  {
+    const [brandMerchant] = await db
+      .select({ name: schema.merchants.name })
+      .from(schema.merchants)
+      .where(eq(schema.merchants.id, merchantId))
+      .limit(1);
+    await syncMerchantBrand({ merchantId, domain, brandName: brandMerchant?.name ?? domain });
   }
 
   // Step 4 — SelectorExtract (DOM merchants only)
