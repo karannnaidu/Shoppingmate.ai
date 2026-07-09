@@ -131,6 +131,20 @@ class WidgetElement extends HTMLElement {
     void this.start();
   }
 
+  // Swap the launcher placement to a dashboard-configured position class. No-op
+  // for invalid values or once the visitor has dragged the launcher (their saved
+  // placement, marked by the `dragged` class, always wins).
+  private applyServerPosition(position: string): void {
+    const root = this.rootEl;
+    if (!root || root.classList.contains('dragged')) return;
+    const pos = position.toLowerCase();
+    if (!POSITION_CLASSES.has(pos)) return;
+    for (const c of Array.from(root.classList)) {
+      if (c.startsWith('pos-')) root.classList.remove(c);
+    }
+    root.classList.add(`pos-${pos}`);
+  }
+
   disconnectedCallback() {
     this.socket?.close();
     this.voiceMode.stop();
@@ -185,6 +199,9 @@ class WidgetElement extends HTMLElement {
     this.store.subscribe(() => this.render());
     this.voice = result.voice;
     this.persona = getPersonaDisplay(result.personaId ?? result.voice?.personaId ?? null);
+    // Apply the dashboard-configured launcher placement (unless the visitor has
+    // dragged it somewhere, in which case their choice wins).
+    if (result.widgetPosition) this.applyServerPosition(result.widgetPosition);
 
     const stack = resolveVoiceStack();
     const stt = createSTT();

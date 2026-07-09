@@ -12,6 +12,7 @@ export type DashboardSession = {
     billingStatus: string;
     status: string;
     domain: string | null;
+    widgetPosition: string | null;
     persona: { voiceDescriptorId: string; brandVoiceNotes: string; toneValue: number } | null;
     leadWebhookUrl: string | null;
     knowledgeBaseStatus: string;
@@ -39,6 +40,7 @@ export async function getDashboardSession({ headers }: { headers: Headers }): Pr
         billingStatus: m.billingStatus,
         status: m.status,
         domain: m.domain,
+        widgetPosition: m.widgetPosition,
         persona: m.persona ?? null,
         leadWebhookUrl: m.leadWebhookUrl,
         knowledgeBaseStatus: m.knowledgeBaseStatus,

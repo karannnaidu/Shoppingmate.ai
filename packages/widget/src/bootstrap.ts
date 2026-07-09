@@ -22,6 +22,9 @@ export type BootstrapResult =
       wsUrl: string;
       merchantStatus: string;
       personaId: string | null;
+      /** Dashboard-configured launcher placement (one of the widget position
+       *  classes), or null to keep the host/default placement. */
+      widgetPosition: string | null;
       voice: VoiceBootstrap | null;
       visitorId: string;
     }
@@ -83,6 +86,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       status: string;
       personaId?: string | null;
       platform?: string | null;
+      widgetPosition?: string | null;
     };
 
     // Route the bot's cart host-actions to the Shopify Cart AJAX bridge (vs the
@@ -127,6 +131,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       wsUrl: sessionBody.wsUrl,
       merchantStatus: installBody.status,
       personaId: installBody.personaId ?? voice?.personaId ?? null,
+      widgetPosition: installBody.widgetPosition ?? null,
       voice,
       visitorId,
     };

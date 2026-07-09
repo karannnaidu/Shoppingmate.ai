@@ -42,6 +42,10 @@ export const merchants = pgTable('merchants', {
   couponFieldSelector: text('coupon_field_selector'),
   policyUrls: jsonb('policy_urls'),
   personaId: text('persona_id').default('concierge').notNull(),
+  // Initial launcher placement, controlled from the dashboard and delivered to
+  // the widget in the /v1/install response. One of the widget POSITION_CLASSES
+  // (bottom-right default, bottom-left, center-left, etc.). Null = widget default.
+  widgetPosition: text('widget_position'),
   brandSummary: text('brand_summary'),
   brandCategories: text('brand_categories').array(),
   installedAt: timestamp('installed_at', { withTimezone: true }).notNull().defaultNow(),
