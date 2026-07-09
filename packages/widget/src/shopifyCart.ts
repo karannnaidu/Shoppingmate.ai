@@ -41,6 +41,45 @@ function variantNumber(ref: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+// The item is in the cart (verified), but the shopper's THEME renders its cart
+// badge/drawer independently and won't reflect a third-party AJAX change on its
+// own. Nudge it: dispatch the cart-update events themes commonly listen for and
+// call known theme refresh globals (best-effort, harmless if absent). The
+// transaction is already correct regardless — this is purely visual feedback.
+function notifyThemeCartChanged(cart: ShopifyCart | null): void {
+  try {
+    const detail = { cart } as Record<string, unknown>;
+    const names = [
+      'cart:refresh',
+      'cart:updated',
+      'cart:change',
+      'cart:build',
+      'cart:rerender',
+      'ajaxCart:afterCartLoad',
+      'cart.requestComplete',
+      'added.ajaxProduct',
+    ];
+    for (const n of names) {
+      document.dispatchEvent(new CustomEvent(n, { bubbles: true, detail }));
+      window.dispatchEvent(new CustomEvent(n, { bubbles: true, detail }));
+    }
+    const w = window as unknown as Record<string, unknown>;
+    if (typeof w.getCartUpdate === 'function') (w.getCartUpdate as () => void)();
+    if (typeof w.after_add_to_cart === 'function') (w.after_add_to_cart as (c: unknown) => void)(cart);
+    const jq = w.jQuery as undefined | ((sel: unknown) => { trigger: (e: string, a?: unknown) => void });
+    if (jq) {
+      try {
+        jq(document.body).trigger('cart:updated', [cart]);
+        jq(document.body).trigger('added.ajaxProduct');
+      } catch {
+        /* jQuery present but trigger failed — ignore */
+      }
+    }
+  } catch {
+    /* best-effort visual refresh only */
+  }
+}
+
 async function readCart(fetchFn: typeof fetch): Promise<ShopifyCart | null> {
   try {
     const res = await fetchFn('/cart.js', { credentials: 'same-origin' });
@@ -79,7 +118,10 @@ export async function shopifyCartAdd(
     if (!res.ok) return { ok: false, reason: 'not_found' }; // 422 = sold out / bad variant
     // Verify-after: the variant is really in the cart now.
     const cart = await readCart(fetchFn);
-    if (cart && cart.items.some((i) => i.id === id)) return { ok: true, values: cartToValues(cart) };
+    if (cart && cart.items.some((i) => i.id === id)) {
+      notifyThemeCartChanged(cart);
+      return { ok: true, values: cartToValues(cart) };
+    }
     return { ok: false, reason: 'not_found' };
   } catch {
     return { ok: false, reason: 'not_found' };
@@ -108,6 +150,7 @@ export async function shopifyCartSetQty(
     });
     if (!res.ok) return { ok: false, reason: 'not_found' };
     const cart = (await res.json().catch(() => null)) as ShopifyCart | null;
+    notifyThemeCartChanged(cart);
     return cart ? { ok: true, values: cartToValues(cart) } : { ok: true };
   } catch {
     return { ok: false, reason: 'not_found' };
@@ -121,7 +164,9 @@ export async function shopifyCartClear(fetchFn: typeof fetch = fetch): Promise<H
       credentials: 'same-origin',
       headers: JSON_HEADERS,
     });
-    return res.ok ? { ok: true } : { ok: false, reason: 'not_found' };
+    if (!res.ok) return { ok: false, reason: 'not_found' };
+    notifyThemeCartChanged(await readCart(fetchFn));
+    return { ok: true };
   } catch {
     return { ok: false, reason: 'not_found' };
   }

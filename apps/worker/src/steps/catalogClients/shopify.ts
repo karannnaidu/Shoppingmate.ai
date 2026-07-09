@@ -38,6 +38,7 @@ type ShopifyResp = {
     body_html: string | null;
     handle: string;
     image: { src: string } | null;
+    images?: Array<{ src: string }>;
     variants: Array<{
       id: number;
       sku: string | null;
@@ -77,12 +78,37 @@ function variantOptions(v: ShopifyResp['products'][0]['variants'][0]): Record<st
   return out;
 }
 
+// Read the shop's presentment currency (ISO code) from /cart.js. Best-effort:
+// returns 'USD' if the endpoint is unavailable or malformed.
+async function fetchShopCurrency(domain: string, userAgent: string): Promise<string> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8_000);
+    try {
+      const res = await fetch(`https://${domain}/cart.js`, {
+        headers: { 'user-agent': userAgent, accept: 'application/json' },
+        signal: controller.signal,
+      });
+      if (!res.ok) return 'USD';
+      const body = (await res.json()) as { currency?: unknown };
+      return typeof body.currency === 'string' && body.currency.length === 3 ? body.currency : 'USD';
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return 'USD';
+  }
+}
+
 export async function fetchShopifyCatalog(
   domain: string,
   opts: { cap: number; timeoutMs: number },
 ): Promise<CatalogClientResult> {
   const products: NormalizedProduct[] = [];
   const deadline = Date.now() + opts.timeoutMs;
+  // The shop's presentment currency isn't in /products.json — fetch it once from
+  // /cart.js (which returns e.g. {"currency":"INR"}). Defaults to USD on failure.
+  const currency = await fetchShopCurrency(domain, USER_AGENT);
   let page = 1;
   while (products.length < opts.cap && Date.now() < deadline) {
     const controller = new AbortController();
@@ -106,10 +132,12 @@ export async function fetchShopifyCatalog(
           sku: p.handle,
           title: p.title,
           description: stripHtml(p.body_html),
-          imageUrl: p.image?.src ?? null,
+          // Products expose their gallery in `images[]`; the top-level `image`
+          // is often null, so prefer the first gallery image.
+          imageUrl: p.images?.[0]?.src ?? p.image?.src ?? null,
           productUrl: `https://${domain}/products/${p.handle}`,
           priceCents: firstVar ? priceToCents(firstVar.price) : null,
-          currency: 'USD',
+          currency,
           inStock: p.variants.some((v) => v.available),
           variants: p.variants.map((v) => ({
             id: String(v.id),
