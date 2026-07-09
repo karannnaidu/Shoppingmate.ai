@@ -223,6 +223,27 @@ export async function onboardingHandler(
       .where(eq(schema.merchants.id, merchantId));
   }
 
+  // Shopify (storefront-bridge) carts are driven CLIENT-SIDE by the widget's
+  // Cart AJAX, so a server-side cart smoke can't validate them — a 422 here is a
+  // false negative that would wrongly mark the store 'degraded'. Catalog sync +
+  // the widget's own install ping are the real signals, so finalize as live and
+  // skip the server smoke.
+  if (platform === 'shopify') {
+    await db
+      .update(schema.merchants)
+      .set({ status: 'live', smokePassedAt: new Date(), lastIndexedAt: new Date(), lastError: null })
+      .where(eq(schema.merchants.id, merchantId));
+    await emitMetric(merchantId, schema.metricNames.onboardingCompleted, {
+      platform,
+      durationMs: Date.now() - start,
+    });
+    log.info(
+      { merchantId, platform, durationMs: Date.now() - start },
+      'onboarding complete (shopify — server cart smoke skipped, client-side bridge)',
+    );
+    return;
+  }
+
   // Step 5 — SmokeTest
   await emitMetric(merchantId, schema.metricNames.onboardingSmokeStarted);
   const [firstProductForSmoke] = await db

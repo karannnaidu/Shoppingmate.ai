@@ -30,11 +30,16 @@ export async function POST(req: Request) {
     .limit(1);
   const allowedDomains = Array.from(new Set([...(existing?.allowedDomains ?? []), ...wanted]));
 
+  // Record the store + allowlist, but do NOT flip status to 'onboarding' here:
+  // nextInstallAction() treats 'onboarding' as "already in progress" and no-ops,
+  // so pre-setting it would stop the widget's /v1/install from ever enqueuing
+  // the worker (the store would stay catalog-less forever). The wizard advances
+  // by `domain` now, not status; the real onboarding is enqueued when the widget
+  // first loads and calls /v1/install.
   await db.update(merchants).set({
     domain: host,
     allowedDomains,
     adapterConfig: { type: 'dom_pending', source_url: parsed.data.url },
-    status: 'onboarding',
   }).where(eq(merchants.id, session.merchant.id));
 
   return NextResponse.json({ ok: true });
