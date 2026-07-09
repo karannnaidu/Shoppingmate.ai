@@ -14,24 +14,47 @@ export type KbDoc = {
 
 export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const totalTokens = docs.reduce((sum, d) => sum + (d.enabled ? d.tokenCount : 0), 0);
   const overBudget = totalTokens > 8000;
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const init = await fetch('/api/kb/upload', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ filename: file.name, mimeType: file.type, sizeBytes: file.size }),
-    });
-    const { upload_url } = await init.json();
-    if (upload_url) {
-      await fetch(upload_url, { method: 'PUT', body: file, headers: { 'content-type': file.type } });
-      window.location.reload();
+  async function upload(file: File) {
+    setError(null);
+    if (file.size > 4 * 1024 * 1024) {
+      setError('File too large — max 4 MB.');
+      return;
     }
-    setUploading(false);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/kb/upload', { method: 'POST', body: fd });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof json.error === 'string' ? json.error : 'Upload failed. Please try again.');
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setError('Upload failed — check your connection and try again.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) void upload(file);
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (uploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) void upload(file);
   }
 
   return (
@@ -39,11 +62,36 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
       <Card>
         <CardHeader><CardTitle>Brand Knowledge Files</CardTitle></CardHeader>
         <CardContent>
-          <label className={cn('flex flex-col items-center justify-center border-2 border-dashed border-border rounded-2xl p-10 cursor-pointer transition-colors', uploading ? 'opacity-50' : 'hover:border-border-strong hover:bg-surface-muted')}>
-            <input type="file" accept=".pdf,.docx,.md,.txt" onChange={onFile} className="hidden" />
-            <p className="text-sm font-medium text-text-primary">{uploading ? 'Uploading…' : 'Drag and drop or click to upload'}</p>
-            <p className="text-xs text-text-secondary mt-1">PDF, .docx, .md, .txt — up to 10 MB</p>
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!uploading) setDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+            }}
+            onDrop={onDrop}
+            className={cn(
+              'flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-10 cursor-pointer transition-colors',
+              uploading
+                ? 'opacity-50 border-border'
+                : dragOver
+                  ? 'border-violet bg-violet/5'
+                  : 'border-border hover:border-border-strong hover:bg-surface-muted',
+            )}
+          >
+            <input type="file" accept=".pdf,.docx,.md,.txt" onChange={onFile} disabled={uploading} className="hidden" />
+            <p className="text-sm font-medium text-text-primary">
+              {uploading ? 'Uploading…' : dragOver ? 'Drop to upload' : 'Drag and drop or click to upload'}
+            </p>
+            <p className="text-xs text-text-secondary mt-1">PDF, .docx, .md, .txt — up to 4 MB</p>
           </label>
+          {error && (
+            <p className="text-sm text-rose-500 mt-3" role="alert" aria-live="polite">
+              {error}
+            </p>
+          )}
         </CardContent>
       </Card>
       <div className={cn('text-sm rounded-md border p-3 tabular-nums', overBudget ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-surface-muted border-border text-text-secondary')}>

@@ -34,6 +34,23 @@ export async function presignKbUpload(args: { key: string; contentType: string; 
   return getSignedUrl(s3, command, { expiresIn: args.expiresIn ?? 600 });
 }
 
+// Server-side upload to R2. Used by the KB upload route so the browser never
+// PUTs directly to the R2 domain (which would require a bucket CORS policy).
+export async function putKbObject(args: {
+  key: string;
+  body: Buffer | Uint8Array;
+  contentType: string;
+}): Promise<void> {
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: args.key,
+      Body: args.body,
+      ContentType: args.contentType,
+    }),
+  );
+}
+
 export async function presignKbDownload(args: { key: string; expiresIn?: number }): Promise<string> {
   const command = new GetObjectCommand({ Bucket: bucket, Key: args.key });
   return getSignedUrl(s3, command, { expiresIn: args.expiresIn ?? 600 });
