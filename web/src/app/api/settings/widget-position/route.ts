@@ -7,7 +7,8 @@ import { eq } from 'drizzle-orm';
 import { getDashboardSession } from '@/lib/session';
 
 // Must match the widget's POSITION_CLASSES (packages/widget/src/widget.ts).
-export const WIDGET_POSITIONS = [
+// NOT exported: Next.js route files only allow HTTP-method + config exports.
+const WIDGET_POSITIONS = [
   'bottom-right',
   'bottom-left',
   'bottom-center',
