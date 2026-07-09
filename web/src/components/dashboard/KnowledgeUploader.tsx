@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/cn';
@@ -146,12 +146,27 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
   );
 }
 
-// Edit a document's extracted text and re-train on Save. Loads the current text,
-// POSTs the edit, and reloads once the re-ingest is queued.
+function Spinner() {
+  return (
+    <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Edit a document's extracted text and re-train on save. Loads the current text,
+// tracks unsaved changes, supports keyboard shortcuts (Esc / Cmd-Ctrl+Enter),
+// and re-ingests on save.
 function DocEditor({ doc, onClose }: { doc: KbDoc; onClose: () => void }) {
   const [text, setText] = useState<string | null>(null);
+  const [initial, setInitial] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const loaded = text != null;
+  const dirty = loaded && text !== initial;
 
   useEffect(() => {
     let active = true;
@@ -159,9 +174,16 @@ function DocEditor({ doc, onClose }: { doc: KbDoc; onClose: () => void }) {
       try {
         const r = await fetch(`/api/kb/${doc.id}/text`);
         const j = await r.json();
-        if (active) setText(typeof j.text === 'string' ? j.text : '');
+        const t = typeof j.text === 'string' ? j.text : '';
+        if (active) {
+          setText(t);
+          setInitial(t);
+        }
       } catch {
-        if (active) setText('');
+        if (active) {
+          setText('');
+          setInitial('');
+        }
       }
     })();
     return () => {
@@ -169,8 +191,19 @@ function DocEditor({ doc, onClose }: { doc: KbDoc; onClose: () => void }) {
     };
   }, [doc.id]);
 
-  async function save() {
-    if (text == null) return;
+  // Focus the editor once the text has loaded.
+  useEffect(() => {
+    if (loaded) textareaRef.current?.focus();
+  }, [loaded]);
+
+  const attemptClose = useCallback(() => {
+    if (saving) return;
+    if (dirty && !window.confirm('Discard your unsaved changes?')) return;
+    onClose();
+  }, [dirty, saving, onClose]);
+
+  const save = useCallback(async () => {
+    if (text == null || !dirty) return;
     setSaving(true);
     setError(null);
     try {
@@ -190,50 +223,121 @@ function DocEditor({ doc, onClose }: { doc: KbDoc; onClose: () => void }) {
       setError('Save failed — please try again.');
       setSaving(false);
     }
-  }
+  }, [text, dirty, doc.id]);
+
+  // Keyboard: Esc closes (with unsaved guard), Cmd/Ctrl+Enter saves.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        attemptClose();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        void save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [attemptClose, save]);
+
+  const chars = text?.length ?? 0;
+  const words = text ? (text.trim().match(/\S+/g)?.length ?? 0) : 0;
+  const approxTokens = Math.ceil(chars / 4);
+  const overBudget = approxTokens > 8000;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={attemptClose}
       role="dialog"
       aria-modal="true"
+      aria-labelledby="kb-editor-title"
     >
       <div
-        className="w-full max-w-2xl rounded-lg border border-border bg-surface p-5 flex flex-col gap-3"
+        className="flex w-full max-w-3xl max-h-[85vh] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-text-primary">Edit — {doc.filename}</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-text-muted hover:text-text-primary">
-            ×
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div className="min-w-0">
+            <h3 id="kb-editor-title" className="text-sm font-semibold text-text-primary">
+              Edit knowledge
+            </h3>
+            <p className="truncate text-xs text-text-secondary" title={doc.filename}>
+              {doc.filename}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={attemptClose}
+            aria-label="Close editor"
+            className="-mr-1 -mt-1 rounded-md p-1.5 text-text-muted hover:bg-surface-muted hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-violet/40"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
-        <p className="text-xs text-text-secondary">
-          Fix any mistakes below. Saving re-trains the assistant on this content within seconds.
-        </p>
-        {text == null ? (
-          <p className="text-sm text-text-muted py-10 text-center">Loading…</p>
-        ) : (
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={16}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary font-mono resize-y focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
-          />
-        )}
-        {error && (
-          <p className="text-sm text-rose-500" role="alert" aria-live="polite">
-            {error}
+
+        {/* Helper */}
+        <div className="border-b border-border bg-surface-muted/40 px-5 py-2.5">
+          <p className="text-xs text-text-secondary">
+            This is the text the assistant learns from. Fix anything wrong —{' '}
+            <span className="font-medium text-text-primary">Save re-trains within seconds.</span>
           </p>
-        )}
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={save} disabled={saving || text == null}>
-            {saving ? 'Saving…' : 'Save & re-train'}
-          </Button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-auto px-5 py-4">
+          {text == null ? (
+            <div className="space-y-2.5" aria-hidden="true">
+              {[92, 78, 88, 64, 84, 72].map((w, i) => (
+                <div key={i} className="h-4 animate-pulse rounded bg-surface-muted" style={{ width: `${w}%` }} />
+              ))}
+            </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              spellCheck
+              placeholder="This document has no text yet — paste or type the knowledge the assistant should learn."
+              className="min-h-[45vh] w-full resize-y rounded-lg border border-border bg-background px-4 py-3 text-sm leading-relaxed text-text-primary placeholder:text-text-muted focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
+            />
+          )}
+          {error && (
+            <p className="mt-3 text-sm text-rose-500" role="alert" aria-live="polite">
+              {error}
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3">
+          <div className="flex items-center gap-2.5 text-xs tabular-nums text-text-muted">
+            <span>{words.toLocaleString()} words</span>
+            <span aria-hidden="true">·</span>
+            <span className={overBudget ? 'text-amber-500' : undefined}>
+              ~{approxTokens.toLocaleString()} tokens
+            </span>
+            {dirty && <span className="text-amber-500">· Unsaved changes</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-[11px] text-text-muted sm:inline">⌘/Ctrl + Enter to save</span>
+            <Button variant="outline" onClick={attemptClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={save} disabled={saving || !dirty || text == null}>
+              {saving ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner />
+                  Re-training…
+                </span>
+              ) : (
+                'Save & re-train'
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
