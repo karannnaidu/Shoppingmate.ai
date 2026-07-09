@@ -18,6 +18,11 @@ export const SHADOW_CSS = `
 }
 .root > * { pointer-events: auto; }
 
+/* Hidden while the storefront's own cart drawer / cart page is open, so the
+   launcher never covers the cart. Toggled from widget.ts by detecting the
+   theme's cart-open state. */
+.root.cart-open-hidden { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 150ms ease-out; }
+
 /* Placement overrides — host sets data-position on <shoppingmate-widget>.
    Default is bottom-right. Center pins the tray to viewport middle. */
 .root.pos-bottom-right { bottom: 20px; right: 20px; align-items: flex-end; }

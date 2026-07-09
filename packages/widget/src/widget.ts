@@ -44,6 +44,46 @@ const COLLAPSE_IDLE_MS = 6000;
 // page. Keeps the nudge from permanently blocking content.
 const INVITE_DISMISS_MS = 12000;
 
+// Known "cart is open" body/html class markers across common Shopify themes
+// (Halo uses `cart-sidebar-show`). Substring match — these are specific enough
+// not to false-positive. The /cart page is handled separately by path.
+const CART_OPEN_CLASS_MARKERS = [
+  'cart-sidebar-show',
+  'cart-open',
+  'cart--open',
+  'cart-drawer-open',
+  'cart-drawer--active',
+  'cart-drawer-is-open',
+  'js-drawer-open',
+  'drawer-open',
+  'drawer--open',
+  'js-drawer-open-right',
+  'cart-active',
+  'is-cart-open',
+  'cart-is-open',
+  'cart-visible',
+  'show-cart',
+  'cart-show',
+  'mini-cart-active',
+  'minicart-active',
+  'mini-cart--active',
+  'ajaxcart-open',
+  'header-cart-open',
+];
+
+// Best-effort detection of whether the storefront's cart (drawer or page) is
+// currently open, so the launcher can get out of the way.
+function isStorefrontCartOpen(): boolean {
+  try {
+    const path = window.location.pathname || '';
+    if (path === '/cart' || path.startsWith('/cart/') || path.startsWith('/cart?')) return true;
+    const cls = `${document.documentElement.className} ${document.body ? document.body.className : ''}`.toLowerCase();
+    return CART_OPEN_CLASS_MARKERS.some((m) => cls.includes(m));
+  } catch {
+    return false;
+  }
+}
+
 function resolveVoiceStack(): 'live-kit' | 'web-speech' {
   // Build-time replaced via esbuild `define`. Default ships as 'live-kit'.
   const stack = (globalThis as unknown as { __SHOPPINGMATE_VOICE_STACK__?: string })
@@ -68,6 +108,7 @@ class WidgetElement extends HTMLElement {
   private inviteDismissTimer: ReturnType<typeof setTimeout> | null = null;
   private collapseTimer: ReturnType<typeof setTimeout> | null = null;
   private stopCollapse: (() => void) | null = null;
+  private cartObserver: MutationObserver | null = null;
   private stopDrag: (() => void) | null = null;
   // Subtle office room tone during a live call. Configured in connectedCallback
   // from the data-ambience attribute ("off" disables). The switch the user asked
@@ -122,6 +163,8 @@ class WidgetElement extends HTMLElement {
     // Shrink the resting launcher to just the avatar when the visitor isn't
     // using it, so it stops covering the page's own buttons.
     this.stopCollapse = this.setupAutoCollapse(root, this.pillHost);
+    // Hide the launcher while the storefront's cart drawer/page is open.
+    this.setupCartVisibility(root);
     // Warm the livekit-client ESM import now (it's ~120KB lazy-loaded from a
     // CDN). If we wait until the visitor clicks voice, the click→listening
     // path eats the full fetch + parse latency (~500-1500ms first visit). This
@@ -154,8 +197,34 @@ class WidgetElement extends HTMLElement {
     if (this.inviteDismissTimer) clearTimeout(this.inviteDismissTimer);
     if (this.collapseTimer) clearTimeout(this.collapseTimer);
     this.stopCollapse?.();
+    this.cartObserver?.disconnect();
+    window.removeEventListener('popstate', this.onCartVisibilityChange);
     this.stopDrag?.();
   }
+
+  // Hide the launcher whenever the storefront's own cart (drawer or /cart page)
+  // is open so it never covers the cart. Watches body/html class changes (how
+  // themes toggle their cart drawer) and the URL path. Never hides during a live
+  // call — its controls must stay reachable.
+  private setupCartVisibility(root: HTMLElement): void {
+    this.onCartVisibilityChange();
+    this.cartObserver = new MutationObserver(this.onCartVisibilityChange);
+    this.cartObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    if (document.body) {
+      this.cartObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    }
+    window.addEventListener('popstate', this.onCartVisibilityChange);
+  }
+
+  private onCartVisibilityChange = (): void => {
+    if (!this.rootEl) return;
+    const s = this.store.get();
+    const inCall = s.mode === 'call' || s.voiceState !== 'idle';
+    this.rootEl.classList.toggle('cart-open-hidden', isStorefrontCartOpen() && !inCall);
+  };
 
   // Auto-collapse the resting launcher to just the avatar after a few idle
   // seconds (and immediately arm it on load) so it never blocks the host page's
@@ -343,6 +412,9 @@ class WidgetElement extends HTMLElement {
   private render() {
     if (!this.pillHost || !this.panelHost) return;
     const s = this.store.get();
+    // Keep cart-open visibility in sync with call state (a live call must never
+    // be hidden even if the cart is open).
+    this.onCartVisibilityChange();
     const callable = createSTT() !== null;
     if (s.mode === 'call') {
       renderCall(this.panelHost, {
