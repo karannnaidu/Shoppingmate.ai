@@ -16,10 +16,17 @@ export async function ingestKbDoc(args: { documentId: string }): Promise<IngestR
     .where(eq(schema.brandKbDocuments.id, args.documentId));
 
   try {
-    const buf = await downloadKbObject(doc.storageUrl);
-    const text = await extractText(buf, doc.mimeType);
+    // Source of truth: the dashboard-edited text if present, otherwise extract
+    // from the original file in R2 (and persist it so it can be edited later).
+    const text =
+      doc.extractedText != null && doc.extractedText.trim().length > 0
+        ? doc.extractedText
+        : await extractText(await downloadKbObject(doc.storageUrl), doc.mimeType);
     const chunks = chunkText(text, { targetTokens: 256, maxTokens: 512 });
 
+    // Replace, don't append: clear this doc's existing chunks so a re-ingest
+    // (e.g. after an edit) updates the KB instead of duplicating it.
+    await db.delete(schema.brandKbChunks).where(eq(schema.brandKbChunks.documentId, args.documentId));
     if (chunks.length > 0) {
       await db.insert(schema.brandKbChunks).values(
         chunks.map((c) => ({
@@ -33,7 +40,7 @@ export async function ingestKbDoc(args: { documentId: string }): Promise<IngestR
     }
 
     await db.update(schema.brandKbDocuments)
-      .set({ status: 'ready', readyAt: new Date() })
+      .set({ status: 'ready', readyAt: new Date(), extractedText: text, errorMessage: null })
       .where(eq(schema.brandKbDocuments.id, args.documentId));
 
     await db.update(schema.merchants)

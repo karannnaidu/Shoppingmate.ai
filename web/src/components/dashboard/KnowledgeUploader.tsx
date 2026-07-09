@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/cn';
 
@@ -16,6 +17,7 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<KbDoc | null>(null);
   const totalTokens = docs.reduce((sum, d) => sum + (d.enabled ? d.tokenCount : 0), 0);
   const overBudget = totalTokens > 8000;
 
@@ -112,6 +114,7 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
                   <th className="text-left font-medium">Status</th>
                   <th className="text-left font-medium">Tokens</th>
                   <th className="text-left font-medium">Enabled</th>
+                  <th className="px-6 text-right font-medium">Edit</th>
                 </tr>
               </thead>
               <tbody className="text-text-primary">
@@ -122,6 +125,15 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
                     <td className="text-text-secondary">{d.status}</td>
                     <td className="tabular-nums text-text-secondary">{d.tokenCount}</td>
                     <td>{d.enabled ? <span className="text-emerald-500">✓</span> : <span className="text-text-muted">—</span>}</td>
+                    <td className="px-6 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(d)}
+                        className="text-violet hover:underline underline-offset-4"
+                      >
+                        Edit
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -129,6 +141,101 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
           </CardContent>
         </Card>
       )}
+      {editing && <DocEditor doc={editing} onClose={() => setEditing(null)} />}
+    </div>
+  );
+}
+
+// Edit a document's extracted text and re-train on Save. Loads the current text,
+// POSTs the edit, and reloads once the re-ingest is queued.
+function DocEditor({ doc, onClose }: { doc: KbDoc; onClose: () => void }) {
+  const [text, setText] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/kb/${doc.id}/text`);
+        const j = await r.json();
+        if (active) setText(typeof j.text === 'string' ? j.text : '');
+      } catch {
+        if (active) setText('');
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [doc.id]);
+
+  async function save() {
+    if (text == null) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/kb/${doc.id}/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+      const j = await res.json().catch(() => ({}));
+      setError(typeof j.error === 'string' ? j.error : 'Save failed.');
+      setSaving(false);
+    } catch {
+      setError('Save failed — please try again.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-2xl rounded-lg border border-border bg-surface p-5 flex flex-col gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-text-primary">Edit — {doc.filename}</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-text-muted hover:text-text-primary">
+            ×
+          </button>
+        </div>
+        <p className="text-xs text-text-secondary">
+          Fix any mistakes below. Saving re-trains the assistant on this content within seconds.
+        </p>
+        {text == null ? (
+          <p className="text-sm text-text-muted py-10 text-center">Loading…</p>
+        ) : (
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={16}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text-primary font-mono resize-y focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
+          />
+        )}
+        {error && (
+          <p className="text-sm text-rose-500" role="alert" aria-live="polite">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={saving || text == null}>
+            {saving ? 'Saving…' : 'Save & re-train'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

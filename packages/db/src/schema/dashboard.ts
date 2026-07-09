@@ -25,6 +25,10 @@ export const brandKbDocuments = pgTable('brand_kb_documents', {
   status: text('status').notNull().default('uploaded'),
   enabled: boolean('enabled').notNull().default(true),
   errorMessage: text('error_message'),
+  // The extracted plain text of the document. Populated at ingest and shown in
+  // the dashboard editor; editing it and saving re-ingests (re-chunks) from this
+  // text, so it becomes the source of truth once set.
+  extractedText: text('extracted_text'),
   uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
   readyAt: timestamp('ready_at', { withTimezone: true }),
 });
