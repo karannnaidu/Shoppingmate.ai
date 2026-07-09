@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/cn';
@@ -185,7 +185,117 @@ function InstallStep({ merchantId }: { merchantId: string }) {
             We couldn&apos;t find the script tag yet. Make sure it&apos;s deployed and try again.
           </p>
         )}
+        <DomainsManager />
       </CardContent>
     </Card>
+  );
+}
+
+// Lets the merchant whitelist every domain the widget runs on. This matters
+// because the widget reports window.location.host and the API rejects any host
+// not listed — a store on a custom domain (e.g. entered myshopify.com but serves
+// on yourbrand.com) would otherwise be blocked.
+function DomainsManager() {
+  const [domains, setDomains] = useState<string[]>([]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/install/domains');
+        const j = await r.json();
+        if (active) setDomains(Array.isArray(j.domains) ? j.domains : []);
+      } catch {
+        /* ignore — merchant can still add domains manually */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function save(next: string[]) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/install/domains', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domains: next }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(j.domains)) setDomains(j.domains);
+      else setError(j.error ?? 'Could not save domains.');
+    } catch {
+      setError('Could not save domains.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function add() {
+    const v = input.trim();
+    if (!v) return;
+    setInput('');
+    void save(Array.from(new Set([...domains, v])));
+  }
+
+  return (
+    <div className="rounded-md border border-border p-4 flex flex-col gap-3">
+      <div>
+        <p className="text-sm font-medium text-text-primary">Allowed domains</p>
+        <p className="text-xs text-text-secondary">
+          Every domain your storefront runs on (add your custom domain AND your
+          .myshopify.com). The assistant only loads on these.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {domains.length === 0 && (
+          <span className="text-xs text-text-muted">No domains yet — add one below.</span>
+        )}
+        {domains.map((d) => (
+          <span
+            key={d}
+            className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-1 text-xs font-mono text-text-primary"
+          >
+            {d}
+            <button
+              type="button"
+              aria-label={`Remove ${d}`}
+              className="text-text-muted hover:text-rose-500 disabled:opacity-40"
+              disabled={busy || domains.length <= 1}
+              onClick={() => void save(domains.filter((x) => x !== d))}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30 transition-colors"
+          placeholder="yourstore.com"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+        <Button type="button" variant="outline" onClick={add} disabled={busy || !input.trim()}>
+          Add
+        </Button>
+      </div>
+      {error && (
+        <p className="text-sm text-rose-500" role="alert" aria-live="polite">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

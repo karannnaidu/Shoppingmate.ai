@@ -23,6 +23,20 @@ export async function POST(req: Request) {
   // onboarding instead of 403-ing. Merge with anything already present.
   const bare = host.replace(/^www\./, '');
   const wanted = [host, bare, `www.${bare}`];
+
+  // Best-effort: many merchants enter their .myshopify.com URL but the store
+  // actually serves on a custom domain (a 301). Follow it and allowlist the
+  // final host too, so the widget isn't 403'd on the real storefront domain.
+  try {
+    const res = await fetch(parsed.data.url, { redirect: 'follow', signal: AbortSignal.timeout(6000) });
+    const finalHost = new URL(res.url).host;
+    if (finalHost && finalHost !== host) {
+      const finalBare = finalHost.replace(/^www\./, '');
+      wanted.push(finalHost, finalBare, `www.${finalBare}`);
+    }
+  } catch {
+    /* redirect resolution is best-effort; the merchant can add domains manually */
+  }
   const [existing] = await db
     .select({ allowedDomains: merchants.allowedDomains })
     .from(merchants)
