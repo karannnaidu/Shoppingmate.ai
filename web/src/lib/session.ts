@@ -11,6 +11,7 @@ export type DashboardSession = {
     plan: string;
     billingStatus: string;
     status: string;
+    domain: string | null;
     persona: { voiceDescriptorId: string; brandVoiceNotes: string; toneValue: number } | null;
     leadWebhookUrl: string | null;
     knowledgeBaseStatus: string;
@@ -37,6 +38,7 @@ export async function getDashboardSession({ headers }: { headers: Headers }): Pr
         plan: m.plan,
         billingStatus: m.billingStatus,
         status: m.status,
+        domain: m.domain,
         persona: m.persona ?? null,
         leadWebhookUrl: m.leadWebhookUrl,
         knowledgeBaseStatus: m.knowledgeBaseStatus,
@@ -60,10 +62,13 @@ export async function getDashboardSession({ headers }: { headers: Headers }): Pr
 export function resolveOnboardingStep(merchant: DashboardSession['merchant']): string {
   if (!merchant) return '/app/onboarding?step=2';
   if (merchant.billingStatus === 'pending') return '/app/onboarding?step=2';
-  if (['pending', 'onboarding'].includes(merchant.status)) {
-    return '/app/onboarding?step=3';
-  }
-  if (merchant.status === 'live' && !merchant.lastWidgetPing) return '/app/onboarding?step=4';
   if (merchant.status === 'suspended') return '/app/billing';
+  // Route by what's actually DONE, not the worker's catalog status. Using the
+  // worker's 'onboarding' status here bounced merchants back to step 3 the
+  // moment they connected a store (the store-URL form sets status='onboarding'),
+  // creating a loop out of step 4. The two real gates are: is a store connected
+  // (domain set) and has the widget been seen live (lastWidgetPing).
+  if (!merchant.domain) return '/app/onboarding?step=3';
+  if (!merchant.lastWidgetPing) return '/app/onboarding?step=4';
   return '/app';
 }
