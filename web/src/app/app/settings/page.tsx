@@ -16,7 +16,10 @@ export default async function SettingsPage() {
     <div className="flex flex-col gap-6 max-w-3xl">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Settings</h1>
       <PersonaForm initial={session.merchant.persona} />
-      <WidgetPlacementForm initial={session.merchant.widgetPosition} />
+      <WidgetPlacementForm
+        initialPosition={session.merchant.widgetPosition}
+        initialSize={session.merchant.widgetSize}
+      />
       <WebhookForm initial={session.merchant.leadWebhookUrl} />
       <InstallSnippet merchantId={session.merchant.id} lastPing={session.merchant.lastWidgetPing} />
       <DangerZone merchantId={session.merchant.id} />

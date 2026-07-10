@@ -35,6 +35,10 @@ const POSITION_CLASSES = new Set([
   'top-left',
 ]);
 
+// Launcher size, controllable from the dashboard (data-size / install response).
+// 'medium' is the default (no class); small/large map to CSS size-* classes.
+const SIZE_CLASSES = new Set(['small', 'medium', 'large']);
+
 // Resting launcher shrinks to just the avatar after this many idle ms so it
 // stops covering the host page's own CTAs. Any hover / focus / tap wakes it.
 const COLLAPSE_IDLE_MS = 6000;
@@ -143,7 +147,11 @@ class WidgetElement extends HTMLElement {
       this.merchantId === CALMOSIS_MERCHANT_ID ? 'center-left' : 'bottom-right';
     const position = (this.getAttribute('data-position') ?? defaultPosition).toLowerCase();
     const positionClass = POSITION_CLASSES.has(position) ? `pos-${position}` : 'pos-bottom-right';
-    root.className = `root ${positionClass}`;
+    // Launcher size (data-size on the host; overridable from the dashboard via
+    // the install response). 'medium' is the default and gets no class.
+    const size = (this.getAttribute('data-size') ?? 'medium').toLowerCase();
+    const sizeClass = SIZE_CLASSES.has(size) && size !== 'medium' ? ` size-${size}` : '';
+    root.className = `root ${positionClass}${sizeClass}`;
     sr.appendChild(root);
     this.rootEl = root;
     this.panelHost = document.createElement('div');
@@ -186,6 +194,16 @@ class WidgetElement extends HTMLElement {
       if (c.startsWith('pos-')) root.classList.remove(c);
     }
     root.classList.add(`pos-${pos}`);
+  }
+
+  // Apply a dashboard-configured launcher size (small/medium/large).
+  private applyServerSize(size: string): void {
+    const root = this.rootEl;
+    if (!root) return;
+    const s = size.toLowerCase();
+    if (!SIZE_CLASSES.has(s)) return;
+    root.classList.remove('size-small', 'size-large');
+    if (s !== 'medium') root.classList.add(`size-${s}`);
   }
 
   disconnectedCallback() {
@@ -271,6 +289,7 @@ class WidgetElement extends HTMLElement {
     // Apply the dashboard-configured launcher placement (unless the visitor has
     // dragged it somewhere, in which case their choice wins).
     if (result.widgetPosition) this.applyServerPosition(result.widgetPosition);
+    if (result.widgetSize) this.applyServerSize(result.widgetSize);
 
     const stack = resolveVoiceStack();
     const stt = createSTT();

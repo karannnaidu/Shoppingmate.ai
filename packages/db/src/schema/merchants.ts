@@ -46,6 +46,9 @@ export const merchants = pgTable('merchants', {
   // the widget in the /v1/install response. One of the widget POSITION_CLASSES
   // (bottom-right default, bottom-left, center-left, etc.). Null = widget default.
   widgetPosition: text('widget_position'),
+  // Launcher size (small/medium/large), delivered to the widget in /v1/install.
+  // Null = medium (widget default).
+  widgetSize: text('widget_size'),
   brandSummary: text('brand_summary'),
   brandCategories: text('brand_categories').array(),
   installedAt: timestamp('installed_at', { withTimezone: true }).notNull().defaultNow(),

@@ -619,6 +619,41 @@ export const SHADOW_CSS = `
 
 .hidden { display: none !important; }
 
+/* ---- Launcher size (merchant-configurable from the dashboard) ---- */
+/* Default (no class) is medium — the sizes above. small/large adjust the
+   launcher's avatar, controls, call button, and labels. */
+.root.size-small .tray-avatar { width: 34px; height: 34px; }
+.root.size-small .tray-btn { width: 28px; height: 28px; }
+.root.size-small .tray-btn :where(svg) { width: 12px; height: 12px; }
+.root.size-small .tray-call { height: 30px; padding: 0 11px 0 9px; font-size: 12px; }
+.root.size-small .tray-call :where(svg) { width: 13px; height: 13px; }
+.root.size-small .tray-name { font-size: 12px; }
+.root.size-small .tray-caption { font-size: 8.5px; }
+.root.size-large .tray-avatar { width: 52px; height: 52px; }
+.root.size-large .tray-btn { width: 38px; height: 38px; }
+.root.size-large .tray-btn :where(svg) { width: 17px; height: 17px; }
+.root.size-large .tray-call { height: 40px; padding: 0 18px 0 15px; font-size: 15px; }
+.root.size-large .tray-call :where(svg) { width: 17px; height: 17px; }
+.root.size-large .tray-name { font-size: 15px; }
+.root.size-large .tray-caption { font-size: 11px; }
+
+/* ---- Mobile: shrink the launcher so it doesn't dominate small screens ---- */
+@media (max-width: 480px) {
+  .tray { padding: 5px 7px 5px 5px; gap: 7px; }
+  .tray-avatar { width: 36px; height: 36px; }
+  .tray-btn { width: 28px; height: 28px; }
+  .tray-btn :where(svg) { width: 12px; height: 12px; }
+  .tray-call { height: 30px; padding: 0 11px 0 9px; font-size: 12px; }
+  .tray-call :where(svg) { width: 13px; height: 13px; }
+  .tray-name { font-size: 12px; }
+  .tray-caption { font-size: 8.5px; letter-spacing: 0.14em; }
+  .tray-waveform { height: 20px; }
+  .tray-controls { gap: 5px; }
+  .panel { width: calc(100vw - 24px); border-radius: 16px; }
+  .welcome { padding: 20px 18px 12px; }
+  .welcome-heading { font-size: 18px; }
+}
+
 /* ---- Reduced motion (a11y) ---- */
 @media (prefers-reduced-motion: reduce) {
   .tray, .tray.phase-incoming, .panel, .bubble, .tray-avatar, .tray-btn, .card, .input-row .send, .input-row input { animation: none !important; transition: none !important; }

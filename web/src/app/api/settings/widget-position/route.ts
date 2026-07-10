@@ -19,7 +19,13 @@ const WIDGET_POSITIONS = [
   'top-left',
 ] as const;
 
-const Body = z.object({ position: z.enum(WIDGET_POSITIONS) });
+const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
+
+// Both fields optional so the form can save appearance in one call.
+const Body = z.object({
+  position: z.enum(WIDGET_POSITIONS).optional(),
+  size: z.enum(WIDGET_SIZES).optional(),
+});
 
 export async function POST(req: Request) {
   const hdrs = await headers();
@@ -27,12 +33,15 @@ export async function POST(req: Request) {
   if (!session?.merchant) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: 'invalid position' }, { status: 400 });
+  if (!parsed.success || (parsed.data.position === undefined && parsed.data.size === undefined)) {
+    return NextResponse.json({ error: 'invalid position/size' }, { status: 400 });
+  }
 
-  await db
-    .update(merchants)
-    .set({ widgetPosition: parsed.data.position })
-    .where(eq(merchants.id, session.merchant.id));
+  const patch: { widgetPosition?: string; widgetSize?: string } = {};
+  if (parsed.data.position !== undefined) patch.widgetPosition = parsed.data.position;
+  if (parsed.data.size !== undefined) patch.widgetSize = parsed.data.size;
 
-  return NextResponse.json({ ok: true, position: parsed.data.position });
+  await db.update(merchants).set(patch).where(eq(merchants.id, session.merchant.id));
+
+  return NextResponse.json({ ok: true, ...patch });
 }
