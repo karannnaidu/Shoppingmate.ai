@@ -3,6 +3,8 @@ export const SHADOW_CSS = `
 * { box-sizing: border-box; }
 
 .root {
+  /* Brand accent — overridden per-merchant from the dashboard via widget.ts. */
+  --sm-accent: #16a34a;
   position: fixed;
   bottom: 20px;
   right: 20px;
@@ -158,8 +160,8 @@ export const SHADOW_CSS = `
   z-index: 2;
 }
 .tray-presence.online {
-  background: #22c55e;
-  box-shadow: 0 0 0 2px #0a0a0a, 0 0 10px rgba(34,197,94,0.7);
+  background: var(--sm-accent, #22c55e);
+  box-shadow: 0 0 0 2px #0a0a0a;
   animation: pulse 2.4s ease-in-out infinite;
 }
 .tray-presence.offline {
@@ -282,16 +284,16 @@ export const SHADOW_CSS = `
   height: 34px;
   padding: 0 14px 0 12px;
   border: none; border-radius: 9999px;
-  background: #16a34a;
+  background: var(--sm-accent, #16a34a);
   color: #fff;
   font-family: inherit;
   font-size: 13px; font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 6px 16px -6px rgba(22,163,74,0.8);
-  transition: transform 150ms ease-out, background 150ms ease-out, box-shadow 150ms ease-out;
+  box-shadow: 0 6px 16px -6px rgba(0,0,0,0.35);
+  transition: transform 150ms ease-out, filter 150ms ease-out, box-shadow 150ms ease-out;
 }
-.tray-call:hover { background: #15803d; transform: translateY(-1px); }
+.tray-call:hover { filter: brightness(0.92); transform: translateY(-1px); }
 .tray-call:active { transform: translateY(0) scale(0.97); }
 .tray-call :where(svg) { width: 15px; height: 15px; }
 .tray-call-label { line-height: 1; }
@@ -322,7 +324,7 @@ export const SHADOW_CSS = `
 .input-row input:focus-visible,
 .panel-close:focus-visible,
 .card:focus-visible {
-  outline: 2px solid #22c55e;
+  outline: 2px solid var(--sm-accent, #22c55e);
   outline-offset: 2px;
 }
 
@@ -572,12 +574,12 @@ export const SHADOW_CSS = `
 .input-row .send {
   width: 36px; height: 36px;
   border-radius: 9999px;
-  background: #22c55e;
-  color: #0a0a0a; border: none; cursor: pointer;
+  background: var(--sm-accent, #22c55e);
+  color: #fff; border: none; cursor: pointer;
   display: grid; place-items: center;
-  transition: transform 150ms ease-out, background 150ms ease-out, opacity 150ms ease-out;
+  transition: transform 150ms ease-out, filter 150ms ease-out, opacity 150ms ease-out;
 }
-.input-row .send:hover:not(:disabled) { transform: translateY(-1px); background: #16a34a; }
+.input-row .send:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(0.92); }
 .input-row .send:active:not(:disabled) { transform: translateY(0) scale(0.96); }
 .input-row .send:disabled { opacity: 0.4; cursor: not-allowed; }
 .input-row .send :where(svg) { width: 14px; height: 14px; }
@@ -586,15 +588,15 @@ export const SHADOW_CSS = `
   display: block;
   margin: 0 16px 12px;
   padding: 12px 16px;
-  background: #22c55e;
-  color: #0a0a0a;
+  background: var(--sm-accent, #22c55e);
+  color: #fff;
   text-align: center; text-decoration: none;
   font-weight: 600; font-size: 13px;
   letter-spacing: 0.02em;
   border-radius: 12px;
-  transition: background 150ms ease-out, transform 150ms ease-out;
+  transition: filter 150ms ease-out, transform 150ms ease-out;
 }
-.checkout-cta:hover { background: #16a34a; }
+.checkout-cta:hover { filter: brightness(0.92); }
 .checkout-cta:active { transform: scale(0.99); }
 
 /* ---- Panel footer ---- */

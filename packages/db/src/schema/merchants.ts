@@ -49,6 +49,10 @@ export const merchants = pgTable('merchants', {
   // Launcher size (small/medium/large), delivered to the widget in /v1/install.
   // Null = medium (widget default).
   widgetSize: text('widget_size'),
+  // Optional dashboard customizations delivered to the widget in /v1/install.
+  widgetAccent: text('widget_accent'),
+  widgetLabel: text('widget_label'),
+  widgetGreeting: text('widget_greeting'),
   brandSummary: text('brand_summary'),
   brandCategories: text('brand_categories').array(),
   installedAt: timestamp('installed_at', { withTimezone: true }).notNull().defaultNow(),

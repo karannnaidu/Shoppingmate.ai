@@ -27,6 +27,12 @@ export type BootstrapResult =
       widgetPosition: string | null;
       /** Dashboard-configured launcher size (small/medium/large), or null. */
       widgetSize: string | null;
+      /** Dashboard-configured brand accent color (CSS color), or null. */
+      widgetAccent: string | null;
+      /** Dashboard override for the launcher label text, or null. */
+      widgetLabel: string | null;
+      /** Dashboard override for the launcher caption/greeting, or null. */
+      widgetGreeting: string | null;
       voice: VoiceBootstrap | null;
       visitorId: string;
     }
@@ -90,6 +96,9 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       platform?: string | null;
       widgetPosition?: string | null;
       widgetSize?: string | null;
+      widgetAccent?: string | null;
+      widgetLabel?: string | null;
+      widgetGreeting?: string | null;
     };
 
     // Route the bot's cart host-actions to the Shopify Cart AJAX bridge (vs the
@@ -136,6 +145,9 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       personaId: installBody.personaId ?? voice?.personaId ?? null,
       widgetPosition: installBody.widgetPosition ?? null,
       widgetSize: installBody.widgetSize ?? null,
+      widgetAccent: installBody.widgetAccent ?? null,
+      widgetLabel: installBody.widgetLabel ?? null,
+      widgetGreeting: installBody.widgetGreeting ?? null,
       voice,
       visitorId,
     };

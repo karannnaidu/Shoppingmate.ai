@@ -19,6 +19,9 @@ export default async function SettingsPage() {
       <WidgetPlacementForm
         initialPosition={session.merchant.widgetPosition}
         initialSize={session.merchant.widgetSize}
+        initialAccent={session.merchant.widgetAccent}
+        initialLabel={session.merchant.widgetLabel}
+        initialGreeting={session.merchant.widgetGreeting}
       />
       <WebhookForm initial={session.merchant.leadWebhookUrl} />
       <InstallSnippet merchantId={session.merchant.id} lastPing={session.merchant.lastWidgetPing} />

@@ -104,6 +104,9 @@ class WidgetElement extends HTMLElement {
   private voiceMode: VoiceMode = createVoiceMode(null, createTTS());
   private voice: VoiceBootstrap | null = null;
   private persona: PersonaDisplay = getPersonaPlaceholder();
+  // Dashboard-configured launcher copy (null = widget defaults).
+  private launcherLabel: string | null = null;
+  private launcherCaption: string | null = null;
   private apiBase = '';
   private merchantId = '';
   private domain = window.location.host;
@@ -194,6 +197,20 @@ class WidgetElement extends HTMLElement {
       if (c.startsWith('pos-')) root.classList.remove(c);
     }
     root.classList.add(`pos-${pos}`);
+  }
+
+  // Apply a dashboard-configured brand accent color to the widget's accent
+  // elements (Call button, send, checkout CTA, presence dot, focus rings) via a
+  // CSS variable. Only accepts a safe CSS color token to avoid style injection.
+  private applyAccent(accent: string): void {
+    const root = this.rootEl;
+    if (!root) return;
+    const v = accent.trim();
+    // hex (#rgb/#rrggbb/#rrggbbaa) or rgb()/rgba() only.
+    if (!/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v) && !/^rgba?\([\d.,\s%]+\)$/i.test(v)) {
+      return;
+    }
+    root.style.setProperty('--sm-accent', v);
   }
 
   // Apply a dashboard-configured launcher size (small/medium/large).
@@ -290,6 +307,9 @@ class WidgetElement extends HTMLElement {
     // dragged it somewhere, in which case their choice wins).
     if (result.widgetPosition) this.applyServerPosition(result.widgetPosition);
     if (result.widgetSize) this.applyServerSize(result.widgetSize);
+    if (result.widgetAccent) this.applyAccent(result.widgetAccent);
+    this.launcherLabel = result.widgetLabel?.trim() || null;
+    this.launcherCaption = result.widgetGreeting?.trim() || null;
 
     const stack = resolveVoiceStack();
     const stt = createSTT();
@@ -473,6 +493,8 @@ class WidgetElement extends HTMLElement {
       personaName: this.persona.name,
       personaInitial: this.persona.initial,
       personaAvatarUrl: this.persona.avatarUrl,
+      launcherLabel: this.launcherLabel,
+      launcherCaption: this.launcherCaption,
       onCall: () => this.openCall(),
       onMute: (next) => this.voiceMode.setMuted(next),
       onEnd: () => {

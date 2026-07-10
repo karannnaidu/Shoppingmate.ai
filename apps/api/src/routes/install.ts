@@ -150,6 +150,9 @@ installRoute.post('/', async (c) => {
       platform: schema.merchants.platform,
       widgetPosition: schema.merchants.widgetPosition,
       widgetSize: schema.merchants.widgetSize,
+      widgetAccent: schema.merchants.widgetAccent,
+      widgetLabel: schema.merchants.widgetLabel,
+      widgetGreeting: schema.merchants.widgetGreeting,
     })
     .from(schema.merchants)
     .where(eq(schema.merchants.id, body.merchantId))
@@ -162,6 +165,9 @@ installRoute.post('/', async (c) => {
       platform: fresh?.platform ?? merchant.platform ?? null,
       widgetPosition: fresh?.widgetPosition ?? null,
       widgetSize: fresh?.widgetSize ?? null,
+      widgetAccent: fresh?.widgetAccent ?? null,
+      widgetLabel: fresh?.widgetLabel ?? null,
+      widgetGreeting: fresh?.widgetGreeting ?? null,
     },
     200,
   );

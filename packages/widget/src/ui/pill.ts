@@ -11,6 +11,10 @@ export type TrayProps = {
   personaName: string;
   personaInitial: string;
   personaAvatarUrl: string;
+  /** Dashboard override for the resting launcher name (default "Talk to {P}"). */
+  launcherLabel?: string | null;
+  /** Dashboard override for the resting launcher caption (default "AI ASSISTANT"). */
+  launcherCaption?: string | null;
   onCall: () => void;
   onMute: (next: boolean) => void;
   onEnd: () => void;
@@ -52,6 +56,8 @@ function trayKey(props: TrayProps, phase: CallPhase): string {
     props.personaName,
     props.personaInitial,
     props.personaAvatarUrl,
+    props.launcherLabel ?? '',
+    props.launcherCaption ?? '',
   ].join('|');
 }
 
@@ -123,15 +129,18 @@ function chromeFor(props: TrayProps, phase: CallPhase): PhaseChrome {
         nameText: props.personaName,
         controls: `${callBtn(STRINGS.callCta, STRINGS.retryAria)}${endBtn}`,
       };
-    default:
+    default: {
       // resting
+      const label = props.launcherLabel?.trim();
+      const greeting = props.launcherCaption?.trim();
       return {
-        caption: wsOffline ? STRINGS.captionOffline : STRINGS.captionResting,
+        caption: wsOffline ? STRINGS.captionOffline : greeting || STRINGS.captionResting,
         captionClass: wsOffline ? 'retry' : 'resting',
         presenceClass: presence,
-        nameText: `${STRINGS.talkToPrefix} ${props.personaName}`,
+        nameText: label || `${STRINGS.talkToPrefix} ${props.personaName}`,
         controls: props.callable ? callBtn(STRINGS.callCta, STRINGS.callAria) : chatBtn,
       };
+    }
   }
 }
 
