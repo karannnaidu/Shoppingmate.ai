@@ -120,6 +120,7 @@ export async function runFixturePure(
     startedAt: Date.now(),
     lastTurnAt: Date.now(),
     mode: 'text',
+    allowedSpeechTokens: [],
     ...fixture.initialSession,
   };
 
