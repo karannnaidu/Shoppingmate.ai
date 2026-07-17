@@ -14,7 +14,149 @@ vi.mock('@shoppingmate/db', () => ({
 }));
 vi.mock('@shoppingmate/jobs', () => ({ siteGraphCrawlQueue: { add: vi.fn() }, siteGraphExtractQueue: {} }));
 
-import { handleShopifyProductWebhook, handleShopifyOrderWebhook } from './shopify.js';
+import {
+  handleShopifyProductWebhook,
+  handleShopifyOrderWebhook,
+  handleShopifyCatalogUpsert,
+  handleShopifyCatalogDelete,
+  shopifyProductPayloadToRow,
+} from './shopify.js';
+
+describe('shopifyProductPayloadToRow()', () => {
+  it('maps a product webhook payload to a catalog row with numeric variant ids', () => {
+    const row = shopifyProductPayloadToRow(
+      {
+        id: 55,
+        title: 'Tee',
+        handle: 'tee',
+        body_html: '<p>soft</p>',
+        images: [{ src: 'https://cdn/t.jpg' }],
+        variants: [
+          { id: 9001, sku: 'TEE-S', price: '20.00', available: true, option1: 'S' },
+          { id: 9002, sku: 'TEE-L', price: '22.00', available: false, option1: 'L' },
+        ],
+      },
+      'shop.myshopify.com',
+      'm1',
+    );
+    expect(row).toMatchObject({
+      merchantId: 'm1',
+      sku: 'tee',
+      title: 'Tee',
+      description: 'soft',
+      imageUrl: 'https://cdn/t.jpg',
+      productUrl: 'https://shop.myshopify.com/products/tee',
+      priceCents: 2000,
+      inStock: true,
+      source: 'shopify_storefront',
+    });
+    expect(row?.variants).toEqual([
+      { id: '9001', sku: 'TEE-S', priceCents: 2000, inStock: true, options: { option1: 'S' } },
+      { id: '9002', sku: 'TEE-L', priceCents: 2200, inStock: false, options: { option1: 'L' } },
+    ]);
+  });
+
+  it('returns null when the payload has no handle', () => {
+    expect(shopifyProductPayloadToRow({ id: 1, title: 'x' }, 'shop.myshopify.com', 'm1')).toBeNull();
+  });
+});
+
+describe('handleShopifyCatalogUpsert', () => {
+  const body = JSON.stringify({
+    id: 55,
+    title: 'Tee',
+    handle: 'tee',
+    variants: [{ id: 9001, sku: 'TEE-S', price: '20.00', available: true }],
+  });
+
+  it('verifies signature and upserts the mapped row', async () => {
+    const upsertProduct = vi.fn().mockResolvedValue(undefined);
+    const out = await handleShopifyCatalogUpsert({
+      rawBody: body,
+      hmacHeader: 'abc',
+      shopDomain: 'shop.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      upsertProduct,
+    });
+    expect(out.status).toBe(200);
+    expect(upsertProduct).toHaveBeenCalledOnce();
+    const [row] = upsertProduct.mock.calls[0]!;
+    expect(row).toMatchObject({ merchantId: 'm1', sku: 'tee', priceCents: 2000 });
+  });
+
+  it('rejects bad signature with 401 and does not upsert', async () => {
+    const upsertProduct = vi.fn();
+    const out = await handleShopifyCatalogUpsert({
+      rawBody: body,
+      hmacHeader: 'bad',
+      shopDomain: 'shop.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => false,
+      upsertProduct,
+    });
+    expect(out.status).toBe(401);
+    expect(upsertProduct).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for an unknown shop', async () => {
+    const upsertProduct = vi.fn();
+    const out = await handleShopifyCatalogUpsert({
+      rawBody: body,
+      hmacHeader: 'abc',
+      shopDomain: 'nope.myshopify.com',
+      lookupMerchantId: async () => null,
+      verifyHmac: () => true,
+      upsertProduct,
+    });
+    expect(out.status).toBe(404);
+    expect(upsertProduct).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 without upsert when payload has no handle', async () => {
+    const upsertProduct = vi.fn();
+    const out = await handleShopifyCatalogUpsert({
+      rawBody: JSON.stringify({ id: 1 }),
+      hmacHeader: 'abc',
+      shopDomain: 'shop.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      upsertProduct,
+    });
+    expect(out.status).toBe(200);
+    expect(upsertProduct).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleShopifyCatalogDelete', () => {
+  it('verifies signature and deletes by merchant + handle', async () => {
+    const deleteProduct = vi.fn().mockResolvedValue(undefined);
+    const out = await handleShopifyCatalogDelete({
+      rawBody: JSON.stringify({ id: 55, handle: 'tee' }),
+      hmacHeader: 'abc',
+      shopDomain: 'shop.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => true,
+      deleteProduct,
+    });
+    expect(out.status).toBe(200);
+    expect(deleteProduct).toHaveBeenCalledWith('m1', 'tee');
+  });
+
+  it('rejects bad signature with 401', async () => {
+    const deleteProduct = vi.fn();
+    const out = await handleShopifyCatalogDelete({
+      rawBody: JSON.stringify({ id: 55, handle: 'tee' }),
+      hmacHeader: 'bad',
+      shopDomain: 'shop.myshopify.com',
+      lookupMerchantId: async () => 'm1',
+      verifyHmac: () => false,
+      deleteProduct,
+    });
+    expect(out.status).toBe(401);
+    expect(deleteProduct).not.toHaveBeenCalled();
+  });
+});
 
 describe('Shopify product webhook', () => {
   it('verifies signature and enqueues narrow re-extract', async () => {
