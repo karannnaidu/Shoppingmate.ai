@@ -4,6 +4,7 @@ import { childLogger } from '@shoppingmate/shared';
 import type { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { catalogSync } from '../steps/catalogSync.js';
+import { shopifyFinalizeOutcome } from '../steps/shopifyFinalizeOutcome.js';
 import { fingerprint } from '../steps/fingerprint.js';
 import { syncMerchantBrand } from '../steps/syncMerchantBrand.js';
 import { safetyCheck } from '../steps/safetyCheck.js';
@@ -229,16 +230,27 @@ export async function onboardingHandler(
   // the widget's own install ping are the real signals, so finalize as live and
   // skip the server smoke.
   if (platform === 'shopify') {
+    // If /products.json was blocked we fell back to a DOM crawl with no variant
+    // ids — cart.add can't resolve a numeric variant, so disable transactional
+    // and mark the store degraded rather than presenting it as fully live.
+    const outcome = shopifyFinalizeOutcome(catalog.source);
     await db
       .update(schema.merchants)
-      .set({ status: 'live', smokePassedAt: new Date(), lastIndexedAt: new Date(), lastError: null })
+      .set({
+        status: outcome.status,
+        adapterConfig: { ...adapterConfig, transactionalDisabled: outcome.transactionalDisabled },
+        smokePassedAt: outcome.status === 'live' ? new Date() : null,
+        lastIndexedAt: new Date(),
+        lastError: outcome.lastError,
+      })
       .where(eq(schema.merchants.id, merchantId));
     await emitMetric(merchantId, schema.metricNames.onboardingCompleted, {
       platform,
       durationMs: Date.now() - start,
+      transactional: !outcome.transactionalDisabled,
     });
     log.info(
-      { merchantId, platform, durationMs: Date.now() - start },
+      { merchantId, platform, status: outcome.status, catalogSource: catalog.source },
       'onboarding complete (shopify — server cart smoke skipped, client-side bridge)',
     );
     return;

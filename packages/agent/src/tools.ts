@@ -20,6 +20,14 @@ export const SHOPPINGMATE_DEMO_MERCHANT_ID =
  * drop the cart tools and steer the model to navigate the visitor to the
  * product page instead (see buildSystemPrompt). */
 export function merchantCanMutateCart(merchant: Merchant): boolean {
+  // Onboarding can explicitly opt a merchant out of transactional — e.g. a
+  // Shopify store whose /products.json is blocked, so its catalog came from a
+  // DOM crawl with NO variant ids and cart.add can't resolve a numeric variant.
+  // When flagged we drop the cart tools and steer the model to navigate instead.
+  const cfg = merchant.adapterConfig;
+  if (cfg && typeof cfg === 'object' && (cfg as Record<string, unknown>).transactionalDisabled === true) {
+    return false;
+  }
   return merchant.adapterType !== 'dom' && merchant.adapterType !== 'suggest';
 }
 

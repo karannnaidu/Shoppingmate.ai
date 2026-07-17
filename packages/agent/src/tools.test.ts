@@ -7,9 +7,32 @@ import type {
 } from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
 import { describe, expect, it } from 'vitest';
-import { buildToolSurface, dispatchTool, normalizeCalmosisSku } from './tools.js';
+import { buildToolSurface, dispatchTool, merchantCanMutateCart, normalizeCalmosisSku } from './tools.js';
 
 const merchant = { adapterType: 'shopify' } as unknown as Merchant;
+
+describe('merchantCanMutateCart()', () => {
+  it('is true for a Shopify merchant with no override', () => {
+    expect(
+      merchantCanMutateCart({ adapterType: 'shopify', adapterConfig: {} } as unknown as Merchant),
+    ).toBe(true);
+  });
+
+  it('is false when adapterConfig.transactionalDisabled is set (blocked /products.json → no variant ids)', () => {
+    expect(
+      merchantCanMutateCart({
+        adapterType: 'shopify',
+        adapterConfig: { transactionalDisabled: true },
+      } as unknown as Merchant),
+    ).toBe(false);
+  });
+
+  it('stays false for a faked DOM adapter', () => {
+    expect(
+      merchantCanMutateCart({ adapterType: 'dom', adapterConfig: {} } as unknown as Merchant),
+    ).toBe(false);
+  });
+});
 
 describe('normalizeCalmosisSku()', () => {
   it('passes through the exact canonical SKUs', () => {

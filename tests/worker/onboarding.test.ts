@@ -61,7 +61,7 @@ describe('onboardingHandler', () => {
     process.env.GOOGLE_SAFE_BROWSING_API_KEY = 'test-key';
   });
 
-  it('happy path: safe + Shopify → status=live, products synced, smoke passed', async () => {
+  it('happy path: safe + Shopify → status=live, products synced, smoke skipped (client-side cart)', async () => {
     const domain = 'shopify-happy.test';
     const id = await provision(domain);
     server.use(
@@ -120,7 +120,10 @@ describe('onboardingHandler', () => {
       .where(eq(schema.metricEvents.merchantId, id));
     const names = metrics.map((mm) => mm.metricName);
     expect(names).toContain('onboarding.catalog_sync.completed');
-    expect(names).toContain('onboarding.smoke.passed');
+    // Shopify carts run client-side via the widget's Cart AJAX bridge, so the
+    // server-side smoke is skipped (a 422 there is a false negative). Finalize
+    // sets smokePassedAt directly and emits completed without a smoke.passed.
+    expect(names).not.toContain('onboarding.smoke.passed');
     expect(names).toContain('onboarding.completed');
 
     await db.delete(schema.products).where(eq(schema.products.merchantId, id));
