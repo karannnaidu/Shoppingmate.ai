@@ -36,6 +36,7 @@ import { conversionRoute } from './routes/conversion.js';
 import { dashboardAttributionRoute } from './routes/dashboard-attribution.js';
 import { healthRoute } from './routes/health.js';
 import { installRoute } from './routes/install.js';
+import { shopifyProvisionRoute } from './routes/shopifyProvision.js';
 import { sessionRoute } from './routes/session.js';
 import { siteGraphRoute } from './routes/siteGraph.js';
 import { shopifyWebhookRoute } from './routes/webhooks/shopify.js';
@@ -62,6 +63,7 @@ app.route('/health', healthRoute);
 app.route('/v1/conversion', conversionRoute);
 app.route('/v1/dashboard/attribution', dashboardAttributionRoute);
 app.route('/v1/install', installRoute);
+app.route('/v1/shopify/provision', shopifyProvisionRoute);
 app.route('/v1/session', sessionRoute);
 app.route('/v1/site-graph', siteGraphRoute);
 app.route('/v1/voice/token', voiceTokenRoute);
@@ -217,6 +219,15 @@ mountAgentWs(server, {
                     outcome: tags.outcome,
                     attributedCents: tags.attributed_cents,
                   }).then(() => {
+                    const _wid = (record.identity ?? {}) as Record<string, unknown>;
+                    logger.info(
+                      {
+                        evt: 'pii_diag', phase: 'write', source: 'text', sessionId,
+                        visitorId: endingVisitorId,
+                        wrote: { name: Boolean(_wid.name), phone: Boolean(_wid.phone), email: Boolean(_wid.email), address: Boolean(_wid.address) },
+                      },
+                      'PII-DIAG write',
+                    );
                     logger.info(
                       { sessionId, visitorId: endingVisitorId },
                       'visitor profile upserted (text)',
@@ -429,6 +440,20 @@ async function loadPromptOpts(
         visitorSummaryText = summary;
         logger.info({ merchantId, visitorId, sessionCount: vp?.sessionCount }, 'personalization: returning visitor (text)');
       }
+      // PII-DIAG (Phase 0, remove after root-cause confirmed): which visitor_id
+      // this request resolved to + whether the loaded silo carried PII. Log the
+      // full (random, non-PII) visitor_id so two devices can be compared; never
+      // log the PII values themselves.
+      const _id = (vp?.identity ?? {}) as Record<string, unknown>;
+      logger.info(
+        {
+          evt: 'pii_diag', phase: 'load', source: 'text', requestedVisitorId: visitorId,
+          loadedVisitorId: vp?.visitorId ?? null, sessionCount: vp?.sessionCount ?? 0,
+          injectedPii: Boolean(summary),
+          has: { name: Boolean(_id.name), phone: Boolean(_id.phone), email: Boolean(_id.email), address: Boolean(_id.address) },
+        },
+        'PII-DIAG load',
+      );
     } catch (err) {
       logger.warn({ err, merchantId, visitorId }, 'visitor profile load failed (text)');
     }
