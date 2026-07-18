@@ -13,3 +13,6 @@ playwright-report/
 test-results/
 
 .vercel
+
+# Shopify embedded app — has its own git repo (see shoppingmate/)
+/shoppingmate/
