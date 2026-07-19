@@ -55,10 +55,19 @@ export async function syncMerchantBrand(
       BRAND_PAGES.map((p) => fetchPageText(`https://${args.domain}/${p}`, fetchFn)),
     );
     const crawledText = texts.filter(Boolean).join('\n\n');
+    // Ground the brand summary in the synced catalog so it's correct even when
+    // the page crawl is blocked (password-protected / dev / coming-soon stores).
+    const productRows = await db
+      .select({ title: schema.products.title })
+      .from(schema.products)
+      .where(eq(schema.products.merchantId, args.merchantId))
+      .limit(60);
+    const productTitles = productRows.map((r) => r.title);
     const profile = await (args.generate ?? generateBrandProfile)({
       brandName: args.brandName,
       domain: args.domain,
       crawledText,
+      productTitles,
     });
     await db
       .update(schema.merchants)

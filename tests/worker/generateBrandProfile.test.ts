@@ -64,6 +64,28 @@ describe('generateBrandProfile', () => {
     expect(profile.brandCategories).toEqual(['Backpacks', 'Tents']);
   });
 
+  it('feeds product titles to the model and uses them in the fallback when the page is a password wall', async () => {
+    const captured: Array<{ role: string; content: string }> = [];
+    const profile = await generateBrandProfile(
+      {
+        brandName: 'LockedShop',
+        domain: 'locked.test',
+        crawledText: 'Opening Soon. Enter store password.',
+        productCategories: [],
+        productTitles: ['Vitamin C Serum', 'Night Cream'],
+      },
+      async (messages) => {
+        for (const m of messages) captured.push(m);
+        return 'garbage';
+      },
+    );
+    const userMsg = captured.find((m) => m.role === 'user')?.content ?? '';
+    expect(userMsg).toContain('Vitamin C Serum');
+    // Deterministic fallback must describe the catalog, not the password wall.
+    expect(profile.brandSummary).toContain('Vitamin C Serum');
+    expect(profile.brandSummary.toLowerCase()).not.toContain('password');
+  });
+
   it('uses a generic summary when there is no usable crawled text', async () => {
     const profile = await generateBrandProfile(
       { brandName: 'Acme', domain: 'acme.test', crawledText: '   ', productCategories: [] },

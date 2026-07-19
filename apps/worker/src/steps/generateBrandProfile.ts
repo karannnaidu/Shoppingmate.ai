@@ -13,6 +13,9 @@ export type BrandProfileInput = {
   crawledText: string;
   /** Categories/collections/tags derived from the synced catalog. */
   productCategories?: string[];
+  /** Titles of synced products — the ground truth of what the store sells, used
+   *  when the page crawl is blocked (e.g. a password-protected / dev store). */
+  productTitles?: string[];
 };
 
 // Injectable LLM call for tests — returns the raw model text for the messages.
@@ -39,16 +42,25 @@ const BRAND_SYSTEM =
   'ONE or TWO plain sentences a store rep could say out loud about what the ' +
   'brand sells and who it is for — no marketing fluff, no prices, no claims not ' +
   'supported by the text. brand_categories is 2–6 short product-category labels. ' +
-  'Use only facts present in the provided text and categories; never invent.';
+  'Use only facts present in the provided text, categories, and product list; ' +
+  'never invent. If the store text is empty or a password/"opening soon" ' +
+  'placeholder, IGNORE it and describe the brand from the product catalog.';
 
 function buildUserPrompt(
   brandName: string,
   domain: string,
   text: string,
   categories: string[],
+  titles: string[],
 ): string {
   const cats = categories.length ? `\nKnown product categories: ${categories.join(', ')}.` : '';
-  return `Brand: ${brandName} (${domain}).${cats}\n\nStore text:\n${text}`;
+  const prods = titles.length
+    ? `\nProducts in the catalog: ${titles.slice(0, 60).join('; ')}.`
+    : '';
+  const storeText = text.trim()
+    ? `\n\nStore text:\n${text}`
+    : '\n\n(Store text unavailable — likely a password/placeholder page; rely on the catalog.)';
+  return `Brand: ${brandName} (${domain}).${cats}${prods}${storeText}`;
 }
 
 function dedupe(values: string[]): string[] {
@@ -93,7 +105,10 @@ export function parseBrandProfile(raw: string, fallbackCategories: string[]): Br
   }
 }
 
-function fallbackSummary(brandName: string, text: string): string {
+function fallbackSummary(brandName: string, text: string, titles: string[]): string {
+  if (titles.length) {
+    return `${brandName} sells products such as ${titles.slice(0, 5).join(', ')}. Ask about products, availability, and checkout.`;
+  }
   const firstSentence = text.trim().split(/(?<=[.!?])\s/)[0]?.slice(0, 240).trim();
   return firstSentence && firstSentence.length > 20
     ? firstSentence
@@ -111,10 +126,14 @@ export async function generateBrandProfile(
   chatFn: BrandChatFn = defaultChat,
 ): Promise<BrandProfile> {
   const categories = dedupe(input.productCategories ?? []);
+  const titles = input.productTitles ?? [];
   const text = input.crawledText.slice(0, MAX_TEXT);
   const messages: ChatMessage[] = [
     { role: 'system', content: BRAND_SYSTEM },
-    { role: 'user', content: buildUserPrompt(input.brandName, input.domain, text, categories) },
+    {
+      role: 'user',
+      content: buildUserPrompt(input.brandName, input.domain, text, categories, titles),
+    },
   ];
   let raw = '';
   try {
@@ -124,7 +143,7 @@ export async function generateBrandProfile(
   }
   return (
     parseBrandProfile(raw, categories) ?? {
-      brandSummary: fallbackSummary(input.brandName, text),
+      brandSummary: fallbackSummary(input.brandName, text, titles),
       brandCategories: categories,
     }
   );
