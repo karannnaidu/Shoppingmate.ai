@@ -55,12 +55,23 @@ afterAll(() => server.close());
 
 describe('fetchShopifyCatalogViaAdmin', () => {
   it('pulls products via Admin GraphQL and normalizes numeric variant ids', async () => {
-    server.use(http.post(ENDPOINT, () => HttpResponse.json(PAGE)));
+    let sawFilter: string | undefined;
+    server.use(
+      http.post(ENDPOINT, async ({ request }) => {
+        const body = (await request.json()) as { variables?: { filter?: string } };
+        sawFilter = body?.variables?.filter;
+        return HttpResponse.json(PAGE);
+      }),
+    );
 
     const result = await fetchShopifyCatalogViaAdmin('shop.test', 'shpat_token', {
       cap: 5000,
       timeoutMs: 90_000,
     });
+
+    // Only sellable products: excludes draft/archived (status) + hidden/unpublished.
+    expect(sawFilter).toContain('status:active');
+    expect(sawFilter).toContain('published_status:published');
 
     expect(result.kind).toBe('ok');
     if (result.kind !== 'ok') return;

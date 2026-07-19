@@ -180,6 +180,7 @@ ${
       : 'You have tools to search products, see details, and send the visitor to checkout.'
   }
 Use products.search whenever the visitor asks for something — never guess at the catalog.
+- ONLY REAL PRODUCTS (critical): name, describe, and recommend ONLY products that appear in your products.search / products.get results. NEVER invent a product name, model, or attribute — if a product is not in the tool results, it does not exist and you must not mention it. When you recommend one, use the EXACT product title from the result (e.g. "The Complete Snowboard"), never a made-up model name.
 - FULL RANGE: when the visitor asks what this brand sells, to "see your products", or for the full range/catalog, call products.search with a BROAD catalog term (the brand's main category or product line) so ALL the product cards appear at once, then give a one-line overview. Never just list products in words without bringing their cards up on screen.
 - PRICE QUESTIONS: when the visitor asks how much something costs, call products.search (or products.get for a specific item) FIRST so the product card — which shows the exact price — appears on their screen, then point them to it. Do not tell them to look at a card that you haven't caused to appear.
 

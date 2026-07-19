@@ -9,11 +9,15 @@ import type { CatalogClientResult, NormalizedProduct } from './shopify.js';
 const log = childLogger({ step: 'catalogSync.shopifyAdmin' });
 const API_VERSION = '2026-07';
 const PAGE_SIZE = 100;
+// Only sellable products reach the bot: ACTIVE status (excludes DRAFT/ARCHIVED)
+// and published to a sales channel (excludes hidden/unpublished). Works on
+// locked stores since these are data attributes, not storefront reachability.
+const CATALOG_FILTER = 'status:active AND published_status:published';
 
 const PRODUCTS_QUERY = `#graphql
-query Products($cursor: String, $size: Int!) {
+query Products($cursor: String, $size: Int!, $filter: String!) {
   shop { currencyCode }
-  products(first: $size, after: $cursor) {
+  products(first: $size, after: $cursor, query: $filter) {
     edges {
       cursor
       node {
@@ -110,7 +114,10 @@ export async function fetchShopifyCatalogViaAdmin(
       const res = await fetch(`https://${domain}/admin/api/${API_VERSION}/graphql.json`, {
         method: 'POST',
         headers: { 'X-Shopify-Access-Token': token, 'content-type': 'application/json' },
-        body: JSON.stringify({ query: PRODUCTS_QUERY, variables: { cursor, size: PAGE_SIZE } }),
+        body: JSON.stringify({
+          query: PRODUCTS_QUERY,
+          variables: { cursor, size: PAGE_SIZE, filter: CATALOG_FILTER },
+        }),
         signal: controller.signal,
       });
       if (!res.ok) {
