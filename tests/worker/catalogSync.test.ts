@@ -1,11 +1,18 @@
 import { db, schema } from '@shoppingmate/db';
 import { generateMerchantId } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { NormalizedProduct } from '../../apps/worker/src/steps/catalogClients/shopify.js';
 import { catalogSync } from '../../apps/worker/src/steps/catalogSync.js';
 
 let merchantId: string;
+
+const mswServer = setupServer();
+beforeAll(() => mswServer.listen({ onUnhandledRequest: 'bypass' }));
+afterEach(() => mswServer.resetHandlers());
+afterAll(() => mswServer.close());
 
 beforeAll(async () => {
   merchantId = generateMerchantId();
@@ -87,6 +94,63 @@ describe('catalogSync', () => {
       .where(eq(schema.products.merchantId, merchantId));
     const variants = rows[0]?.variants as Array<{ id: string }> | null;
     expect(variants?.map((v) => v.id)).toEqual(['111', '222']);
+  });
+
+  it('uses the Admin GraphQL client when a shopifyToken is present (works on locked stores)', async () => {
+    await db.delete(schema.products).where(eq(schema.products.merchantId, merchantId));
+    mswServer.use(
+      http.post('https://cs.test/admin/api/2026-07/graphql.json', () =>
+        HttpResponse.json({
+          data: {
+            shop: { currencyCode: 'USD' },
+            products: {
+              edges: [
+                {
+                  cursor: 'c1',
+                  node: {
+                    handle: 'admin-tee',
+                    title: 'Admin Tee',
+                    descriptionHtml: null,
+                    onlineStoreUrl: null,
+                    featuredImage: null,
+                    variants: {
+                      edges: [
+                        {
+                          node: {
+                            id: 'gid://shopify/ProductVariant/555',
+                            sku: 'AT-1',
+                            price: '30.00',
+                            availableForSale: true,
+                            selectedOptions: [],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: 'c1' },
+            },
+          },
+        }),
+      ),
+    );
+    const result = await catalogSync({
+      merchantId,
+      domain: 'cs.test',
+      platform: 'shopify',
+      adapterType: 'shopify',
+      shopifyToken: 'shpat_x',
+    });
+    expect(result.kind).toBe('ok');
+    if (result.kind === 'ok') expect(result.source).toBe('shopify_storefront');
+    const rows = await db
+      .select()
+      .from(schema.products)
+      .where(eq(schema.products.merchantId, merchantId));
+    expect(rows[0]?.sku).toBe('admin-tee');
+    const variants = rows[0]?.variants as Array<{ id: string }> | null;
+    expect(variants?.[0]?.id).toBe('555');
   });
 
   it('falls back to a DOM crawl when /products.json is blocked (403)', async () => {

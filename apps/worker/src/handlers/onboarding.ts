@@ -1,6 +1,6 @@
 import { implementedAdapters } from '@shoppingmate/adapters';
 import { db, schema } from '@shoppingmate/db';
-import { childLogger } from '@shoppingmate/shared';
+import { childLogger, decryptSecret } from '@shoppingmate/shared';
 import type { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { catalogSync } from '../steps/catalogSync.js';
@@ -117,11 +117,28 @@ export async function onboardingHandler(
     })
     .where(eq(schema.merchants.id, merchantId));
 
-  // Step 3 — CatalogSync
+  // Step 3 — CatalogSync. Load the merchant's Shopify Admin token (if any) so
+  // catalog sync can use the Admin API on locked/dev stores where public
+  // /products.json is blocked.
   await emitMetric(merchantId, schema.metricNames.onboardingCatalogSyncStarted);
+  let shopifyToken: string | undefined;
+  {
+    const [tokenRow] = await db
+      .select({ enc: schema.merchants.shopifyAdminTokenEnc })
+      .from(schema.merchants)
+      .where(eq(schema.merchants.id, merchantId))
+      .limit(1);
+    if (tokenRow?.enc) {
+      try {
+        shopifyToken = decryptSecret(tokenRow.enc);
+      } catch (err) {
+        log.warn({ merchantId, err: (err as Error).message }, 'failed to decrypt shopify token');
+      }
+    }
+  }
   let catalog: Awaited<ReturnType<typeof catalogSync>>;
   try {
-    catalog = await catalogSync({ merchantId, domain, platform, adapterType });
+    catalog = await catalogSync({ merchantId, domain, platform, adapterType, shopifyToken });
   } catch (err) {
     await emitMetric(merchantId, schema.metricNames.onboardingCatalogSyncFailed, {
       reason: 'exception',

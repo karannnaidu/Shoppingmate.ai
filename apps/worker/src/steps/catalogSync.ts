@@ -7,6 +7,7 @@ import { fetchDomCatalog } from './catalogClients/domCrawl.js';
 import { fetchMagentoCatalog } from './catalogClients/magento.js';
 import { fetchShopifyCatalog } from './catalogClients/shopify.js';
 import type { CatalogClientResult, NormalizedProduct } from './catalogClients/shopify.js';
+import { fetchShopifyCatalogViaAdmin } from './catalogClients/shopifyAdmin.js';
 import { fetchSquarespaceCatalog } from './catalogClients/squarespace.js';
 import { fetchWixCatalog } from './catalogClients/wix.js';
 import { fetchWooCatalog } from './catalogClients/woo.js';
@@ -30,6 +31,10 @@ export type CatalogSyncInput = {
   domain: string;
   platform: schema.PlatformValue;
   adapterType: schema.AdapterType;
+  // Decrypted Shopify Admin API token. When present, catalog sync pulls via the
+  // Admin API (works on locked/dev/coming-soon stores) with public /products.json
+  // as the fallback.
+  shopifyToken?: string;
   // optional injection for tests
   fetchCatalog?: (domain: string) => Promise<CatalogClientResult>;
   // optional injection for tests — the DOM-crawl fallback used when a
@@ -123,10 +128,26 @@ async function writeProducts(merchantId: string, products: NormalizedProduct[]):
 export async function catalogSync(input: CatalogSyncInput): Promise<CatalogSyncResult> {
   const start = Date.now();
   const picked = pickClient(input.platform, input.adapterType);
-  const fetchFn = input.fetchCatalog ?? picked.fetch;
-  const fallbackFn = input.fetchFallbackCatalog ?? picked.fallback ?? null;
+  let fetchFn = input.fetchCatalog ?? picked.fetch;
+  let fallbackFn = input.fetchFallbackCatalog ?? picked.fallback ?? null;
+  let primarySource = picked.source;
+  // Existing platform fallbacks are DOM crawls (no variant ids).
+  let fallbackSource = 'dom_crawl';
+
+  // Admin-API path: with the app's OAuth token, pull the catalog via Admin
+  // GraphQL — works on password-protected / dev / "coming soon" stores where
+  // public /products.json returns 503. Public /products.json is the fallback;
+  // both yield variant-bearing catalogs, so neither is a DOM degrade.
+  if (!input.fetchCatalog && input.adapterType === 'shopify' && input.shopifyToken) {
+    const token = input.shopifyToken;
+    fetchFn = (d) => fetchShopifyCatalogViaAdmin(d, token, { cap: 5000, timeoutMs: 90_000 });
+    fallbackFn = (d) => fetchShopifyCatalog(d, { cap: 5000, timeoutMs: 90_000 });
+    primarySource = 'shopify_storefront';
+    fallbackSource = 'shopify_storefront';
+  }
+
   log.info(
-    { merchantId: input.merchantId, domain: input.domain, source: picked.source },
+    { merchantId: input.merchantId, domain: input.domain, source: primarySource },
     'catalog sync start',
   );
 
@@ -135,9 +156,9 @@ export async function catalogSync(input: CatalogSyncInput): Promise<CatalogSyncR
     fallbackFn,
     input.domain,
   );
-  // When the primary storefront endpoint was blocked we crawled the DOM instead;
-  // reflect that in the recorded source so onboarding/telemetry shows the degrade.
-  const source = usedFallback ? 'dom_crawl' : picked.source;
+  // When the primary endpoint was blocked we used the fallback; label the source
+  // accordingly (DOM crawl = no variant ids; Admin↔public = variant-bearing).
+  const source = usedFallback ? fallbackSource : primarySource;
   if (usedFallback) {
     log.warn(
       { merchantId: input.merchantId, domain: input.domain, primary: picked.source },
