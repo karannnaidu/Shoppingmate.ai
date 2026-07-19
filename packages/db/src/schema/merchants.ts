@@ -37,6 +37,11 @@ export const merchants = pgTable('merchants', {
   status: text('status').$type<MerchantStatus>().notNull(),
   adapterType: text('adapter_type').$type<AdapterType>(),
   adapterConfig: jsonb('adapter_config').notNull().default({}),
+  // Encrypted Shopify Admin API access token (AES-256-GCM, see encryptSecret).
+  // Set at OAuth install so the worker can pull the catalog via the Admin API
+  // even on password-protected / dev / "coming soon" stores. Never touched by
+  // the onboarding fingerprint step (which resets adapterConfig).
+  shopifyAdminTokenEnc: text('shopify_admin_token_enc'),
   cartUrlTemplate: text('cart_url_template'),
   checkoutUrl: text('checkout_url'),
   couponFieldSelector: text('coupon_field_selector'),

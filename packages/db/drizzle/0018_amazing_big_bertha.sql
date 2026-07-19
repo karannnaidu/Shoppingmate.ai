@@ -1,0 +1,1 @@
+ALTER TABLE "merchants" ADD COLUMN IF NOT EXISTS "shopify_admin_token_enc" text;
