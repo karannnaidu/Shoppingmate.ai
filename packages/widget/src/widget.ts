@@ -75,14 +75,53 @@ const CART_OPEN_CLASS_MARKERS = [
   'header-cart-open',
 ];
 
-// Best-effort detection of whether the storefront's cart (drawer or page) is
+// Known "nav / menu drawer is open" body/html class markers across common
+// Shopify themes and custom storefronts. Same substring-match philosophy as the
+// cart markers — specific open-state classes, never a bare "menu"/"nav" (which
+// would false-positive on a closed nav).
+const MENU_OPEN_CLASS_MARKERS = [
+  'menu-open',
+  'menu--open',
+  'menu-is-open',
+  'is-menu-open',
+  'menu-drawer-open',
+  'menu-drawer--active',
+  'mobile-menu-open',
+  'mobile-menu--open',
+  'mobile-nav-open',
+  'nav-open',
+  'nav--open',
+  'nav-is-open',
+  'is-nav-open',
+  'js-nav-open',
+  'js-menu-open',
+  'navigation-open',
+  'header-menu-open',
+  'offcanvas-open',
+  'off-canvas-open',
+  'offcanvas-nav-open',
+  'offcanvas-menu-open',
+];
+
+// Pure predicate: is a host overlay the launcher must not cover — the
+// storefront's cart (drawer or /cart page) OR its nav/menu drawer — currently
+// open? Exported for unit tests; the live check below feeds it real globals.
+export function hostOverlayOpen(className: string, path: string): boolean {
+  if (path === '/cart' || path.startsWith('/cart/') || path.startsWith('/cart?')) return true;
+  const cls = className.toLowerCase();
+  return (
+    CART_OPEN_CLASS_MARKERS.some((m) => cls.includes(m)) ||
+    MENU_OPEN_CLASS_MARKERS.some((m) => cls.includes(m))
+  );
+}
+
+// Best-effort detection of whether the storefront's cart or nav/menu drawer is
 // currently open, so the launcher can get out of the way.
-function isStorefrontCartOpen(): boolean {
+function isHostOverlayOpen(): boolean {
   try {
     const path = window.location.pathname || '';
-    if (path === '/cart' || path.startsWith('/cart/') || path.startsWith('/cart?')) return true;
-    const cls = `${document.documentElement.className} ${document.body ? document.body.className : ''}`.toLowerCase();
-    return CART_OPEN_CLASS_MARKERS.some((m) => cls.includes(m));
+    const cls = `${document.documentElement.className} ${document.body ? document.body.className : ''}`;
+    return hostOverlayOpen(cls, path);
   } catch {
     return false;
   }
@@ -237,10 +276,10 @@ class WidgetElement extends HTMLElement {
     this.stopDrag?.();
   }
 
-  // Hide the launcher whenever the storefront's own cart (drawer or /cart page)
-  // is open so it never covers the cart. Watches body/html class changes (how
-  // themes toggle their cart drawer) and the URL path. Never hides during a live
-  // call — its controls must stay reachable.
+  // Hide the launcher whenever a storefront overlay it must not cover is open —
+  // the cart (drawer or /cart page) or the nav/menu drawer. Watches body/html
+  // class changes (how themes toggle these drawers) and the URL path. Never
+  // hides during a live call — its controls must stay reachable.
   private setupCartVisibility(root: HTMLElement): void {
     this.onCartVisibilityChange();
     this.cartObserver = new MutationObserver(this.onCartVisibilityChange);
@@ -258,7 +297,7 @@ class WidgetElement extends HTMLElement {
     if (!this.rootEl) return;
     const s = this.store.get();
     const inCall = s.mode === 'call' || s.voiceState !== 'idle';
-    this.rootEl.classList.toggle('cart-open-hidden', isStorefrontCartOpen() && !inCall);
+    this.rootEl.classList.toggle('host-overlay-hidden', isHostOverlayOpen() && !inCall);
   };
 
   // Auto-collapse the resting launcher to just the avatar after a few idle
