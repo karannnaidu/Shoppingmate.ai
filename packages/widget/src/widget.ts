@@ -155,6 +155,7 @@ class WidgetElement extends HTMLElement {
   private collapseTimer: ReturnType<typeof setTimeout> | null = null;
   private stopCollapse: (() => void) | null = null;
   private cartObserver: MutationObserver | null = null;
+  private scrollResizeRaf = false;
   private stopDrag: (() => void) | null = null;
   // Subtle office room tone during a live call. Configured in connectedCallback
   // from the data-ambience attribute ("off" disables). The switch the user asked
@@ -273,13 +274,24 @@ class WidgetElement extends HTMLElement {
     this.stopCollapse?.();
     this.cartObserver?.disconnect();
     window.removeEventListener('popstate', this.onCartVisibilityChange);
+    document.removeEventListener('click', this.onHostGesture, true);
+    document.removeEventListener('keyup', this.onHostGesture, true);
+    window.removeEventListener('scroll', this.onScrollResize);
+    window.removeEventListener('resize', this.onScrollResize);
     this.stopDrag?.();
   }
 
   // Hide the launcher whenever a storefront overlay it must not cover is open —
-  // the cart (drawer or /cart page) or the nav/menu drawer. Watches body/html
-  // class changes (how themes toggle these drawers) and the URL path. Never
-  // hides during a live call — its controls must stay reachable.
+  // the cart (drawer or /cart page) or a nav/menu drawer. Two detectors, OR'd:
+  //  1. cheap class/path markers (isHostOverlayOpen) for themes that flag the
+  //     cart on <html>/<body>, and
+  //  2. a theme-agnostic geometric check (launcherCovered) that fires whenever a
+  //     large fixed/absolute element actually covers the launcher — this catches
+  //     custom drawers (e.g. Calmosis's React nav sidebar) that toggle a hashed
+  //     CSS-module class on the drawer element and never touch <html>/<body>.
+  // The class observer alone would miss (2), so — since drawers open on a user
+  // gesture — we also re-check on click/keyup, and on scroll/resize (geometry
+  // moves). Never hides during a live call — its controls must stay reachable.
   private setupCartVisibility(root: HTMLElement): void {
     this.onCartVisibilityChange();
     this.cartObserver = new MutationObserver(this.onCartVisibilityChange);
@@ -291,14 +303,71 @@ class WidgetElement extends HTMLElement {
       this.cartObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     }
     window.addEventListener('popstate', this.onCartVisibilityChange);
+    document.addEventListener('click', this.onHostGesture, true);
+    document.addEventListener('keyup', this.onHostGesture, true);
+    window.addEventListener('scroll', this.onScrollResize, { passive: true });
+    window.addEventListener('resize', this.onScrollResize);
   }
+
+  // A drawer opens/closes on a gesture; re-check right after, plus a couple of
+  // delayed passes to catch its open/close animation settling.
+  private onHostGesture = (): void => {
+    this.onCartVisibilityChange();
+    window.setTimeout(this.onCartVisibilityChange, 200);
+    window.setTimeout(this.onCartVisibilityChange, 550);
+  };
+
+  private onScrollResize = (): void => {
+    if (this.scrollResizeRaf) return;
+    this.scrollResizeRaf = true;
+    requestAnimationFrame(() => {
+      this.scrollResizeRaf = false;
+      this.onCartVisibilityChange();
+    });
+  };
 
   private onCartVisibilityChange = (): void => {
     if (!this.rootEl) return;
     const s = this.store.get();
     const inCall = s.mode === 'call' || s.voiceState !== 'idle';
-    this.rootEl.classList.toggle('host-overlay-hidden', isHostOverlayOpen() && !inCall);
+    const covered = (isHostOverlayOpen() || this.launcherCovered()) && !inCall;
+    this.rootEl.classList.toggle('host-overlay-hidden', covered);
   };
+
+  // Theme-agnostic overlap test: is a large, visible, fixed/absolute host element
+  // currently covering the launcher's centre point? Walks the hit-test stack at
+  // that point, skipping our own widget (which sits on top at max z-index), and
+  // treats any large covering fixed/absolute element below it as an overlay we
+  // must not sit on. Verified against real storefront drawers via
+  // packages/dom-harness/verify-drawer.mjs.
+  private launcherCovered(): boolean {
+    const root = this.rootEl;
+    if (!root || typeof document.elementsFromPoint !== 'function') return false;
+    const r = root.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const host: Element = this;
+    for (const el of document.elementsFromPoint(cx, cy)) {
+      if (el === host || host.contains(el) || el.contains(host)) continue;
+      if (el.tagName === 'SHOPPINGMATE-WIDGET') continue;
+      let node: Element | null = el;
+      while (node && node !== document.body && node !== document.documentElement) {
+        const cs = getComputedStyle(node);
+        if (cs.position === 'fixed' || cs.position === 'absolute') {
+          const b = node.getBoundingClientRect();
+          const covers = b.left <= cx && b.right >= cx && b.top <= cy && b.bottom >= cy;
+          const large =
+            b.width >= window.innerWidth * 0.4 || b.height >= window.innerHeight * 0.4;
+          const visible =
+            cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.01;
+          if (covers && large && visible) return true;
+        }
+        node = node.parentElement;
+      }
+    }
+    return false;
+  }
 
   // Auto-collapse the resting launcher to just the avatar after a few idle
   // seconds (and immediately arm it on load) so it never blocks the host page's
