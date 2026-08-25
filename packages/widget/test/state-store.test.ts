@@ -18,6 +18,30 @@ describe('store reducer', () => {
     expect(s.get().transcript.every((i) => i.role === 'agent' && i.kind === 'text')).toBe(true);
   });
 
+  it('clears the thinking spinner when the connection drops mid-turn', () => {
+    // A mid-turn WS drop loses the turn's say/end_of_turn, so nothing else would
+    // ever flip thinking back off — the spinner must not hang.
+    const s = createStore({ sessionId: 'ws_a' });
+    s.dispatch({ type: 'agent_event', event: { type: 'thinking' } });
+    expect(s.get().thinking).toBe(true);
+    s.dispatch({ type: 'set_connection', status: 'reconnecting' });
+    expect(s.get().thinking).toBe(false);
+  });
+
+  it('clears thinking when the connection is fully lost', () => {
+    const s = createStore({ sessionId: 'ws_a' });
+    s.dispatch({ type: 'agent_event', event: { type: 'thinking' } });
+    s.dispatch({ type: 'set_connection', status: 'disconnected' });
+    expect(s.get().thinking).toBe(false);
+  });
+
+  it('keeps thinking while the connection stays healthy', () => {
+    const s = createStore({ sessionId: 'ws_a' });
+    s.dispatch({ type: 'agent_event', event: { type: 'thinking' } });
+    s.dispatch({ type: 'set_connection', status: 'connected' });
+    expect(s.get().thinking).toBe(true);
+  });
+
   it('appends inline cards row', () => {
     const s = createStore({ sessionId: 'ws_a' });
     s.dispatch({

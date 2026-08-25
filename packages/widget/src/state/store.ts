@@ -61,7 +61,16 @@ function reduce(state: WidgetState, a: Action): WidgetState {
         ? { ...state, voiceState: a.state, voiceError: null, invited: false }
         : { ...state, voiceState: a.state };
     case 'set_connection':
-      return { ...state, connection: a.status };
+      // A mid-turn drop loses that turn's say/end_of_turn (they were sent to the
+      // dead socket and aren't replayed on session_resume), which would strand
+      // the "thinking" spinner forever. Clear it whenever the link is no longer
+      // connected so the UI recovers instead of hanging; a healthy 'connected'
+      // status leaves an in-flight turn's spinner alone.
+      return {
+        ...state,
+        connection: a.status,
+        thinking: a.status === 'connected' ? state.thinking : false,
+      };
     case 'set_voice_error':
       return { ...state, voiceError: a.error };
     case 'set_invited':
