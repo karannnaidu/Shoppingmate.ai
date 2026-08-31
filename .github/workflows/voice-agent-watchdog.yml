@@ -1,0 +1,40 @@
+name: voice-agent-watchdog
+
+# Proves a real agent can join a LiveKit room every ~15 min. If the voice-agent
+# worker has wedged (registered + receiving jobs but never joining — the failure
+# that silently took voice down for days on 2026-08-25 and 2026-08-31), this
+# auto-redeploys it and posts a Slack alert. Manual runs via "Run workflow".
+#
+# Required repo secrets to arm auto-recovery + alerts (probe runs without them):
+#   RAILWAY_API_TOKEN      - Railway account/project token (Settings -> Tokens)
+#   OPS_ALERT_WEBHOOK_URL  - Slack incoming webhook URL
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: voice-agent-watchdog
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Non-secret Railway identifiers for the voice-agent service (production).
+      RAILWAY_VOICE_SERVICE_ID: b68f650b-55ec-4f00-806f-975a085053cf
+      RAILWAY_ENVIRONMENT_ID: 36de85a4-5865-4d31-add2-6341b46e8f49
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      OPS_ALERT_WEBHOOK_URL: ${{ secrets.OPS_ALERT_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.6.2 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Probe voice-agent (auto-redeploy + alert on wedge)
+        run: node apps/voice-agent/scripts/watchdog.mjs
