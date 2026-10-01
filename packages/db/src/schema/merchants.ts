@@ -70,6 +70,8 @@ export const merchants = pgTable('merchants', {
   smokePassedAt: timestamp('smoke_passed_at', { withTimezone: true }),
   stripeCustomerId: text('stripe_customer_id').unique(),
   stripeSubscriptionId: text('stripe_subscription_id').unique(),
+  razorpayCustomerId: text('razorpay_customer_id').unique(),
+  razorpaySubscriptionId: text('razorpay_subscription_id').unique(),
   plan: text('plan').notNull().default('starter'),
   billingStatus: text('billing_status').notNull().default('pending'),
   persona: jsonb('persona').$type<{

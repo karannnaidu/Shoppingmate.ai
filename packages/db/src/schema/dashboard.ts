@@ -62,6 +62,14 @@ export const stripeEvents = pgTable('stripe_events', {
   payload: jsonb('payload'),
 });
 
+export const razorpayEvents = pgTable('razorpay_events', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+  payload: jsonb('payload'),
+});
+
 export type MerchantOwner = typeof merchantOwners.$inferSelect;
 export type BrandKbDocument = typeof brandKbDocuments.$inferSelect;
 export type BrandKbChunk = typeof brandKbChunks.$inferSelect;
@@ -69,3 +77,4 @@ export type Alert = typeof alerts.$inferSelect;
 export type AlertKind = 'override_failing' | 'smoke_failing' | 'catalog_drift' | 'margin_breach' | 'payment_failed';
 export type AlertSeverity = 'info' | 'warning' | 'critical';
 export type StripeEvent = typeof stripeEvents.$inferSelect;
+export type RazorpayEvent = typeof razorpayEvents.$inferSelect;

@@ -9,6 +9,11 @@ describe('merchants dashboard columns', () => {
     expect(merchants.billingStatus).toBeDefined();
   });
 
+  it('has Razorpay billing columns', () => {
+    expect(merchants.razorpayCustomerId).toBeDefined();
+    expect(merchants.razorpaySubscriptionId).toBeDefined();
+  });
+
   it('has persona + webhook columns', () => {
     expect(merchants.persona).toBeDefined();
     expect(merchants.leadWebhookUrl).toBeDefined();

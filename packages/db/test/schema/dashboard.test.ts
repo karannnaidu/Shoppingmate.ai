@@ -5,6 +5,7 @@ import {
   brandKbChunks,
   alerts,
   stripeEvents,
+  razorpayEvents,
 } from '../../src/schema/dashboard';
 
 describe('dashboard schema', () => {
@@ -50,5 +51,13 @@ describe('dashboard schema', () => {
     expect(stripeEvents.receivedAt).toBeDefined();
     expect(stripeEvents.processedAt).toBeDefined();
     expect(stripeEvents.payload).toBeDefined();
+  });
+
+  it('razorpayEvents has idempotency columns', () => {
+    expect(razorpayEvents.id).toBeDefined();
+    expect(razorpayEvents.type).toBeDefined();
+    expect(razorpayEvents.receivedAt).toBeDefined();
+    expect(razorpayEvents.processedAt).toBeDefined();
+    expect(razorpayEvents.payload).toBeDefined();
   });
 });
