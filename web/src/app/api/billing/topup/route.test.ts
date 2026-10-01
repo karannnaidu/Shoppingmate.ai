@@ -11,31 +11,30 @@ vi.mock('@/lib/session', () => ({
   }),
 }));
 
-vi.mock('@/lib/db', () => ({
-  db: { query: { merchants: { findFirst: vi.fn().mockResolvedValue({ id: 'SM-X', stripeCustomerId: 'cus_x' }) } } },
-}));
-
-vi.mock('@/lib/stripe', () => ({
-  stripe: {
-    checkout: { sessions: { create: vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/y' }) } },
+vi.mock('@/lib/razorpay', () => ({
+  razorpay: {
+    paymentLink: { create: vi.fn().mockResolvedValue({ id: 'plink_x', short_url: 'https://rzp.io/i/pl' }) },
   },
-  PRICE_IDS: {
-    topup_50: 'price_t50', topup_200: 'price_t200', topup_1000: 'price_t1000', topup_5000: 'price_t5000',
+  TOPUP_AMOUNTS: {
+    topup_50: { amount: 1900, label: '50' },
+    topup_200: { amount: 5900, label: '200' },
+    topup_1000: { amount: 19900, label: '1,000' },
+    topup_5000: { amount: 79900, label: '5,000' },
   },
-  TOPUP_QTYS: { topup_50: 50, topup_200: 200, topup_1000: 1000, topup_5000: 5000 },
+  BILLING_CURRENCY: 'USD',
 }));
 
 import { POST } from './route';
 
 describe('POST /api/billing/topup', () => {
-  it('returns Checkout URL for valid topup_key', async () => {
+  it('returns a payment-link short_url for a valid topup_key', async () => {
     const req = new Request('http://localhost', { method: 'POST', body: JSON.stringify({ topup_key: 'topup_200' }), headers: { 'content-type': 'application/json' } });
     const res = await POST(req);
     const json = await res.json();
-    expect(json.url).toContain('checkout.stripe.com');
+    expect(json.url).toContain('rzp.io');
   });
 
-  it('rejects invalid topup_key', async () => {
+  it('rejects an invalid topup_key', async () => {
     const req = new Request('http://localhost', { method: 'POST', body: JSON.stringify({ topup_key: 'topup_lol' }), headers: { 'content-type': 'application/json' } });
     const res = await POST(req);
     expect(res.status).toBe(400);

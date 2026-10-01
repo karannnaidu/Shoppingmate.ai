@@ -8,26 +8,21 @@ vi.mock('@/lib/session', () => ({
   }),
 }));
 
-vi.mock('@/lib/stripe', () => ({
-  stripe: {
-    customers: { create: vi.fn().mockResolvedValue({ id: 'cus_test' }) },
-    checkout: {
-      sessions: {
-        create: vi.fn().mockResolvedValue({ id: 'cs_test', url: 'https://checkout.stripe.com/x' }),
-      },
+vi.mock('@/lib/razorpay', () => ({
+  razorpay: {
+    subscriptions: {
+      create: vi.fn().mockResolvedValue({ id: 'sub_test', short_url: 'https://rzp.io/i/abc' }),
     },
   },
-  PRICE_IDS: { starter_monthly: 'price_test_starter' },
+  PLAN_IDS: { starter: 'plan_test_starter' },
 }));
 
-vi.mock('next/headers', () => ({
-  headers: vi.fn().mockResolvedValue(new Headers()),
-}));
+vi.mock('next/headers', () => ({ headers: vi.fn().mockResolvedValue(new Headers()) }));
 
 import { POST } from './route';
 
 describe('POST /api/billing/checkout-session', () => {
-  it('returns Stripe Checkout URL', async () => {
+  it('returns Razorpay subscription short_url', async () => {
     const req = new Request('http://localhost/api/billing/checkout-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -35,7 +30,7 @@ describe('POST /api/billing/checkout-session', () => {
     const res = await POST(req);
     const json = await res.json();
     expect(res.status).toBe(200);
-    expect(json.url).toContain('checkout.stripe.com');
+    expect(json.url).toContain('rzp.io');
   });
 
   it('returns 401 when no session', async () => {
