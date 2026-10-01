@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 import { merchants } from '@shoppingmate/db/schema';
 import { eq } from 'drizzle-orm';
 import { computeKpis } from '@/lib/kpi-repo';
-import { stripe } from '@/lib/stripe';
+import { razorpay } from '@/lib/razorpay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { saveAutoRecharge } from './actions';
@@ -34,9 +34,11 @@ export default async function BillingPage() {
   const quota = PLAN_QUOTA[session.merchant.plan] ?? PLAN_QUOTA.starter;
 
   let invoices: Array<{ id: string; created: number; total: number; status: string | null; pdf: string | null }> = [];
-  if (m?.stripeCustomerId) {
-    const list = await stripe.invoices.list({ customer: m.stripeCustomerId, limit: 12 });
-    invoices = list.data.map((inv) => ({ id: inv.id, created: inv.created, total: inv.total, status: inv.status, pdf: inv.invoice_pdf ?? null }));
+  if (m?.razorpaySubscriptionId) {
+    const list = (await razorpay.invoices.all({ subscription_id: m.razorpaySubscriptionId, count: 12 })) as {
+      items: Array<{ id: string; created_at: number; amount: number; status: string | null; short_url: string | null }>;
+    };
+    invoices = list.items.map((inv) => ({ id: inv.id, created: inv.created_at, total: inv.amount, status: inv.status, pdf: inv.short_url ?? null }));
   }
 
   return (
@@ -64,9 +66,10 @@ export default async function BillingPage() {
               <div className="h-full bg-amber-500" style={{ width: `${Math.min(100, kpis.voiceRatio * 100 / 0.4 * 100)}%` }} />
             </div>
           </div>
-          <form action="/api/billing/portal-session" method="post">
-            <Button type="submit">Manage billing</Button>
+          <form action="/api/billing/cancel" method="post">
+            <Button type="submit" variant="outline">Cancel subscription</Button>
           </form>
+          <p className="text-xs text-text-secondary">Cancels at the end of the current billing period. To change plans, cancel and re-subscribe.</p>
         </CardContent>
       </Card>
 

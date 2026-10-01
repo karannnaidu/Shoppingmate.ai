@@ -15,7 +15,12 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'invalid topup_key' }, { status: 400 });
 
   const pack = TOPUP_AMOUNTS[parsed.data.topup_key];
-  const link = (await razorpay.paymentLink.create({
+  // The SDK's paymentLink.create types are an awkward union with callback
+  // overloads; call through a narrowed signature.
+  const createPaymentLink = razorpay.paymentLink.create as unknown as (
+    body: Record<string, unknown>,
+  ) => Promise<{ id: string; short_url: string }>;
+  const link = await createPaymentLink({
     amount: pack.amount,
     currency: BILLING_CURRENCY,
     accept_partial: false,
@@ -27,7 +32,7 @@ export async function POST(req: Request) {
       topup_key: parsed.data.topup_key,
       merchant_id: session.merchant.id,
     },
-  })) as { id: string; short_url: string };
+  });
 
   return NextResponse.json({ url: link.short_url });
 }

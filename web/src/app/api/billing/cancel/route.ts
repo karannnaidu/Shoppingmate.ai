@@ -14,6 +14,7 @@ export async function POST() {
   const m = await db.query.merchants.findFirst({ where: eq(merchants.id, session.merchant.id) });
   if (!m?.razorpaySubscriptionId) return NextResponse.json({ error: 'no subscription' }, { status: 400 });
 
-  await razorpay.subscriptions.cancel(m.razorpaySubscriptionId, { cancel_at_cycle_end: true });
+  // Second arg is a positional boolean (true = cancel at end of billing cycle).
+  await razorpay.subscriptions.cancel(m.razorpaySubscriptionId, true);
   return NextResponse.json({ ok: true });
 }

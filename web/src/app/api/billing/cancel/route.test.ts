@@ -26,6 +26,6 @@ describe('POST /api/billing/cancel', () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(cancel).toHaveBeenCalledWith('sub_x', { cancel_at_cycle_end: true });
+    expect(cancel).toHaveBeenCalledWith('sub_x', true);
   });
 });
