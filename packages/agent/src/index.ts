@@ -81,6 +81,7 @@ export {
   type ConversationFacts,
 } from './intent-profiler.js';
 export { buildVisitorSummary } from './visitor-summary.js';
+export { VOICE_SECONDS_METRIC, voiceSecondsMetric } from './voiceUsageMetric.js';
 export {
   classifyLiveSignal,
   signalSteerLine,

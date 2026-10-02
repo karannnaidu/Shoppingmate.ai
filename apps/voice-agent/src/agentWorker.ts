@@ -36,6 +36,7 @@ import {
   extractContactDetails,
   nextNudge,
   signalSteerLine,
+  voiceSecondsMetric,
 } from '@shoppingmate/agent';
 import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { createBridge } from './bridge.js';
@@ -1114,6 +1115,15 @@ const agentDefinition = defineAgent({
           metricName: 'voiceConversation',
           tags: { session_id: sessionId },
         });
+        // Per-call voice duration, summed month-to-date by the API's plan
+        // voice-minute cap gate (apps/api/src/lib/voiceUsage.ts).
+        await db.insert(schema.metricEvents).values(
+          voiceSecondsMetric({
+            merchantId: merchant.id,
+            durationSec: tags.duration_sec,
+            sessionId,
+          }),
+        );
         if (tags.intent && session.visitorId) {
           await upsertVisitorProfile(merchant.id, visitorId, tags.intent, {
             outcome: tags.outcome,

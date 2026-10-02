@@ -6,7 +6,9 @@ import { Hono } from 'hono';
 import { Redis } from 'ioredis';
 import { AccessToken } from 'livekit-server-sdk';
 import { z } from 'zod';
+import { getVoiceMinuteCap } from '../config/plans.js';
 import { originMatches } from '../lib/originCheck.js';
+import { getVoiceMinutesThisMonth } from '../lib/voiceUsage.js';
 
 const log = childLogger({ route: 'voice-token' });
 
@@ -53,12 +55,30 @@ voiceTokenRoute.post('/', async (c) => {
 
   const origin = c.req.header('origin');
   const referer = c.req.header('referer');
-  const matchesAny = merchant.allowedDomains.some((d: string) =>
-    originMatches(origin, referer, d),
-  );
+  const matchesAny = merchant.allowedDomains.some((d: string) => originMatches(origin, referer, d));
   if (!matchesAny) {
     log.info({ merchantId, origin, referer }, 'voice-token rejected_origin');
     return c.json({ error: 'origin_mismatch' }, 403);
+  }
+
+  // Plan voice-minute cap (Phase A). Text chat is unlimited; once a merchant's
+  // month-to-date voice minutes reach their plan cap, voice pauses for the rest
+  // of the cycle. Gated behind VOICE_CAPS_ENABLED so it stays dormant until the
+  // Shopify plans exist + BILLING_ENABLED is on (otherwise every merchant would
+  // be measured against a starter cap they never agreed to).
+  if (process.env.VOICE_CAPS_ENABLED === 'true') {
+    const usedMinutes = await getVoiceMinutesThisMonth(merchant.id);
+    const capMinutes = getVoiceMinuteCap(merchant.plan);
+    if (usedMinutes >= capMinutes) {
+      log.info(
+        { merchantId, plan: merchant.plan, usedMinutes, capMinutes },
+        'voice-token cap_exceeded',
+      );
+      return c.json(
+        { error: 'voice_cap_exceeded', plan: merchant.plan, usedMinutes, capMinutes },
+        429,
+      );
+    }
   }
 
   const lkUrl = process.env.LIVEKIT_URL;
