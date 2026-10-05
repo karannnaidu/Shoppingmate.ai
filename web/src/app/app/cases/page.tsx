@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDashboardSession } from '@/lib/session';
 import { type CaseFilter, caseCounts, listCases } from '@/lib/cases-repo';
-import { Button } from '@/components/ui/button';
+import { CaseStatusButton } from './case-status-button';
 import { timeAgo } from '@/components/site-templates-card';
 import { setCaseStatus } from './actions';
 
@@ -111,9 +111,7 @@ export default async function CasesPage({
                   <form action={setCaseStatus}>
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="status" value={resolved ? 'open' : 'resolved'} />
-                    <Button type="submit" size="sm" variant={resolved ? 'outline' : 'primary'}>
-                      {resolved ? 'Re-open' : 'Mark as handled'}
-                    </Button>
+                    <CaseStatusButton resolved={resolved} />
                   </form>
                   {c.sessionId && (
                     <Link href={`/app/conversations/${c.sessionId}`} className="text-sm text-violet hover:underline">
