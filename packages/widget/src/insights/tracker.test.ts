@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   consentAllows,
   consentSignal,
+  currentVisit,
   deviceOf,
   inSample,
   pageTypeFor,
@@ -94,10 +95,10 @@ describe('startInsights()', () => {
     const s = JSON.parse(beacons[0] as string);
     expect(s).toMatchObject({
       merchantId: 'M1',
-      sessionId: 'sess-1',
       rage: 1,
       abandonedFields: ['email'],
     });
+    expect(s.sessionId).toMatch(/^v_/); // the visit id, not the widget session
     expect(s.elements['button|add to cart']).toBe(3);
     expect(beacons[0]).not.toContain('secret@example.com');
   });
@@ -114,5 +115,19 @@ describe('startInsights()', () => {
   it('not entitled / not sampled → off', () => {
     expect(startInsights({ ...ctx, config: { enabled: false, sampleRate: 1 } })).toBeNull();
     expect(startInsights({ ...ctx, config: { enabled: true, sampleRate: 0 } })).toBeNull();
+  });
+});
+
+describe('visit (spans page loads)', () => {
+  it('reuses the visit within 30 minutes and starts a new one after', () => {
+    sessionStorage.clear();
+    localStorage.clear();
+    const a = currentVisit(1_000_000, () => 'aaa');
+    const b = currentVisit(1_000_000 + 10 * 60_000, () => 'bbb');
+    expect(b.id).toBe(a.id);
+    expect(a.isNew).toBe(true);
+    const c = currentVisit(1_000_000 + 10 * 60_000 + 31 * 60_000, () => 'ccc');
+    expect(c.id).not.toBe(a.id);
+    expect(c.isNew).toBe(false); // same browser came back → returning
   });
 });

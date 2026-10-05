@@ -152,9 +152,55 @@ type Ctx = {
   config: InsightsConfig;
 };
 
+// A VISIT spans page loads in the same tab (multi-page stores reload the widget,
+// and with it the widget's own session, on every page). It ends after 30 min of
+// inactivity. Kept in sessionStorage: per tab, gone when the tab closes.
+const VISIT_KEY = 'sm_ins_visit';
+const VISIT_IDLE_MS = 30 * 60 * 1000;
+type Visit = { id: string; last: number; isNew: boolean; bot: boolean; qa: boolean };
+
+export function currentVisit(
+  now = Date.now(),
+  seed: () => string = () => Math.random().toString(36).slice(2),
+): Visit {
+  let v: Visit | null = null;
+  try {
+    v = JSON.parse(sessionStorage.getItem(VISIT_KEY) ?? 'null') as Visit | null;
+  } catch {
+    v = null;
+  }
+  if (!v || now - v.last > VISIT_IDLE_MS) {
+    let isNew = false;
+    try {
+      isNew = !localStorage.getItem('sm_seen');
+      localStorage.setItem('sm_seen', '1');
+    } catch {
+      /* storage blocked */
+    }
+    v = { id: `v_${seed()}${now.toString(36)}`, last: now, isNew, bot: false, qa: false };
+  }
+  v.last = now;
+  try {
+    sessionStorage.setItem(VISIT_KEY, JSON.stringify(v));
+  } catch {
+    /* storage blocked → visit is per page */
+  }
+  return v;
+}
+
+function patchVisit(p: Partial<Visit>): void {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(VISIT_KEY) ?? 'null') as Visit | null;
+    if (v) sessionStorage.setItem(VISIT_KEY, JSON.stringify({ ...v, ...p }));
+  } catch {
+    /* ignore */
+  }
+}
+
 let botEngaged = false;
 export function markBotEngaged(): void {
   botEngaged = true;
+  patchVisit({ bot: true });
 }
 
 export function inSample(rate: number, sessionId: string): boolean {
@@ -167,7 +213,8 @@ export function inSample(rate: number, sessionId: string): boolean {
 
 export function startInsights(ctx: Ctx): (() => void) | null {
   if (!ctx.config?.enabled) return null;
-  if (!inSample(ctx.config.sampleRate, ctx.sessionId)) return null;
+  const visit = currentVisit();
+  if (!inSample(ctx.config.sampleRate, visit.id)) return null;
   const tz = (() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
@@ -181,18 +228,14 @@ export function startInsights(ctx: Ctx): (() => void) | null {
   void loadTemplates().then((t) => {
     templates = t;
   });
+  // QA/synthetic traffic: headless UA, or ?sm_qa anywhere in the visit (sticky).
   const qa =
+    visit.qa ||
     /ShoppingmateBot|HeadlessChrome/.test(navigator.userAgent) ||
     new URLSearchParams(location.search).has('sm_qa');
-  const firstVisit = (() => {
-    try {
-      const seen = localStorage.getItem('sm_seen');
-      localStorage.setItem('sm_seen', '1');
-      return !seen;
-    } catch {
-      return false;
-    }
-  })();
+  if (qa && !visit.qa) patchVisit({ qa: true });
+  const firstVisit = visit.isNew;
+  if (visit.bot) botEngaged = true;
   const source = (() => {
     try {
       const s =
@@ -394,6 +437,7 @@ export function startInsights(ctx: Ctx): (() => void) | null {
   const send = () => {
     if (page.sent) return;
     page.sent = true;
+    patchVisit({ last: Date.now() });
     const elements = Object.fromEntries(
       Object.entries(page.elements)
         .sort((a, b) => b[1] - a[1])
@@ -403,7 +447,7 @@ export function startInsights(ctx: Ctx): (() => void) | null {
     const summary: PageSummary = {
       v: 1,
       merchantId: ctx.merchantId,
-      sessionId: ctx.sessionId,
+      sessionId: visit.id, // the VISIT (spans page loads), not the widget session
       visitorId: ctx.visitorId,
       path: page.path,
       pageType: pageTypeFor(page.path, templates),

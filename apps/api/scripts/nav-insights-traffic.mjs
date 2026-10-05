@@ -39,8 +39,8 @@ async function session(browser, i) {
       }
       // go to a product (SPA click on a product link, else direct)
       const link = page.locator(`a[href*="/shop/"]`).first();
-      if (await link.count()) await link.click({ timeout: 5000 }).catch(() => page.goto(`${ORIGIN}${pick(PDPS)}`));
-      else await page.goto(`${ORIGIN}${pick(PDPS)}`);
+      if (await link.count()) await link.click({ timeout: 5000 }).catch(() => page.goto(`${ORIGIN}${pick(PDPS)}?sm_qa=1`));
+      else await page.goto(`${ORIGIN}${pick(PDPS)}?sm_qa=1`);
       await wait(page, 3000);
       if (persona !== 'looker') {
         for (let s = 0; s < 3; s++) {
@@ -59,7 +59,7 @@ async function session(browser, i) {
         await atc.click({ timeout: 6000 }).catch(() => {});
         await wait(page, 2500);
         if (persona === 'abandoner') {
-          await page.goto(`${ORIGIN}/checkout`, { waitUntil: 'domcontentloaded' }).catch(() => {});
+          await page.goto(`${ORIGIN}/checkout?sm_qa=1`, { waitUntil: 'domcontentloaded' }).catch(() => {});
           await wait(page, 3000);
           const field = page.locator('input[name*="pin" i], input[placeholder*="pin" i], input[type="text"]').first();
           await field.focus({ timeout: 4000 }).catch(() => {});
