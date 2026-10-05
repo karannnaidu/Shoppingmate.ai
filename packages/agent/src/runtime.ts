@@ -2,10 +2,10 @@ import type { Adapter, AdapterContext } from '@shoppingmate/adapters';
 import type { Merchant } from '@shoppingmate/db';
 import { type ChatToolsResult, chatTools } from '@shoppingmate/shared';
 import { checkCaps } from './caps.js';
+import { validateCheckoutDetails, validateCheckoutFill } from './checkout-fields.js';
+import { validateConsultationRequest } from './consultation.js';
 import type { HostAction, HostActionResult } from './host-actions.js';
 import { redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
-import { validateConsultationRequest } from './consultation.js';
-import { validateCheckoutDetails, validateCheckoutFill } from './checkout-fields.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
 import {
   type ToolResultEnvelope,
@@ -16,7 +16,6 @@ import {
   normalizeCalmosisSku,
   usesStorefrontBridge,
 } from './tools.js';
-import { resolveVariant } from './variant.js';
 import type {
   AgentEvent,
   AnthropicMessage,
@@ -24,13 +23,15 @@ import type {
   SessionState,
   WidgetMessage,
 } from './types.js';
+import { resolveVariant } from './variant.js';
 
 // Cost/quality hybrid. General chat uses the cheap model (OPENROUTER_MODEL, e.g.
 // Haiku); checkout turns — where the visitor dictates contact details that must
 // be captured accurately — use the precise model (OPENROUTER_CHECKOUT_MODEL,
 // default Sonnet). A per-session override (smoke runs) takes precedence so
 // smoke stays cheap. Both env-overridable; no code change to retune.
-const CHECKOUT_SIGNAL = /\b\d{6,}\b|@[\w.-]+\.\w|\b(check\s?out|place (the |my )?order|delivery address|pin\s?code)\b/i;
+const CHECKOUT_SIGNAL =
+  /\b\d{6,}\b|@[\w.-]+\.\w|\b(check\s?out|place (the |my )?order|delivery address|pin\s?code)\b/i;
 // Tools that only fire during the checkout flow — calling one means we're in
 // checkout, so the session sticks to the precise model from then on.
 const CHECKOUT_FLOW_TOOLS = new Set([
@@ -235,7 +236,10 @@ export async function* runTurn(
     const ackArgs = {
       model: turnModel,
       messages: [
-        { role: 'system' as const, content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) },
+        {
+          role: 'system' as const,
+          content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }),
+        },
         ...cardTapSession.history,
         {
           role: 'user' as const,
@@ -295,7 +299,10 @@ export async function* runTurn(
   // raw PII — stored history keeps the redacted form.
   const redactedUserText = redactPii(message.text);
   const history: AnthropicMessage[] = [
-    { role: 'system', content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) },
+    {
+      role: 'system',
+      content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }),
+    },
     ...session.history,
     { role: 'user', content: message.text },
   ];
@@ -316,7 +323,12 @@ export async function* runTurn(
   }
 
   let response: ChatToolsResult | undefined;
+  // Turn-level telemetry (nav PRD Phase 0): how many model round-trips and tool
+  // calls this turn took — emitted with the turn latency at end_of_turn.
+  let llmCalls = 0;
+  let toolCallsThisTurn = 0;
   for (let iter = 0; iter < MAX_TOOL_LOOP_ITERATIONS; iter += 1) {
+    llmCalls += 1;
     let attemptResult: ChatToolsResult | undefined;
     let firstFailed = false;
     try {
@@ -364,6 +376,11 @@ export async function* runTurn(
       })),
     });
     for (const call of response.toolCalls) {
+      toolCallsThisTurn += 1;
+      // Which channel served this call + the host action type, for the
+      // per-action telemetry on `agent.tool.invoked` (nav PRD Phase 0).
+      let channel: 'adapter' | 'host' | 'server' = 'adapter';
+      let hostActionType: string | undefined;
       const key = `${call.name}:${call.argumentsJson}`;
       const prev = toolCallCounts.get(key) ?? 0;
       toolCallCounts.set(key, prev + 1);
@@ -405,6 +422,7 @@ export async function* runTurn(
         const isCalmosisCart = isBridgeCart || isCalmosisCheckout;
         if (CHECKOUT_FLOW_TOOLS.has(call.name)) usedCheckoutFlowTool = true;
         if (call.name === 'consultation.request') {
+          channel = 'server';
           const v = validateConsultationRequest(args);
           if (!v.ok) {
             envelope = { ok: false, kind: 'unsupported', reason: v.reason };
@@ -436,10 +454,12 @@ export async function* runTurn(
           call.name === 'site.demo_click' ||
           isCalmosisCart
         ) {
+          channel = 'host';
           if (!deps.dispatchHostAction) {
             envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
           } else {
             let action = toHostAction(call.name, args);
+            hostActionType = action.type;
             // Hard-validate checkout details/fields before anything is written to
             // the real page: a malformed phone/pincode/email is rejected (the bot
             // relays the reason and re-asks) and valid values are normalized. On
@@ -469,12 +489,7 @@ export async function* runTurn(
               // sent a handle/title/sku instead, resolve it against the synced
               // catalog so the add actually lands on a real variant. A value that
               // is already a numeric variant id passes straight through.
-              const resolvedId = await resolveShopifyVariantId(
-                deps,
-                merchant,
-                session,
-                action.sku,
-              );
+              const resolvedId = await resolveShopifyVariantId(deps, merchant, session, action.sku);
               if (resolvedId) action = { ...action, sku: resolvedId };
             }
             if (fillError) {
@@ -484,32 +499,32 @@ export async function* runTurn(
               envelope = result.ok
                 ? { ok: true, value: result }
                 : { ok: false, kind: 'unsupported', reason: result.reason };
-            // Funnel metrics — emitted at the shared dispatch chokepoint so both
-            // the text WS and the voice bridge inherit them. Only on success so
-            // the funnel reflects real bot-driven cart/checkout progress.
-            if (result.ok) {
-              if (action.type === 'cart_add') {
-                await deps.recordMetric('cart.add', {
-                  merchantId: merchant.id,
-                  sessionId: session.sessionId,
-                  sku: action.sku,
-                  qty: action.qty,
-                });
+              // Funnel metrics — emitted at the shared dispatch chokepoint so both
+              // the text WS and the voice bridge inherit them. Only on success so
+              // the funnel reflects real bot-driven cart/checkout progress.
+              if (result.ok) {
+                if (action.type === 'cart_add') {
+                  await deps.recordMetric('cart.add', {
+                    merchantId: merchant.id,
+                    sessionId: session.sessionId,
+                    sku: action.sku,
+                    qty: action.qty,
+                  });
+                }
+                if (action.type === 'navigate' && action.path.includes('/checkout')) {
+                  await deps.recordMetric('checkout.reached', {
+                    merchantId: merchant.id,
+                    sessionId: session.sessionId,
+                    source: 'navigate',
+                  });
+                }
+                if (action.type === 'checkout_place') {
+                  await deps.recordMetric('checkout.placed', {
+                    merchantId: merchant.id,
+                    sessionId: session.sessionId,
+                  });
+                }
               }
-              if (action.type === 'navigate' && action.path.includes('/checkout')) {
-                await deps.recordMetric('checkout.reached', {
-                  merchantId: merchant.id,
-                  sessionId: session.sessionId,
-                  source: 'navigate',
-                });
-              }
-              if (action.type === 'checkout_place') {
-                await deps.recordMetric('checkout.placed', {
-                  merchantId: merchant.id,
-                  sessionId: session.sessionId,
-                });
-              }
-            }
             }
           }
         } else {
@@ -544,6 +559,7 @@ export async function* runTurn(
           toolName: call.name,
           ok: envelope.ok,
           latencyMs: Date.now() - start,
+          ...toolTelemetryTags(envelope, channel, hostActionType),
         });
       }
       yield { type: 'tool_result', toolName: call.name, ok: envelope.ok };
@@ -587,7 +603,10 @@ export async function* runTurn(
   }
 
   const responseText = response?.text ?? '';
-  const { text: stripped, hits } = stripPrices(stripToolSyntax(responseText), new Set(accumulatedAllowedTokens));
+  const { text: stripped, hits } = stripPrices(
+    stripToolSyntax(responseText),
+    new Set(accumulatedAllowedTokens),
+  );
   const firstHit = hits[0];
   if (firstHit) {
     await deps.recordMetric(
@@ -626,7 +645,49 @@ export async function* runTurn(
       (message.type === 'user_text' && CHECKOUT_SIGNAL.test(message.text)),
   };
   await deps.saveSession(updated);
+  // Fire-and-forget so the metric insert never delays end_of_turn.
+  void deps
+    .recordMetric('agent.turn.completed', {
+      merchantId: merchant.id,
+      sessionId: session.sessionId,
+      mode: session.mode,
+      model: turnModel,
+      latencyMs: Date.now() - now,
+      llmCalls,
+      toolCalls: toolCallsThisTurn,
+    })
+    .catch(() => {});
   yield { type: 'end_of_turn' };
+}
+
+/**
+ * Per-action telemetry tags for `agent.tool.invoked` (nav PRD Phase 0):
+ * the channel that served the call, the host action type, the failure reason,
+ * whether the widget verified the effect (once Phase 1 reports it), and the
+ * size of the result the model has to read (chars + rough token estimate).
+ */
+export function toolTelemetryTags(
+  envelope: ToolResultEnvelope,
+  channel: 'adapter' | 'host' | 'server',
+  hostActionType?: string,
+): Record<string, string | number | boolean> {
+  const resultChars = JSON.stringify(envelope).length;
+  const tags: Record<string, string | number | boolean> = {
+    channel,
+    resultChars,
+    resultTokensEst: Math.ceil(resultChars / 4),
+  };
+  if (hostActionType) tags.actionType = hostActionType;
+  if (!envelope.ok) {
+    const reason = (envelope as { reason?: unknown }).reason;
+    tags.failReason = typeof reason === 'string' ? reason : envelope.kind;
+  } else {
+    const value = envelope.value as { verified?: unknown } | null | undefined;
+    if (value && typeof value === 'object' && typeof value.verified === 'boolean') {
+      tags.verified = value.verified;
+    }
+  }
+  return tags;
 }
 
 function makeCtx(merchant: Merchant, session: SessionState): AdapterContext {
@@ -804,7 +865,9 @@ export function toHostAction(name: string, args: Record<string, unknown>): HostA
     case 'page.read':
       return {
         type: 'form_read',
-        fields: Array.isArray(args.fields) ? (args.fields as unknown[]).map((s) => String(s)) : undefined,
+        fields: Array.isArray(args.fields)
+          ? (args.fields as unknown[]).map((s) => String(s))
+          : undefined,
       };
     case 'page.click':
       return { type: 'click', intent: String(args.intent ?? '') };

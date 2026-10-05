@@ -1,6 +1,12 @@
 import type { Merchant } from '@shoppingmate/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type RunTurnDeps, pickTurnModel, runTurn, toHostAction } from './runtime.js';
+import {
+  type RunTurnDeps,
+  pickTurnModel,
+  runTurn,
+  toHostAction,
+  toolTelemetryTags,
+} from './runtime.js';
 import type { AgentEvent, SessionState } from './types.js';
 
 vi.mock('@shoppingmate/shared', async (orig) => ({
@@ -472,7 +478,9 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
     for await (const ev of runTurn(
       {
         loadAdapter: () => fakeAdapter(),
-        saveSession: async (s: SessionState) => { saved.push(s); },
+        saveSession: async (s: SessionState) => {
+          saved.push(s);
+        },
         recordMetric: async () => {},
         chatToolsImpl: fakeChatTools as any,
         dispatchHostAction: async () => ({ ok: true as const }),
@@ -480,13 +488,12 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       merchant2,
       session,
       { type: 'user_text', sessionId: 's1', text: 'show me pricing', mode: 'voice' },
-    )) events.push(ev as AgentEvent);
+    ))
+      events.push(ev as AgentEvent);
 
     const sayEvents = events.filter((e): e is { type: 'say'; text: string } => e.type === 'say');
     const sayText = sayEvents.map((e) => e.text).join(' ');
-    expect(sayText).toContain(
-      'Starter is thirty dollars per month for one hundred conversations.',
-    );
+    expect(sayText).toContain('Starter is thirty dollars per month for one hundred conversations.');
     expect(saved.at(-1)?.allowedSpeechTokens).toContain(
       'Starter is thirty dollars per month for one hundred conversations.',
     );
@@ -523,7 +530,9 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       merchant2,
       session,
       { type: 'user_text', sessionId: 's-rec-1', text: 'pricing for growth', mode: 'voice' },
-    )) { /* drain */ }
+    )) {
+      /* drain */
+    }
     // Flush microtasks so the fire-and-forget .catch chain resolves before assert.
     await Promise.resolve();
     expect(recordRecommendation).toHaveBeenCalledWith({
@@ -560,7 +569,9 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       merchant3,
       session2,
       { type: 'user_text', sessionId: 's1', text: 'show pricing', mode: 'voice' },
-    )) { /* drain */ }
+    )) {
+      /* drain */
+    }
     expect(dispatched).toEqual([{ type: 'navigate', path: '/pricing' }]);
   });
 
@@ -571,7 +582,11 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       .mockResolvedValueOnce({
         text: '',
         toolCalls: [
-          { id: 'tc1', name: 'site.navigate', argumentsJson: JSON.stringify({ path: '/checkout' }) },
+          {
+            id: 'tc1',
+            name: 'site.navigate',
+            argumentsJson: JSON.stringify({ path: '/checkout' }),
+          },
         ],
       })
       .mockResolvedValueOnce({ text: 'Taking you to checkout.', toolCalls: [] });
@@ -590,8 +605,12 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       merchant3,
       session2,
       { type: 'user_text', sessionId: 's1', text: 'checkout please', mode: 'voice' },
-    )) { /* drain */ }
-    expect(metrics.some((m) => m.name === 'checkout.reached' && m.tags.source === 'navigate')).toBe(true);
+    )) {
+      /* drain */
+    }
+    expect(metrics.some((m) => m.name === 'checkout.reached' && m.tags.source === 'navigate')).toBe(
+      true,
+    );
   });
 
   it('places the order via host action and emits checkout.placed (Calmosis)', async () => {
@@ -644,7 +663,8 @@ describe('pickTurnModel — cost/quality hybrid', () => {
   it('uses the cheap model for general chat and the precise model for checkout turns', () => {
     process.env.OPENROUTER_MODEL = 'cheap/x';
     process.env.OPENROUTER_CHECKOUT_MODEL = 'precise/y';
-    const m = (text: string) => ({ type: 'user_text', sessionId: 's', text, mode: 'text' }) as never;
+    const m = (text: string) =>
+      ({ type: 'user_text', sessionId: 's', text, mode: 'text' }) as never;
     expect(pickTurnModel(m('tell me about sleep mantra'), undefined)).toBe('cheap/x');
     expect(pickTurnModel(m('my pincode is 560038'), undefined)).toBe('precise/y');
     expect(pickTurnModel(m('email is a@b.com'), undefined)).toBe('precise/y');
@@ -659,11 +679,90 @@ describe('pickTurnModel — cost/quality hybrid', () => {
   it('stays on the precise model once in checkout, even for non-signal correction turns', () => {
     process.env.OPENROUTER_MODEL = 'cheap/x';
     process.env.OPENROUTER_CHECKOUT_MODEL = 'precise/y';
-    const m = (text: string) => ({ type: 'user_text', sessionId: 's', text, mode: 'text' }) as never;
+    const m = (text: string) =>
+      ({ type: 'user_text', sessionId: 's', text, mode: 'text' }) as never;
     // A correction like "no, make it Pune" matches no CHECKOUT_SIGNAL keyword,
     // so without stickiness it would drop to the cheap model and botch the edit.
     expect(pickTurnModel(m('no, make it Pune'), undefined, false)).toBe('cheap/x');
     expect(pickTurnModel(m('no, make it Pune'), undefined, true)).toBe('precise/y');
+  });
+});
+
+describe('toolTelemetryTags() — nav PRD Phase 0', () => {
+  it('reports channel, result size, and host action type on success', () => {
+    const tags = toolTelemetryTags(
+      { ok: true, value: { values: { a: 'b' } } },
+      'host',
+      'form_read',
+    );
+    expect(tags).toMatchObject({ channel: 'host', actionType: 'form_read' });
+    expect(tags.resultChars).toBeGreaterThan(0);
+    expect(tags.resultTokensEst).toBe(Math.ceil(Number(tags.resultChars) / 4));
+    expect(tags).not.toHaveProperty('failReason');
+    expect(tags).not.toHaveProperty('verified');
+  });
+  it('reports the failure reason (or kind when there is no reason)', () => {
+    expect(
+      toolTelemetryTags({ ok: false, kind: 'unsupported', reason: 'not_found' }, 'host', 'click'),
+    ).toMatchObject({ failReason: 'not_found' });
+    expect(toolTelemetryTags({ ok: false, kind: 'retry_exhausted' }, 'adapter')).toMatchObject({
+      failReason: 'retry_exhausted',
+    });
+  });
+  it('passes through a widget-reported verified flag', () => {
+    expect(
+      toolTelemetryTags({ ok: true, value: { ok: true, verified: false } }, 'host', 'click'),
+    ).toMatchObject({
+      verified: false,
+    });
+  });
+});
+
+describe('runTurn() — turn + tool telemetry (nav PRD Phase 0)', () => {
+  it('tags agent.tool.invoked with the channel and emits agent.turn.completed', async () => {
+    vi.mocked(chatTools)
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'consultation.request',
+            argumentsJson: JSON.stringify({ name: 'Karan', age: 32, phone: '98765 43210' }),
+          },
+        ],
+        stopReason: 'tool_calls',
+        inputTokens: 10,
+        outputTokens: 5,
+      })
+      .mockResolvedValueOnce({
+        text: 'Done.',
+        toolCalls: [],
+        stopReason: 'stop',
+        inputTokens: 10,
+        outputTokens: 5,
+      });
+    const recordMetric = vi.fn(async () => undefined);
+    const localDeps: RunTurnDeps = {
+      ...deps,
+      submitConsultation: vi.fn(async () => ({ ok: true as const })),
+      recordMetric,
+    };
+    for await (const _ev of runTurn(localDeps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'book a consult',
+      mode: 'text',
+    })) {
+      // drain
+    }
+    expect(recordMetric).toHaveBeenCalledWith(
+      'agent.tool.invoked',
+      expect.objectContaining({ toolName: 'consultation.request', channel: 'server', ok: true }),
+    );
+    expect(recordMetric).toHaveBeenCalledWith(
+      'agent.turn.completed',
+      expect.objectContaining({ llmCalls: 2, toolCalls: 1, latencyMs: expect.any(Number) }),
+    );
   });
 });
 
@@ -716,7 +815,9 @@ describe('runTurn() — consultation.request', () => {
     );
     expect(recordMetric).toHaveBeenCalledWith('consultation.requested', expect.any(Object));
     const tr = events.find(
-      (e) => e.type === 'tool_result' && (e as { toolName?: string }).toolName === 'consultation.request',
+      (e) =>
+        e.type === 'tool_result' &&
+        (e as { toolName?: string }).toolName === 'consultation.request',
     );
     expect(tr).toMatchObject({ ok: true });
   });
@@ -756,7 +857,9 @@ describe('runTurn() — consultation.request', () => {
     }
     expect(submitConsultation).not.toHaveBeenCalled();
     const tr = events.find(
-      (e) => e.type === 'tool_result' && (e as { toolName?: string }).toolName === 'consultation.request',
+      (e) =>
+        e.type === 'tool_result' &&
+        (e as { toolName?: string }).toolName === 'consultation.request',
     );
     expect(tr).toMatchObject({ ok: false });
   });
@@ -776,7 +879,13 @@ describe('runTurn() — consultation.request', () => {
         inputTokens: 10,
         outputTokens: 5,
       })
-      .mockResolvedValueOnce({ text: 'ok', toolCalls: [], stopReason: 'stop', inputTokens: 1, outputTokens: 1 });
+      .mockResolvedValueOnce({
+        text: 'ok',
+        toolCalls: [],
+        stopReason: 'stop',
+        inputTokens: 1,
+        outputTokens: 1,
+      });
     const events: AgentEvent[] = [];
     for await (const ev of runTurn(deps, merchant, baseSession(), {
       type: 'user_text',
@@ -787,7 +896,9 @@ describe('runTurn() — consultation.request', () => {
       events.push(ev);
     }
     const tr = events.find(
-      (e) => e.type === 'tool_result' && (e as { toolName?: string }).toolName === 'consultation.request',
+      (e) =>
+        e.type === 'tool_result' &&
+        (e as { toolName?: string }).toolName === 'consultation.request',
     );
     expect(tr).toMatchObject({ ok: false });
   });

@@ -80,15 +80,18 @@ The bot drives the storefront through the DOM, which is the right layer for a cr
 
 Without a baseline we can't prove Phases 1–2 are faster/better.
 
-- [ ] **0.1** Add per-host-action telemetry: `{action, channel, durationMs, ok, verified, payloadTokens}` emitted to the existing turn trace / analytics events (`packages/agent/src/runtime.ts` + widget `host/actions.ts` result path).
-- [ ] **0.2** Add `page.read` payload size (chars + est. tokens) to the trace.
-- [ ] **0.3** Script `apps/api/scripts/nav-baseline.mjs`: aggregates last 7 days for a tenant → success rate, p50/p95 action latency, p50 voice-turn latency.
-- [ ] **0.4** Run baseline on Calmosis (`SM-2SCCLZ`); record numbers in **Phase log**.
+- [x] **0.1** Add per-host-action telemetry: `{action, channel, durationMs, ok, verified, payloadTokens}` emitted to the existing turn trace / analytics events (`packages/agent/src/runtime.ts` + widget `host/actions.ts` result path).
+- [x] **0.2** Add `page.read` payload size (chars + est. tokens) to the trace.
+- [x] **0.3** Script `apps/api/scripts/nav-baseline.mjs`: aggregates last 7 days for a tenant → success rate, p50/p95 action latency, p50 voice-turn latency.
+- [x] **0.4** Run baseline on Calmosis (`SM-2SCCLZ`); record numbers in **Phase log**.
 
 **Acceptance:** baseline numbers recorded below.
 
 **Phase log:**
-> _(paste baseline numbers here)_
+> **Baseline 2026-10-06 (pre-Phase-1, prod api, Calmosis SM-2SCCLZ)**
+> - Real traffic last 30 d: 22 tool calls total (too thin) — products.search 6 (100%), site.navigate 5 (100%, p50 284 ms), coupon.apply 4 (100%, p50 708 ms), cart.add 3 (100%, p50 289 ms), checkout.state 2 (50%). Host-channel tags absent until this deploy.
+> - Scripted bench (`nav-bench.mjs 3`, text, 12 turns): **end-of-turn p50 5918 ms, p95 7392 ms**; first-say ≈ end (say is emitted at turn end); 0 timeouts; cart.add host action ok 3/3. Turns with no tool ≈ 1.7–2.1 s; products.search turns ≈ 6–7 s.
+> - Known gap: voice fast-path dispatches in agentWorker.ts bypass runTurn telemetry.
 
 ---
 
