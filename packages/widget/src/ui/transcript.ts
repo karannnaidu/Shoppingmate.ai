@@ -8,6 +8,25 @@ function escapeHtml(s: string): string {
   );
 }
 
+// Assistant replies arrive as light markdown (**bold**, "- " / "1. " lists,
+// line breaks). Shoppers were seeing raw asterisks and run-together lists, so
+// render a SAFE subset: escape everything first, then add only <strong>/<br>.
+export function renderLiteMarkdown(text: string): string {
+  return escapeHtml(text.trim())
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
+    .replace(/(^|\s)\*([^*\n]+)\*(?=\s|$|[.,!?])/g, '$1$2')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*[-•]\s+/gm, '• ')
+    .replace(/\n{2,}/g, '\n')
+    .replace(/\n/g, '<br>');
+}
+
+function setBubbleText(el: HTMLElement, role: string, text: string): void {
+  if (role === 'user') el.textContent = text;
+  else el.innerHTML = renderLiteMarkdown(text);
+}
+
 function cardEl(
   c: CardItem,
   onTap: (p: { sku: string; variantId: string | null }) => void,
@@ -32,7 +51,7 @@ function createNode(
   if (item.kind === 'text') {
     const div = document.createElement('div');
     div.className = `bubble ${item.role}`;
-    div.textContent = item.text;
+    setBubbleText(div, item.role, item.text);
     return div;
   }
   if (item.kind === 'cards') {
@@ -81,7 +100,7 @@ export function renderTranscript(
     const cached = prevById.get(item.id);
     if (cached) {
       if (item.kind === 'text' && cached.text !== item.text) {
-        cached.el.textContent = item.text;
+        setBubbleText(cached.el, item.role, item.text);
         cached.text = item.text;
         grew = true;
       }
