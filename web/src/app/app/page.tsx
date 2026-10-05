@@ -60,20 +60,20 @@ export default async function HomePage() {
           <KpiTile
             label="Assisted revenue · 7d"
             value={usd(kpis.assistedRevenueCents)}
-            hint={`${kpis.assistedOrderCount} orders Sage recommended`}
+            hint={`${kpis.assistedOrderCount} orders Olivia recommended`}
           />
         </Link>
         <Link href="/app/revenue" className="block">
           <KpiTile
             label="Influenced revenue · 7d"
             value={usd(kpis.influencedRevenueCents)}
-            hint={`${kpis.influencedOrderCount} orders after a Sage conversation`}
+            hint={`${kpis.influencedOrderCount} orders after an Olivia conversation`}
           />
         </Link>
         <KpiTile
           label="Voice ratio"
           value={`${(kpis.voiceRatio * 100).toFixed(0)}%`}
-          hint={kpis.voiceRatio > 0.2 ? `Surcharge active: $0.30 × ${kpis.voiceConversations}` : undefined}
+          hint={kpis.voiceConversations ? `${kpis.voiceConversations} of ${kpis.conversations} by voice` : undefined}
         />
         <KpiTile
           label="Voice recorded today"

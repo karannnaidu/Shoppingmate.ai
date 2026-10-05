@@ -73,7 +73,11 @@ export default function SignupPage() {
                 {loading ? 'Sending…' : 'Sign up'}
               </Button>
               <p className="text-xs text-text-muted">
-                By continuing you agree to our Terms.
+                By continuing you agree to our{' '}
+                <a href="/legal/privacy" className="underline underline-offset-2 hover:text-text-secondary">
+                  Privacy Policy
+                </a>
+                .
               </p>
             </form>
           </div>

@@ -17,7 +17,16 @@ export async function liveSnapshot(merchantId: string): Promise<LiveSnapshot> {
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(conversationSessions)
-      .where(and(eq(conversationSessions.merchantId, merchantId), isNull(conversationSessions.endedAt))),
+      // "Active" = still open AND started recently. Many sessions never get
+      // endedAt set, so `endedAt IS NULL` alone counted every stale session ever
+      // (showed 37k). Scope to the last 15 minutes for a real live count.
+      .where(
+        and(
+          eq(conversationSessions.merchantId, merchantId),
+          isNull(conversationSessions.endedAt),
+          gte(conversationSessions.startedAt, new Date(Date.now() - 15 * 60 * 1000)),
+        ),
+      ),
     db
       .select({
         n: sql<number>`count(*)::int`,

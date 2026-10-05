@@ -82,8 +82,8 @@ export default async function BillingPage() {
       {/* Plan + credit usage */}
       <Card>
         <CardHeader>
-          <CardTitle className="capitalize">
-            {session.merchant.plan} — ${plan.price}/mo · {allowance} credits/mo
+          <CardTitle>
+            <span className="capitalize">{session.merchant.plan}</span> — ${plan.price}/mo · {allowance} credits/mo
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

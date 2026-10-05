@@ -63,10 +63,10 @@ function PayStep() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ul className="text-sm text-text-secondary list-disc pl-5 space-y-1 marker:text-violet">
-          <li>100 conversations / month included</li>
+          <li>100 credits / month included (1 conversation = 1 credit)</li>
           <li>Cross-platform widget (Shopify, Woo, Magento, BC, Wix, Squarespace, custom)</li>
           <li>Brand Knowledge base + persona settings</li>
-          <li>Lead webhook + Stripe Customer Portal billing</li>
+          <li>Lead webhook + one-click billing (Razorpay)</li>
         </ul>
         <Button size="lg" onClick={go} disabled={loading}>
           {loading ? 'Redirecting…' : 'Start Starter plan'}
