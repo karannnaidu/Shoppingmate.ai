@@ -24,6 +24,19 @@ export const siteGraphCrawlQueue = new Queue<SiteGraphCrawlJobData>('site-graph-
   },
 });
 
+// Nav PRD Phase 2: (re)scan a merchant's page templates in a real browser.
+// pageType omitted = all templates. trigger = why (onboarding|drift|verify|weekly|manual).
+export type SiteTemplateScanJobData = { merchantId: string; pageType?: string; trigger?: string };
+export const siteTemplateScanQueue = new Queue<SiteTemplateScanJobData>('site-template-scan', {
+  connection: createRedisConnection(),
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: { type: 'exponential', delay: 60_000 },
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 200 },
+  },
+});
+
 export type SiteGraphExtractJobData = { merchantId: string; crawlId: string };
 export const siteGraphExtractQueue = new Queue<SiteGraphExtractJobData>('site-graph-extract', {
   connection: createRedisConnection(),

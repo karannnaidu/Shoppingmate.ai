@@ -1,6 +1,16 @@
+import { keysFromSnapshot } from './host/fingerprint.js';
+import { buildSnapshot } from './host/snapshot.js';
 import { defineWidget } from './widget.js';
 
 declare const process: { env: { SHOPPINGMATE_API_BASE: string } };
+
+// Nav Phase 2: the offline template crawler loads this bundle (without a
+// data-id, so no widget/session starts) and calls these, guaranteeing it
+// computes page keys with exactly the code the live widget uses.
+(window as unknown as { __shoppingmateNav__?: unknown }).__shoppingmateNav__ = {
+  snapshot: () => buildSnapshot().text,
+  keys: () => keysFromSnapshot(buildSnapshot().text),
+};
 
 function init(): void {
   const script =

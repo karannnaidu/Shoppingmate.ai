@@ -7,6 +7,7 @@ import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
 import { startActivityTracker } from './host/activity.js';
 import { getOrCreateVisitorId } from './identity.js';
 import { executeHostAction } from './host/actions.js';
+import { setNavContext } from './host/templates.js';
 import { type PersonaDisplay, getPersonaDisplay, getPersonaPlaceholder } from './persona.js';
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
@@ -426,6 +427,8 @@ class WidgetElement extends HTMLElement {
     }
     this.store = createStore({ sessionId: result.sessionId });
     this.store.subscribe(() => this.render());
+    // Nav Phase 2: template site map + drift reporting are scoped to this session.
+    setNavContext({ apiBase: this.apiBase, merchantId: this.merchantId, sessionId: result.sessionId });
     this.voice = result.voice;
     this.persona = getPersonaDisplay(result.personaId ?? result.voice?.personaId ?? null);
     // Apply the dashboard-configured launcher placement (unless the visitor has

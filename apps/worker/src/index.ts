@@ -1,4 +1,10 @@
-import { type OnboardingJobData, createRedisConnection, siteGraphCrawlQueue as crawlQueue, siteGraphExtractQueue } from '@shoppingmate/jobs';
+import {
+  type OnboardingJobData,
+  createRedisConnection,
+  siteGraphCrawlQueue as crawlQueue,
+  siteGraphExtractQueue,
+  siteTemplateScanQueue,
+} from '@shoppingmate/jobs';
 import { db, schema } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
 import { chat, logger } from '@shoppingmate/shared';
@@ -7,6 +13,7 @@ import { onboardingHandler } from './handlers/onboarding.js';
 import { ingestKbDoc } from './jobs/ingestKbDoc.js';
 import { runCrawlSite } from './jobs/crawlSite.js';
 import { runExtractSiteGraph } from './jobs/extractSiteGraph.js';
+import { runScanSiteTemplates } from './jobs/scanSiteTemplates.js';
 import { runDriftDetect } from './cron/driftDetect.js';
 import { runPlaybookRefresh } from './cron/refreshPlaybooks.js';
 import { downloadKbObject } from './r2-download.js';
@@ -102,6 +109,33 @@ driftWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'site-graph-
 driftWorker.on('failed', (job, err) =>
   logger.error({ jobId: job?.id, err: err.message }, 'site-graph-drift failed'));
 
+// Nav Phase 2: real-browser template scans — on demand (dashboard re-scan,
+// drift/verify signals from live widgets) and a weekly safety-net re-scan.
+const templateScanWorker = new Worker(
+  'site-template-scan',
+  async (job) => {
+    if (job.name === 'weekly') {
+      const merchants = await db.query.merchants.findMany({
+        where: eq(schema.merchants.siteGraphEnabled, true),
+      });
+      for (const m of merchants) await siteTemplateScanQueue.add('scan', { merchantId: m.id, trigger: 'weekly' });
+      return { enqueued: merchants.length };
+    }
+    return runScanSiteTemplates({
+      merchantId: job.data.merchantId as string,
+      pageType: job.data.pageType as string | undefined,
+      trigger: job.data.trigger as string | undefined,
+    });
+  },
+  { connection: createRedisConnection(), concurrency: 1 },
+);
+await siteTemplateScanQueue.add('weekly', { merchantId: '*' }, { repeat: { pattern: '0 2 * * 0' } });
+templateScanWorker.on('ready', () => logger.info('site-template-scan worker ready'));
+templateScanWorker.on('completed', (job, rv) =>
+  logger.info({ jobId: job.id, result: rv }, 'site-template-scan completed'));
+templateScanWorker.on('failed', (job, err) =>
+  logger.error({ jobId: job?.id, err: err.message }, 'site-template-scan failed'));
+
 // Nightly brand selling-playbook refresh cron: distils each merchant's last-90d
 // conversation outcomes into a fresh selling playbook at 4am UTC.
 const playbookChat = (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) =>
@@ -147,6 +181,7 @@ const shutdown = async (signal: string) => {
     driftQueue.close(),
     playbookWorker.close(),
     playbookQueue.close(),
+    templateScanWorker.close(),
   ]);
   process.exit(0);
 };

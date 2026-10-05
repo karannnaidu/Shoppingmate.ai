@@ -1,4 +1,5 @@
 import { accessibleName, isVisible } from './ax-tree.js';
+import { keyFor } from './fingerprint.js';
 
 // Compact, model-readable snapshot of the live page (nav PRD Phase 1).
 //
@@ -173,8 +174,18 @@ function looksLikePrice(el: HTMLElement): boolean {
   return PRICE_RE.test(text);
 }
 
-export function buildSnapshot(opts: { maxChars?: number } = {}): Snapshot {
+export type SnapshotOptions = {
+  maxChars?: number;
+  /** Phase 2: template skeleton keys — static header/footer links in it are
+   *  collapsed into one summary line instead of individual refs. */
+  collapse?: Set<string>;
+  /** Phase 2: extra lines after the [page] header (template + recipes). */
+  preface?: string[];
+};
+
+export function buildSnapshot(opts: SnapshotOptions = {}): Snapshot {
   const maxChars = opts.maxChars ?? DEFAULT_MAX_CHARS;
+  const collapsedNames: string[] = [];
   for (const el of Array.from(document.querySelectorAll(`[${REF_ATTR}]`)))
     el.removeAttribute(REF_ATTR);
   refMap = new Map();
@@ -200,10 +211,19 @@ export function buildSnapshot(opts: { maxChars?: number } = {}): Snapshot {
     if (!name && st.length === 0 && kind !== 'interactive') return;
     // Unlabelled icon-only links/buttons add noise the bot can't act on sensibly.
     if (!name && kind === 'interactive' && (role === 'link' || role === 'button')) return;
+    const footer = !inDialog && inChrome(el);
+    const navbar = !inDialog && el.closest('nav,header,[role="navigation"],[role="banner"]') !== null;
+    if (opts.collapse && role === 'link' && (footer || navbar)) {
+      const k = keyFor(role, name);
+      if (k && opts.collapse.has(k)) {
+        if (collapsedNames.length < 30 && !collapsedNames.includes(name)) collapsedNames.push(name);
+        return;
+      }
+    }
     let priority = inDialog ? 0 : kind === 'interactive' ? 2 : kind === 'context' ? 1 : 2;
     if (!inDialog && !nearViewport(el)) priority += 3;
-    if (!inDialog && inChrome(el)) priority += 4;
-    if (!inDialog && el.closest('nav,header,[role="navigation"],[role="banner"]')) priority += 2;
+    if (footer) priority += 4;
+    if (navbar) priority += 2;
     const stateText = st.length > 0 ? ` (${st.join(', ')})` : '';
     const line = `${role} "${name}"${stateText}`;
     entries.push({ el, line, priority, order: order++ });
@@ -241,10 +261,13 @@ export function buildSnapshot(opts: { maxChars?: number } = {}): Snapshot {
   }
 
   // Keep the most important lines within the budget, then restore page order.
-  const header = `[page] ${clean(document.title || '', 70)} · ${location.pathname}`;
+  const header = [`[page] ${clean(document.title || '', 70)} · ${location.pathname}`, ...(opts.preface ?? [])];
+  if (collapsedNames.length > 0) {
+    header.push(`[site links] ${collapsedNames.join(', ')} (standard site navigation — use site.navigate)`);
+  }
   const ranked = [...entries].sort((a, b) => a.priority - b.priority || a.order - b.order);
   const kept: Entry[] = [];
-  let used = header.length + 1;
+  let used = header.join('\n').length + 1;
   for (const e of ranked) {
     const cost = e.line.length + 8;
     if (used + cost > maxChars) continue;
@@ -253,7 +276,7 @@ export function buildSnapshot(opts: { maxChars?: number } = {}): Snapshot {
   }
   kept.sort((a, b) => a.order - b.order);
 
-  const lines = [header];
+  const lines = [...header];
   let n = 0;
   for (const e of kept) {
     n += 1;

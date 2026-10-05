@@ -39,6 +39,7 @@ import { installRoute } from './routes/install.js';
 import { shopifyProvisionRoute } from './routes/shopifyProvision.js';
 import { sessionRoute } from './routes/session.js';
 import { siteGraphRoute } from './routes/siteGraph.js';
+import { createSiteTemplatesRoute } from './routes/siteTemplates.js';
 import { shopifyWebhookRoute } from './routes/webhooks/shopify.js';
 import { voiceTokenRoute } from './routes/voice-token.js';
 import { mountAgentWs } from './ws/agent.js';
@@ -66,6 +67,11 @@ app.route('/v1/install', installRoute);
 app.route('/v1/shopify/provision', shopifyProvisionRoute);
 app.route('/v1/session', sessionRoute);
 app.route('/v1/site-graph', siteGraphRoute);
+// Nav Phase 2: own Redis client — routes must be registered before serve().
+app.route(
+  '/v1/site-templates',
+  createSiteTemplatesRoute(new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })),
+);
 app.route('/v1/voice/token', voiceTokenRoute);
 app.route('/webhooks/shopify', shopifyWebhookRoute);
 

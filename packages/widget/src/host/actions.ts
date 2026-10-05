@@ -2,7 +2,9 @@ import { resolveIntent } from './ax-tree.js';
 import { hideCursor, moveCursorTo, pulseCursorClick } from './cursor.js';
 import { showPulseRing } from './overlay.js';
 import { formFill, formRead } from './form-control.js';
+import { keysFromSnapshot, matchTemplate } from './fingerprint.js';
 import { buildSnapshot, elementForRef } from './snapshot.js';
+import { loadTemplates, reportTemplateSignal } from './templates.js';
 import { verifyEffect } from './verify.js';
 import {
   shopifyApplyCoupon,
@@ -116,9 +118,37 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
   }
 }
 
-function pageSnapshot(): HostActionResult {
+// Template the current page matched on its last snapshot (Phase 2) — used to
+// attribute unverified clicks to a template so repeated failures trigger a re-scan.
+let lastTemplateId: string | null = null;
+
+async function pageSnapshot(): Promise<HostActionResult> {
   const t0 = performance.now();
-  const snap = buildSnapshot();
+  let snap = buildSnapshot();
+  const values: Record<string, string> = {};
+  lastTemplateId = null;
+  const templates = await loadTemplates();
+  if (templates.length > 0) {
+    const m = matchTemplate(keysFromSnapshot(snap.text), location.pathname, templates);
+    if (m.template) {
+      lastTemplateId = m.template.id;
+      const recipes = m.template.recipes
+        .slice(0, 6)
+        .map((r) => `${r.action.replace(/_/g, ' ')} = ${r.role} "${r.name}"`)
+        .join('; ');
+      snap = buildSnapshot({
+        collapse: new Set(m.template.skeleton),
+        preface: [
+          `[template] ${m.template.pageType} page (known layout, ${Math.round(m.coverage * 100)}% match)${recipes ? ` · how this page works: ${recipes}` : ''}`,
+        ],
+      });
+      values.template = m.template.pageType;
+      values.coverage = m.coverage.toFixed(2);
+    } else if (m.drift) {
+      reportTemplateSignal('drift', m.drift.template.id, m.drift.coverage);
+      values.drift = `${m.drift.template.pageType}:${m.drift.coverage.toFixed(2)}`;
+    }
+  }
   return {
     ok: true,
     values: {
@@ -126,8 +156,13 @@ function pageSnapshot(): HostActionResult {
       refs: String(snap.refs),
       chars: String(snap.chars),
       buildMs: String(Math.round(performance.now() - t0)),
+      ...values,
     },
   };
+}
+
+function noteVerification(verified: boolean): void {
+  if (!verified && lastTemplateId) reportTemplateSignal('verify', lastTemplateId, 0);
 }
 
 // Same-origin link to a different page: a full-page navigation will unload the
@@ -164,6 +199,7 @@ async function clickRef(ref: string, intent: string): Promise<HostActionResult> 
   }
   const v = await verifyEffect(el, () => el.click());
   hideCursor(800);
+  noteVerification(v.verified);
   return { ok: true, verified: v.verified, observed: v.observed };
 }
 
@@ -391,6 +427,7 @@ async function click(intent: string): Promise<HostActionResult> {
   }
   const v = await verifyEffect(el, () => el.click());
   hideCursor(800);
+  noteVerification(v.verified);
   return { ok: true, verified: v.verified, observed: v.observed };
 }
 

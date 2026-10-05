@@ -2,13 +2,32 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDashboardSession } from '@/lib/session';
 import { db } from '@/lib/db';
-import { siteCrawls, sitePages, merchants } from '@shoppingmate/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { siteCrawls, sitePages, merchants, siteTemplates } from '@shoppingmate/db/schema';
+import { eq, desc, asc } from 'drizzle-orm';
+import { SiteTemplatesCard } from '@/components/site-templates-card';
 
-export default async function SiteGraphPage() {
+export default async function SiteGraphPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const hdrs = await headers();
   const session = await getDashboardSession({ headers: hdrs });
   if (!session?.merchant) redirect('/app/onboarding?step=2');
+  const sp = (await searchParams) ?? {};
+
+  const templates = await db
+    .select({
+      pageType: siteTemplates.pageType,
+      status: siteTemplates.status,
+      scannedAt: siteTemplates.scannedAt,
+      scanTrigger: siteTemplates.scanTrigger,
+      recipes: siteTemplates.recipes,
+      sampleUrls: siteTemplates.sampleUrls,
+    })
+    .from(siteTemplates)
+    .where(eq(siteTemplates.merchantId, session.merchant.id))
+    .orderBy(asc(siteTemplates.pageType));
 
   const [latestCrawl] = await db
     .select({
@@ -73,6 +92,18 @@ export default async function SiteGraphPage() {
           </button>
         </form>
       </div>
+
+      <SiteTemplatesCard
+        rescanQueued={sp.rescan === '1'}
+        templates={templates.map((t) => ({
+          pageType: t.pageType,
+          status: t.status,
+          scannedAt: t.scannedAt,
+          scanTrigger: t.scanTrigger,
+          recipes: t.recipes,
+          sampleCount: t.sampleUrls.length,
+        }))}
+      />
     </div>
   );
 }
