@@ -243,20 +243,38 @@ export default async function InsightsPage({
             ))}
           </ol>
         )}
-        <div className="relative mt-4 overflow-hidden rounded-md border border-border" style={{ maxWidth: device === 'mobile' ? 360 : '100%' }}>
+        <div
+          className="mt-4 max-h-[70vh] overflow-y-auto rounded-md border border-border"
+          style={{ maxWidth: device === 'mobile' ? 360 : 720 }}
+        >
+        <div className="relative">
           {shot ? (
             // biome-ignore lint/a11y/useAltText: decorative page picture with overlay; described by the text above
             <img src={shot} alt={`${PAGE_LABEL[pageType] ?? pageType} screenshot`} className="block w-full" />
           ) : (
             <div className="aspect-[3/4] w-full bg-surface-muted" />
           )}
-          {/* where people tapped (10×10 grid) */}
-          <div className="pointer-events-none absolute inset-0 grid grid-cols-10 grid-rows-10">
-            {Array.from({ length: 100 }, (_, i) => {
-              const x = i % 10;
-              const y = Math.floor(i / 10);
-              const c = pageHeat.find((h) => h.cell === `${x},${y}`)?.clicks ?? 0;
-              return <div key={`${x}-${y}`} style={{ background: c ? `rgba(244,63,94,${0.15 + 0.55 * (c / maxHeat)})` : 'transparent' }} />;
+          {/* where people tapped: a circle per area, bigger = more taps */}
+          <div className="pointer-events-none absolute inset-0">
+            {pageHeat.map((h) => {
+              const [x = 0, y = 0] = h.cell.split(',').map(Number);
+              const size = 18 + 42 * (h.clicks / maxHeat);
+              return (
+                <span
+                  key={h.cell}
+                  className="absolute flex items-center justify-center rounded-full border-2 border-white/80 text-[10px] font-semibold text-white"
+                  style={{
+                    left: `${x * 10 + 5}%`,
+                    top: `${y * 10 + 5}%`,
+                    width: size,
+                    height: size,
+                    transform: 'translate(-50%, -50%)',
+                    background: `rgba(244,63,94,${0.45 + 0.4 * (h.clicks / maxHeat)})`,
+                  }}
+                >
+                  {h.clicks}
+                </span>
+              );
             })}
           </div>
           {/* how long people looked at each part (left strip) */}
@@ -267,8 +285,10 @@ export default async function InsightsPage({
             })}
           </div>
         </div>
+        </div>
         <p className="mt-2 text-xs text-text-secondary">
-          Red shows where people tap; the purple strip shows where they spend time reading.
+          Red circles show where people tap (the number is how many taps); the purple strip shows where they spend
+          time reading. Scroll inside the picture to see the whole page.
         </p>
       </Card>
 
