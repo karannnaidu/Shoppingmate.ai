@@ -103,7 +103,7 @@ export default async function InsightsPage({
         <p className="mt-1 text-sm text-text-secondary">
           {enough ? `Based on ${f.sessions} visits · ` : 'Too early to be sure — check back in a few days · '}
           <span className={trend.tone === 'bad' ? 'text-rose-400' : trend.tone === 'good' ? 'text-emerald-400' : ''}>
-            Visits {trend.text}
+            {f.sessionsPrev > 0 ? `Visits ${trend.text}` : "Next week we can compare with this one"}
           </span>
         </p>
       </div>
