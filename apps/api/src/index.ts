@@ -88,10 +88,7 @@ app.route('/webhooks/shopify', shopifyWebhookRoute);
 // error.
 app.onError((err, c) => {
   const origin = c.req.header('origin');
-  logger.error(
-    { err, method: c.req.method, path: c.req.path, origin },
-    'unhandled request error',
-  );
+  logger.error({ err, method: c.req.method, path: c.req.path, origin }, 'unhandled request error');
   if (origin) {
     c.header('Access-Control-Allow-Origin', origin);
     c.header('Vary', 'Origin');
@@ -125,7 +122,9 @@ let hostActionCounter = 0;
 
 // Session-end intent profiler model (mirrors the voice worker's checkoutModel).
 const profileModel =
-  process.env.OPENROUTER_CHECKOUT_MODEL ?? process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
+  process.env.OPENROUTER_CHECKOUT_MODEL ??
+  process.env.OPENROUTER_MODEL ??
+  'anthropic/claude-sonnet-4.6';
 const profileChat: ChatFn = (messages) =>
   chat({ model: profileModel, messages, responseFormat: 'json', maxTokens: 512 });
 // Phase 4 — live in-session signal classifier (cheaper/smaller cap than the
@@ -137,6 +136,14 @@ const classifierChat: ChatFn = (messages) =>
 // flags across a session so we can emit one conversationCompleted metric (with
 // tags.transcript) on session_end — the writer the dashboard readers expect.
 const recorders = new Map<string, ConversationRecorder>();
+
+// Sessions with a turn in flight → visitor_action notes that arrived during it.
+// The turn appends them after its own save, so the two never race on the
+// session's read-modify-write.
+const turnNotes = new Map<string, string[]>();
+// Live-signal steer lives under its own key (never written into the session by
+// the classifier) and is merged into the session just before each turn.
+const liveSignalKey = (sessionId: string) => `session:${sessionId}:live-signal`;
 
 mountAgentWs(server, {
   onMessage: async (sessionId, merchantId, raw, send) => {
@@ -166,6 +173,17 @@ mountAgentWs(server, {
     }
 
     if (msg.type === 'visitor_action') {
+      const label0 = msg.intentKey ?? msg.elementLabel ?? 'unknown element';
+      const ts0 = new Date(msg.timestamp).toISOString().slice(11, 19);
+      const note0 = `[VISITOR_CONTEXT] At ${ts0} the visitor ${verbForAction(msg.action)} "${label0}" on ${msg.url}.`;
+      // A turn is running for this session: its end-of-turn save would clobber
+      // a write made now (read-modify-write race), so queue the note and let the
+      // turn append it after its own save.
+      const queued = turnNotes.get(sessionId);
+      if (queued) {
+        queued.push(note0);
+        return;
+      }
       const session = await loadSession(redis, sessionId);
       if (!session) {
         // No active session — drop silently. visitor_action only makes sense
@@ -229,9 +247,17 @@ mountAgentWs(server, {
                     const _wid = (record.identity ?? {}) as Record<string, unknown>;
                     logger.info(
                       {
-                        evt: 'pii_diag', phase: 'write', source: 'text', sessionId,
+                        evt: 'pii_diag',
+                        phase: 'write',
+                        source: 'text',
+                        sessionId,
                         visitorId: endingVisitorId,
-                        wrote: { name: Boolean(_wid.name), phone: Boolean(_wid.phone), email: Boolean(_wid.email), address: Boolean(_wid.address) },
+                        wrote: {
+                          name: Boolean(_wid.name),
+                          phone: Boolean(_wid.phone),
+                          email: Boolean(_wid.email),
+                          address: Boolean(_wid.address),
+                        },
                       },
                       'PII-DIAG write',
                     );
@@ -250,144 +276,175 @@ mountAgentWs(server, {
       return;
     }
 
-    let session = await loadSession(redis, sessionId);
+    // Mark a turn in flight BEFORE loading, so concurrent visitor_action notes
+    // queue instead of racing this turn's save (see turnNotes).
+    const ownsTurn = !turnNotes.has(sessionId);
+    if (ownsTurn) turnNotes.set(sessionId, []);
+    try {
+      await handleTurn();
+    } finally {
+      if (ownsTurn) {
+        const notes = turnNotes.get(sessionId) ?? [];
+        turnNotes.delete(sessionId);
+        if (notes.length > 0) {
+          const latest = await loadSession(redis, sessionId);
+          if (latest) {
+            latest.history.push(...notes.map((content) => ({ role: 'user' as const, content })));
+            await saveSession(redis, latest);
+          }
+        }
+      }
+    }
+    return;
 
-    // Fresh session: only valid for user_text (visitor's first prompt).
-    // session_resume / card_tap on a null session is an error — there's
-    // nothing to resume or act on.
-    if (!session) {
-      if (msg.type !== 'user_text') {
+    async function handleTurn(): Promise<void> {
+      if (!msg) return;
+      let session = await loadSession(redis, sessionId);
+
+      // Fresh session: only valid for user_text (visitor's first prompt).
+      // session_resume / card_tap on a null session is an error — there's
+      // nothing to resume or act on.
+      if (!session) {
+        if (msg.type !== 'user_text') {
+          send(encodeAgentEvent({ type: 'session_closed', reason: 'error' }));
+          return;
+        }
+        session = createSession({
+          sessionId,
+          merchantId,
+          mode: msg.mode,
+          nowMs: Date.now(),
+          visitorId: msg.visitorId,
+        });
+      }
+
+      // Cheap-model override for smoke runs ONLY — applied when a frame carries a
+      // valid SMOKE_SECRET. Real visitors never send it, so they keep SONNET.
+      if (process.env.SMOKE_SECRET) {
+        try {
+          const rawObj = JSON.parse(raw.toString()) as { smokeSecret?: string; model?: string };
+          if (rawObj.smokeSecret === process.env.SMOKE_SECRET && typeof rawObj.model === 'string') {
+            session.model = rawObj.model;
+          }
+        } catch {
+          /* not JSON / no override */
+        }
+      }
+
+      if (msg.type === 'session_resume') {
+        for (const ev of replaySession(session)) send(encodeAgentEvent(ev));
+        send(encodeAgentEvent({ type: 'end_of_turn' }));
+        return;
+      }
+
+      const [merchant] = await db
+        .select()
+        .from(schema.merchants)
+        .where(eq(schema.merchants.id, session.merchantId))
+        .limit(1);
+      if (!merchant) {
         send(encodeAgentEvent({ type: 'session_closed', reason: 'error' }));
         return;
       }
-      session = createSession({
-        sessionId,
-        merchantId,
-        mode: msg.mode,
-        nowMs: Date.now(),
-        visitorId: msg.visitorId,
-      });
-    }
 
-    // Cheap-model override for smoke runs ONLY — applied when a frame carries a
-    // valid SMOKE_SECRET. Real visitors never send it, so they keep SONNET.
-    if (process.env.SMOKE_SECRET) {
-      try {
-        const rawObj = JSON.parse(raw.toString()) as { smokeSecret?: string; model?: string };
-        if (rawObj.smokeSecret === process.env.SMOKE_SECRET && typeof rawObj.model === 'string') {
-          session.model = rawObj.model;
-        }
-      } catch {
-        /* not JSON / no override */
+      const dispatchHostAction = async (action: HostAction): Promise<HostActionResult> => {
+        return new Promise<HostActionResult>((resolve) => {
+          const callId = `ha_${++hostActionCounter}_${Date.now()}`;
+          let sessionPending = pendingHostActions.get(sessionId);
+          if (!sessionPending) {
+            sessionPending = new Map();
+            pendingHostActions.set(sessionId, sessionPending);
+          }
+          const timer = setTimeout(() => {
+            sessionPending!.delete(callId);
+            resolve({ ok: false, reason: 'timeout' });
+          }, HOST_ACTION_TIMEOUT_MS);
+          sessionPending.set(callId, { resolve, timer });
+          send(encodeAgentEvent({ type: 'host_action_request', callId, action }));
+        });
+      };
+
+      const deps = {
+        loadAdapter: () =>
+          getAdapter(merchant, {
+            transport: noopTransport,
+            state: new InMemorySessionState(),
+          }),
+        saveSession: (s: SessionState) => saveSession(redis, s),
+        recordMetric: async (name: string, tags: Record<string, string | number | boolean>) => {
+          await db
+            .insert(schema.metricEvents)
+            .values({ merchantId: merchant.id, metricName: name, tags })
+            .onConflictDoNothing();
+        },
+        loadPromptOpts: async (m: typeof merchant, visitorId?: string) =>
+          loadPromptOpts(m.id, visitorId),
+        dispatchHostAction,
+        submitCase: (c: Parameters<typeof submitSupportCase>[0]) => submitSupportCase(c),
+        submitConsultation: (req: {
+          name: string;
+          age: number;
+          condition: string | null;
+          phoneCountryCode: string;
+          phone: string;
+          merchantId: string;
+          sessionId: string;
+        }) =>
+          submitConsultationRequest({
+            merchantId: req.merchantId,
+            sessionId: req.sessionId,
+            name: req.name,
+            age: req.age,
+            condition: req.condition,
+            phoneCountryCode: req.phoneCountryCode,
+            phone: req.phone,
+          }),
+      };
+
+      let recorder = recorders.get(sessionId);
+      if (!recorder) {
+        recorder = createConversationRecorder({ sessionId, startMs: Date.now() });
+        recorders.set(sessionId, recorder);
       }
-    }
+      if (msg.type === 'user_text') recorder.addTurn('user', msg.text);
 
-    if (msg.type === 'session_resume') {
-      for (const ev of replaySession(session)) send(encodeAgentEvent(ev));
-      send(encodeAgentEvent({ type: 'end_of_turn' }));
-      return;
-    }
-
-    const [merchant] = await db
-      .select()
-      .from(schema.merchants)
-      .where(eq(schema.merchants.id, session.merchantId))
-      .limit(1);
-    if (!merchant) {
-      send(encodeAgentEvent({ type: 'session_closed', reason: 'error' }));
-      return;
-    }
-
-    const dispatchHostAction = async (action: HostAction): Promise<HostActionResult> => {
-      return new Promise<HostActionResult>((resolve) => {
-        const callId = `ha_${++hostActionCounter}_${Date.now()}`;
-        let sessionPending = pendingHostActions.get(sessionId);
-        if (!sessionPending) {
-          sessionPending = new Map();
-          pendingHostActions.set(sessionId, sessionPending);
+      // Live-signal steer computed after the previous turn (own key — see below).
+      const steerNow = await redis.get(liveSignalKey(sessionId)).catch(() => null);
+      session.liveSignal = steerNow || session.liveSignal;
+      for await (const ev of runTurn(deps, merchant, session, msg)) {
+        if (ev.type === 'say' && ev.text) recorder.addTurn('agent', ev.text);
+        if (ev.type === 'host_action_request') {
+          if (ev.action.type === 'cart_add') recorder.markCartAdd();
+          if (ev.action.type === 'navigate' && String(ev.action.path).includes('/checkout')) {
+            recorder.markCheckoutReached();
+          }
         }
-        const timer = setTimeout(() => {
-          sessionPending!.delete(callId);
-          resolve({ ok: false, reason: 'timeout' });
-        }, HOST_ACTION_TIMEOUT_MS);
-        sessionPending.set(callId, { resolve, timer });
-        send(encodeAgentEvent({ type: 'host_action_request', callId, action }));
-      });
-    };
-
-    const deps = {
-      loadAdapter: () =>
-        getAdapter(merchant, {
-          transport: noopTransport,
-          state: new InMemorySessionState(),
-        }),
-      saveSession: (s: SessionState) => saveSession(redis, s),
-      recordMetric: async (name: string, tags: Record<string, string | number | boolean>) => {
-        await db
-          .insert(schema.metricEvents)
-          .values({ merchantId: merchant.id, metricName: name, tags })
-          .onConflictDoNothing();
-      },
-      loadPromptOpts: async (m: typeof merchant, visitorId?: string) =>
-        loadPromptOpts(m.id, visitorId),
-      dispatchHostAction,
-      submitCase: (c: Parameters<typeof submitSupportCase>[0]) => submitSupportCase(c),
-      submitConsultation: (req: {
-        name: string;
-        age: number;
-        condition: string | null;
-        phoneCountryCode: string;
-        phone: string;
-        merchantId: string;
-        sessionId: string;
-      }) =>
-        submitConsultationRequest({
-          merchantId: req.merchantId,
-          sessionId: req.sessionId,
-          name: req.name,
-          age: req.age,
-          condition: req.condition,
-          phoneCountryCode: req.phoneCountryCode,
-          phone: req.phone,
-        }),
-    };
-
-    let recorder = recorders.get(sessionId);
-    if (!recorder) {
-      recorder = createConversationRecorder({ sessionId, startMs: Date.now() });
-      recorders.set(sessionId, recorder);
-    }
-    if (msg.type === 'user_text') recorder.addTurn('user', msg.text);
-
-    for await (const ev of runTurn(deps, merchant, session, msg)) {
-      if (ev.type === 'say' && ev.text) recorder.addTurn('agent', ev.text);
-      if (ev.type === 'host_action_request') {
-        if (ev.action.type === 'cart_add') recorder.markCartAdd();
-        if (ev.action.type === 'navigate' && String(ev.action.path).includes('/checkout')) {
-          recorder.markCheckoutReached();
-        }
+        if (ev.type === 'checkout_redirect') recorder.markCheckoutReached();
+        send(encodeAgentEvent(ev));
       }
-      if (ev.type === 'checkout_redirect') recorder.markCheckoutReached();
-      send(encodeAgentEvent(ev));
-    }
 
-    if (msg.type === 'user_text') {
-      // Phase 4 — live in-session signal: classify the conversation-so-far and stash a
-      // steer line for the NEXT turn's system prompt. Best-effort; runs after the reply
-      // is already sent so it never delays the user. Skip the very first user turn.
-      try {
-        const snap = recorder.snapshot();
-        const userTurns = snap.filter((t) => t.role === 'user').length;
-        if (userTurns >= 2) {
-          const transcript = snap.map((t) => `${t.role}: ${t.content}`).join('\n');
-          const sig = await classifyLiveSignal(transcript, classifierChat);
-          const steer = signalSteerLine(sig);
-          session.liveSignal = steer || undefined;
-          await saveSession(redis, session);
-          if (steer) logger.info({ sessionId, steer }, 'live signal');
+      if (msg.type === 'user_text') {
+        // Phase 4 — live in-session signal: classify the conversation-so-far and stash a
+        // steer line for the NEXT turn's system prompt. Best-effort; runs after the reply
+        // is already sent so it never delays the user. Skip the very first user turn.
+        try {
+          const snap = recorder.snapshot();
+          const userTurns = snap.filter((t) => t.role === 'user').length;
+          if (userTurns >= 2) {
+            const transcript = snap.map((t) => `${t.role}: ${t.content}`).join('\n');
+            const sig = await classifyLiveSignal(transcript, classifierChat);
+            const steer = signalSteerLine(sig);
+            // Stored under its OWN key and merged into the session right before the
+            // next turn. (Previously this saved the `session` object loaded before
+            // runTurn, overwriting the turn runTurn had just saved — the bot lost
+            // the previous exchange on every turn from the 2nd on.)
+            if (steer) await redis.set(liveSignalKey(sessionId), steer, 'EX', 3600);
+            else await redis.del(liveSignalKey(sessionId));
+            if (steer) logger.info({ sessionId, steer }, 'live signal');
+          }
+        } catch (err) {
+          logger.warn({ err, sessionId }, 'live signal classify failed');
         }
-      } catch (err) {
-        logger.warn({ err, sessionId }, 'live signal classify failed');
       }
     }
   },
@@ -397,13 +454,20 @@ logger.info({ port: env.API_PORT }, 'agent ws mounted at /v1/widget/:sessionId/a
 
 function verbForAction(a: string): string {
   switch (a) {
-    case 'click': return 'clicked';
-    case 'route_change': return 'navigated to';
-    case 'dwell': return 'is reading';
-    case 'cart_add': return 'added to cart';
-    case 'form_focus': return 'started filling';
-    case 'outbound_click': return 'opened external link';
-    default: return 'interacted with';
+    case 'click':
+      return 'clicked';
+    case 'route_change':
+      return 'navigated to';
+    case 'dwell':
+      return 'is reading';
+    case 'cart_add':
+      return 'added to cart';
+    case 'form_focus':
+      return 'started filling';
+    case 'outbound_click':
+      return 'opened external link';
+    default:
+      return 'interacted with';
   }
 }
 
@@ -446,7 +510,10 @@ async function loadPromptOpts(
       const summary = buildVisitorSummary(vp);
       if (summary) {
         visitorSummaryText = summary;
-        logger.info({ merchantId, visitorId, sessionCount: vp?.sessionCount }, 'personalization: returning visitor (text)');
+        logger.info(
+          { merchantId, visitorId, sessionCount: vp?.sessionCount },
+          'personalization: returning visitor (text)',
+        );
       }
       // PII-DIAG (Phase 0, remove after root-cause confirmed): which visitor_id
       // this request resolved to + whether the loaded silo carried PII. Log the
@@ -455,10 +522,19 @@ async function loadPromptOpts(
       const _id = (vp?.identity ?? {}) as Record<string, unknown>;
       logger.info(
         {
-          evt: 'pii_diag', phase: 'load', source: 'text', requestedVisitorId: visitorId,
-          loadedVisitorId: vp?.visitorId ?? null, sessionCount: vp?.sessionCount ?? 0,
+          evt: 'pii_diag',
+          phase: 'load',
+          source: 'text',
+          requestedVisitorId: visitorId,
+          loadedVisitorId: vp?.visitorId ?? null,
+          sessionCount: vp?.sessionCount ?? 0,
           injectedPii: Boolean(summary),
-          has: { name: Boolean(_id.name), phone: Boolean(_id.phone), email: Boolean(_id.email), address: Boolean(_id.address) },
+          has: {
+            name: Boolean(_id.name),
+            phone: Boolean(_id.phone),
+            email: Boolean(_id.email),
+            address: Boolean(_id.address),
+          },
         },
         'PII-DIAG load',
       );
