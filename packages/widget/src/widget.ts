@@ -8,6 +8,7 @@ import { startActivityTracker } from './host/activity.js';
 import { getOrCreateVisitorId } from './identity.js';
 import { executeHostAction } from './host/actions.js';
 import { setNavContext } from './host/templates.js';
+import { markBotEngaged, startInsights } from './insights/tracker.js';
 import { type PersonaDisplay, getPersonaDisplay, getPersonaPlaceholder } from './persona.js';
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
@@ -429,6 +430,16 @@ class WidgetElement extends HTMLElement {
     this.store.subscribe(() => this.render());
     // Nav Phase 2: template site map + drift reporting are scoped to this session.
     setNavContext({ apiBase: this.apiBase, merchantId: this.merchantId, sessionId: result.sessionId });
+    // Nav Phase 8: Store Insights (entitled merchants only; consent-gated inside).
+    if (result.insights?.enabled) {
+      startInsights({
+        apiBase: this.apiBase,
+        merchantId: this.merchantId,
+        sessionId: result.sessionId,
+        visitorId: result.visitorId,
+        config: result.insights,
+      });
+    }
     this.voice = result.voice;
     this.persona = getPersonaDisplay(result.personaId ?? result.voice?.personaId ?? null);
     // Apply the dashboard-configured launcher placement (unless the visitor has
@@ -662,6 +673,7 @@ class WidgetElement extends HTMLElement {
   }
 
   private userText(text: string, mode: 'voice' | 'text') {
+    markBotEngaged();
     this.store.dispatch({ type: 'user_input', text, mode });
     const sid = this.store.get().sessionId;
     this.socket?.send(

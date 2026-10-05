@@ -45,6 +45,7 @@ const tiers: Tier[] = [
       "Coupon auto-stack",
       "Brand KB unlimited",
       "Multi-store ($/store)",
+      "Store Insights: why shoppers leave + weekly fixes",
       "Slack support, 4h SLA",
     ],
     highlight: true,
@@ -58,6 +59,7 @@ const tiers: Tier[] = [
     desc: "Dedicated infra, custom personas, audit logs, SSO, SOC 2 docs, named CSM.",
     features: [
       "Custom personas",
+      "Store Insights + shopper journeys & export",
       "SSO + audit logs",
       "Dedicated infra",
       "SOC 2 + DPA",

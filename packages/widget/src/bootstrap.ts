@@ -35,6 +35,8 @@ export type BootstrapResult =
       widgetGreeting: string | null;
       voice: VoiceBootstrap | null;
       visitorId: string;
+      /** Nav Phase 8: Store Insights tracker config (null = off for this merchant). */
+      insights: { enabled: boolean; sampleRate: number } | null;
     }
   | { kind: 'err'; reason: string };
 
@@ -99,6 +101,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       widgetAccent?: string | null;
       widgetLabel?: string | null;
       widgetGreeting?: string | null;
+      insights?: { enabled: boolean; sampleRate: number } | null;
     };
 
     // Route the bot's cart host-actions to the Shopify Cart AJAX bridge (vs the
@@ -150,6 +153,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
       widgetGreeting: installBody.widgetGreeting ?? null,
       voice,
       visitorId,
+      insights: installBody.insights ?? null,
     };
   } catch (err) {
     return { kind: 'err', reason: err instanceof Error ? err.message : 'network' };

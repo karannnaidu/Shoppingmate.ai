@@ -162,6 +162,13 @@
       "when": 1791233727342,
       "tag": "0022_tiny_sunset_bain",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791238762365,
+      "tag": "0023_sturdy_micromax",
+      "breakpoints": true
     }
   ]
 }

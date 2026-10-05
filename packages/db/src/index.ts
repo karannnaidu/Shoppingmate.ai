@@ -19,5 +19,9 @@ export { submitConsultationRequest } from './notify/submitConsultation.js';
 export type { SubmitConsultationArgs } from './notify/submitConsultation.js';
 
 export const repos = { catalog, selectorCache: selectorCacheRepo };
-export { submitSupportCase, caseEmail } from './notify/submitCase.js';
+export { submitSupportCase, caseEmail, ownerEmails, emailOwners } from './notify/submitCase.js';
+export { buildInsightFacts, purgeQaInsights, FUNNEL_STEPS } from './insights/facts.js';
+export type { InsightFacts, Leak, FunnelStep } from './insights/facts.js';
 export type { SubmitCaseArgs } from './notify/submitCase.js';
+export { hasFeature, insightsSessionCap, insightsDetailRetentionDays } from './plans.js';
+export type { PlanFeature } from './plans.js';

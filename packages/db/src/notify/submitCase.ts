@@ -57,7 +57,7 @@ ${transcript}`,
   };
 }
 
-async function ownerEmails(merchantId: string): Promise<string[]> {
+export async function ownerEmails(merchantId: string): Promise<string[]> {
   const rows = await db
     .select({ email: users.email })
     .from(merchantOwners)
@@ -97,4 +97,19 @@ export async function submitSupportCase(
     });
   })().catch((err) => console.error('[case] email failed', err));
   return { ok: true, id };
+}
+
+/** Nav Phase 8: email a merchant's owners (insights digest, anomaly alerts). */
+export async function emailOwners(merchantId: string, subject: string, html: string): Promise<number> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return 0;
+  const to = await ownerEmails(merchantId);
+  if (to.length === 0) return 0;
+  await new Resend(apiKey).emails.send({
+    from: process.env.RESEND_FROM ?? 'shoppingmate <onboarding@resend.dev>',
+    to,
+    subject,
+    html,
+  });
+  return to.length;
 }

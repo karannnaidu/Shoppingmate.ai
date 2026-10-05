@@ -1,4 +1,4 @@
-import { db, schema } from '@shoppingmate/db';
+import { db, hasFeature, schema } from '@shoppingmate/db';
 import { createRedisConnection, onboardingQueue } from '@shoppingmate/jobs';
 import { childLogger } from '@shoppingmate/shared';
 import { eq, sql } from 'drizzle-orm';
@@ -158,8 +158,16 @@ installRoute.post('/', async (c) => {
     .where(eq(schema.merchants.id, body.merchantId))
     .limit(1);
 
+  // Nav Phase 8: Store Insights tracker config — only for entitled merchants
+  // (Growth/Scale, or the pilot override) and only while the flag is on.
+  const insightsOn =
+    (process.env.INSIGHTS_TRACKING ?? '') === '1' &&
+    hasFeature({ id: body.merchantId, plan: merchant.plan ?? null }, 'insights');
   return c.json(
     {
+      insights: insightsOn
+        ? { enabled: true, sampleRate: Math.min(1, Math.max(0, Number(process.env.INSIGHTS_SAMPLE_RATE ?? 1))) }
+        : null,
       status: fresh?.status ?? merchant.status,
       personaId: fresh?.personaId ?? merchant.personaId,
       platform: fresh?.platform ?? merchant.platform ?? null,

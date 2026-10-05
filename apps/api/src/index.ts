@@ -40,6 +40,7 @@ import { installRoute } from './routes/install.js';
 import { shopifyProvisionRoute } from './routes/shopifyProvision.js';
 import { sessionRoute } from './routes/session.js';
 import { siteGraphRoute } from './routes/siteGraph.js';
+import { createInsightsRoute } from './routes/insights.js';
 import { createSiteTemplatesRoute } from './routes/siteTemplates.js';
 import { shopifyWebhookRoute } from './routes/webhooks/shopify.js';
 import { voiceTokenRoute } from './routes/voice-token.js';
@@ -73,6 +74,8 @@ app.route(
   '/v1/site-templates',
   createSiteTemplatesRoute(new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })),
 );
+// Nav Phase 8: Store Insights beacons (entitled merchants, INSIGHTS_TRACKING=1).
+app.route('/v1/insights', createInsightsRoute(new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })));
 app.route('/v1/voice/token', voiceTokenRoute);
 app.route('/webhooks/shopify', shopifyWebhookRoute);
 

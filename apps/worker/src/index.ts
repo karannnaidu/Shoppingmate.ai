@@ -5,7 +5,7 @@ import {
   siteGraphExtractQueue,
   siteTemplateScanQueue,
 } from '@shoppingmate/jobs';
-import { db, schema } from '@shoppingmate/db';
+import { db, hasFeature, schema } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
 import { chat, logger } from '@shoppingmate/shared';
 import { Queue, Worker } from 'bullmq';
@@ -13,6 +13,7 @@ import { onboardingHandler } from './handlers/onboarding.js';
 import { ingestKbDoc } from './jobs/ingestKbDoc.js';
 import { runCrawlSite } from './jobs/crawlSite.js';
 import { runExtractSiteGraph } from './jobs/extractSiteGraph.js';
+import { runDailyInsights, runWeeklyInsights } from './jobs/insightsReport.js';
 import { runNightlyQa } from './jobs/nightlyQa.js';
 import { runScanSiteTemplates } from './jobs/scanSiteTemplates.js';
 import { runDriftDetect } from './cron/driftDetect.js';
@@ -166,6 +167,46 @@ qaWorker.on('completed', (job, rv) =>
   logger.info({ jobId: job.id, result: Array.isArray(rv) ? rv : { passed: rv?.passed, total: rv?.total } }, 'nightly-qa completed'));
 qaWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: err.message }, 'nightly-qa failed'));
 
+// Nav Phase 8: Store Insights — weekly owner report (Mon 03:00 UTC), daily
+// purge + anomaly check (02:30 UTC), on-demand 'run' {merchantId, qa?, email?}.
+const insightsChat = (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) =>
+  chat({
+    model: process.env.OPENROUTER_CHECKOUT_MODEL ?? process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6',
+    messages,
+    responseFormat: 'json',
+    maxTokens: 1500,
+  });
+const insightsQueue = new Queue('store-insights', { connection: createRedisConnection() });
+await insightsQueue.add('weekly', {}, { repeat: { pattern: '0 3 * * 1' } });
+await insightsQueue.add('daily', {}, { repeat: { pattern: '30 2 * * *' } });
+const insightsWorker = new Worker(
+  'store-insights',
+  async (job) => {
+    if (job.name === 'run') {
+      return runWeeklyInsights({
+        merchantId: job.data.merchantId as string,
+        chat: insightsChat,
+        qa: job.data.qa === true,
+        email: job.data.email !== false,
+      });
+    }
+    const all = await db.query.merchants.findMany();
+    const entitled = all.filter((m) => !m.deletedAt && hasFeature(m, 'insights'));
+    for (const m of entitled) {
+      try {
+        if (job.name === 'weekly') await runWeeklyInsights({ merchantId: m.id, chat: insightsChat });
+        else await runDailyInsights({ merchantId: m.id, plan: m.plan });
+      } catch (err) {
+        logger.error({ merchantId: m.id, job: job.name, err: (err as Error).message }, 'store insights failed');
+      }
+    }
+    return { merchants: entitled.length };
+  },
+  { connection: createRedisConnection(), concurrency: 1 },
+);
+insightsWorker.on('completed', (job, rv) => logger.info({ jobId: job.id, name: job.name, result: rv }, 'store-insights completed'));
+insightsWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: err.message }, 'store-insights failed'));
+
 // Nightly brand selling-playbook refresh cron: distils each merchant's last-90d
 // conversation outcomes into a fresh selling playbook at 4am UTC.
 const playbookChat = (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) =>
@@ -213,6 +254,8 @@ const shutdown = async (signal: string) => {
     playbookQueue.close(),
     templateScanWorker.close(),
     qaWorker.close(),
+    insightsWorker.close(),
+    insightsQueue.close(),
     qaQueue.close(),
   ]);
   process.exit(0);

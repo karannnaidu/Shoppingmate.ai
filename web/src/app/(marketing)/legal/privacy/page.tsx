@@ -93,6 +93,39 @@ export default function PrivacyPolicyPage() {
 
           <section className="space-y-3">
             <h2 className="font-display text-xl font-semibold tracking-tight">
+              Store analytics (Insights, Growth &amp; Scale plans)
+            </h2>
+            <p>
+              When a merchant on Growth or Scale turns on Store Insights, our script measures how
+              shoppers use the store so the merchant can fix what isn&rsquo;t working:
+            </p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                We record page-level summaries only: which kind of page was viewed, how far people
+                scrolled, which buttons were tapped, page speed, and whether a step (cart, checkout)
+                was reached. Clicks are counted in aggregate; we do not record mouse movements or
+                screen video.
+              </li>
+              <li>
+                We <strong>never</strong> capture what shoppers type — form fields are noted by name
+                only (e.g. &ldquo;pincode&rdquo;), never their contents. Password fields are ignored.
+              </li>
+              <li>
+                Measurement respects consent: it stays off when the store&rsquo;s consent banner
+                (Shopify Customer Privacy, OneTrust, Cookiebot) declines analytics or the browser sends
+                Global Privacy Control, and for visitors in the UK/EU it only runs after an explicit
+                yes.
+              </li>
+              <li>
+                Aggregated counts are kept for up to 12 months; the small number of detailed page
+                records we keep (for example when a shopper chatted with the assistant) are deleted
+                after 7–14 days. IP addresses are not stored with this data.
+              </li>
+            </ul>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="font-display text-xl font-semibold tracking-tight">
               Storage &amp; retention
             </h2>
             <ul className="list-disc space-y-2 pl-5">

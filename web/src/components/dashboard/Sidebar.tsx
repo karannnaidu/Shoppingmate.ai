@@ -13,6 +13,7 @@ const BASE_NAV = [
   { href: '/app/intents', label: 'Intents' },
   { href: '/app/audience', label: 'Audience' },
   { href: '/app/audit', label: 'Audit' },
+  { href: '/app/insights', label: 'Insights' },
   { href: '/app/cases', label: 'Customer requests' },
   { href: '/app/knowledge', label: 'Knowledge' },
   { href: '/app/site-graph', label: 'Your website' },

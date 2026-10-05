@@ -13,7 +13,7 @@ const ORIGIN = process.env.BENCH_ORIGIN || 'calmosis.com';
 const PAUSE_MS = 2500; // human-ish pause so the live signal lands between turns
 
 const UPSELL =
-  /bliss club|membership|10% off|discount|coupon|offer|add (it|one|that|this) to (your )?cart|shall we (head|go) to checkout|ready to check ?out|another product|pair (it )?with/i;
+  /bliss club|membership|10% off|discount|coupon|special offer|an offer on|add (it|one|that|this) to (your )?cart|shall we (head|go) to checkout|ready to check ?out|another product|pair (it )?with/i;
 
 const PERSONAS = [
   {

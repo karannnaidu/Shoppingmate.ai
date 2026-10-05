@@ -15,3 +15,4 @@ export * from './visitorProfiles.js';
 export * from './brandPlaybooks.js';
 export * from './siteTemplates.js';
 export * from './supportCases.js';
+export * from './insights.js';

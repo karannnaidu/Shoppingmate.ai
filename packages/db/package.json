@@ -11,6 +11,16 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./insights": {
+      "types": "./dist/insights/facts.d.ts",
+      "import": "./dist/insights/facts.js",
+      "default": "./dist/insights/facts.js"
+    },
+    "./plans": {
+      "types": "./dist/plans.d.ts",
+      "import": "./dist/plans.js",
+      "default": "./dist/plans.js"
+    },
     "./schema": {
       "types": "./dist/schema/index.d.ts",
       "import": "./dist/schema/index.js",
