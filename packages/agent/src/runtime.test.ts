@@ -766,6 +766,93 @@ describe('runTurn() — turn + tool telemetry (nav PRD Phase 0)', () => {
   });
 });
 
+describe('runTurn() — case.open (nav PRD Phase 4)', () => {
+  it('validates, submits with session ids, returns a reference, and emits case.opened', async () => {
+    vi.mocked(chatTools)
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'k1',
+            name: 'case.open',
+            argumentsJson: JSON.stringify({
+              type: 'complaint',
+              summary: 'Bottle arrived broken, wants a replacement',
+              details: { order_number: '10259', desired_resolution: 'replacement' },
+              contact: { phone: '+91 98765 43210' },
+              consent: true,
+              sentiment: 'negative',
+            }),
+          },
+        ],
+        stopReason: 'tool_calls',
+        inputTokens: 10,
+        outputTokens: 5,
+      })
+      .mockResolvedValueOnce({
+        text: "I'm sorry — logged it, your request number is #7.",
+        toolCalls: [],
+        stopReason: 'stop',
+        inputTokens: 10,
+        outputTokens: 5,
+      });
+    const submitCase = vi.fn(async () => ({ ok: true as const, id: 7 }));
+    const recordMetric = vi.fn(async () => undefined);
+    const localDeps: RunTurnDeps = { ...deps, submitCase, recordMetric };
+    const events: AgentEvent[] = [];
+    for await (const ev of runTurn(localDeps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'my bottle arrived broken',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+    expect(submitCase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'complaint',
+        contactPhone: '+919876543210',
+        merchantId: 'm',
+        sessionId: 's-1',
+        consent: true,
+      }),
+    );
+    expect(recordMetric).toHaveBeenCalledWith(
+      'case.opened',
+      expect.objectContaining({ caseType: 'complaint', sentiment: 'negative' }),
+    );
+    expect(events.find((e) => e.type === 'tool_result')).toMatchObject({ toolName: 'case.open', ok: true });
+  });
+
+  it('relays the missing field instead of submitting', async () => {
+    vi.mocked(chatTools)
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'k2',
+            name: 'case.open',
+            argumentsJson: JSON.stringify({ type: 'complaint', summary: 'Broken bottle', contact: {}, consent: true }),
+          },
+        ],
+        stopReason: 'tool_calls',
+        inputTokens: 10,
+        outputTokens: 5,
+      })
+      .mockResolvedValueOnce({ text: 'What number can we reach you on?', toolCalls: [], stopReason: 'stop', inputTokens: 1, outputTokens: 1 });
+    const submitCase = vi.fn(async () => ({ ok: true as const, id: 1 }));
+    for await (const _ of runTurn({ ...deps, submitCase }, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'broken bottle',
+      mode: 'text',
+    })) {
+      // drain
+    }
+    expect(submitCase).not.toHaveBeenCalled();
+  });
+});
+
 describe('runTurn() — consultation.request', () => {
   it('validates, calls submitConsultation with merged ids, and emits the metric', async () => {
     vi.mocked(chatTools)

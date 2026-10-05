@@ -6,6 +6,7 @@ import {
   loadVisitorProfile,
   loadBrandPlaybook,
   submitConsultationRequest,
+  submitSupportCase,
   upsertVisitorProfile,
 } from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
@@ -330,6 +331,7 @@ mountAgentWs(server, {
       loadPromptOpts: async (m: typeof merchant, visitorId?: string) =>
         loadPromptOpts(m.id, visitorId),
       dispatchHostAction,
+      submitCase: (c: Parameters<typeof submitSupportCase>[0]) => submitSupportCase(c),
       submitConsultation: (req: {
         name: string;
         age: number;

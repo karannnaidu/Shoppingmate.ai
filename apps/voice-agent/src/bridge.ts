@@ -62,6 +62,8 @@ export type BridgeDeps = {
   recommendationStore?: RecommendationStore;
   // Persist + notify boundary for consultation.request — threaded into RunTurnDeps.
   submitConsultation?: RunTurnDeps['submitConsultation'];
+  // Nav Phase 4: customer cases (case.open) from voice.
+  submitCase?: RunTurnDeps['submitCase'];
   // Called when the side-channel executor fails this turn (after a retry). In
   // voice mode the executor's spoken error is suppressed, so the worker uses this
   // to ground Gemini honestly (and alert on 'exhausted' = out-of-credits 402).
@@ -147,6 +149,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
           : undefined,
         recommendationStore: deps.recommendationStore,
         submitConsultation: deps.submitConsultation,
+        submitCase: deps.submitCase,
       };
 
       log.info({ sessionId: deps.sessionId }, 'bridge: starting runTurn');

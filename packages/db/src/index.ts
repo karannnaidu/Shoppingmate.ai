@@ -19,3 +19,5 @@ export { submitConsultationRequest } from './notify/submitConsultation.js';
 export type { SubmitConsultationArgs } from './notify/submitConsultation.js';
 
 export const repos = { catalog, selectorCache: selectorCacheRepo };
+export { submitSupportCase, caseEmail } from './notify/submitCase.js';
+export type { SubmitCaseArgs } from './notify/submitCase.js';

@@ -1,6 +1,12 @@
 import type { Merchant } from '@shoppingmate/db';
 import { lookupPersona } from './persona-table.js';
-import { merchantCanMutateCart, isCalmosisStitch, navSnapshotEnabled, usesStorefrontBridge } from '../tools.js';
+import {
+  caseCaptureEnabled,
+  isCalmosisStitch,
+  merchantCanMutateCart,
+  navSnapshotEnabled,
+  usesStorefrontBridge,
+} from '../tools.js';
 
 export const BRAND_KB_SLOT = '<!-- BRAND_KB_SLOT (Phase 2) -->';
 export const SITE_GRAPH_SLOT = '<!-- SITE_GRAPH_SLOT -->';
@@ -98,6 +104,23 @@ SEEING + USING THE PAGE (page.read / page.click / page.fill)
 `
       : '';
 
+  // Nav PRD Phase 4: capture every non-shopping need as a case the team acts on.
+  const customerCareBlock = caseCaptureEnabled(merchant)
+    ? `
+CUSTOMER CARE (case.open — when they need the store team, not a product)
+- Recognise the need: order tracking ("where is my order 10259"), a complaint (damaged, wrong item, late), a return or refund, an unhappy customer / bad experience, or a question you genuinely can't answer from what you know. Shopping questions you can handle yourself are NOT cases.
+- Ask ONLY for what's missing, one or two things at a time:
+  • order tracking → the order number, and the phone or email used on the order
+  • complaint / return → what happened, the order number and product, and what they'd like (refund, replacement, fix)
+  • unanswered question → the exact question
+  • always → a phone number OR email so the team can reply (ask at this moment — never at the start of the chat)
+- Unhappy or angry: acknowledge first and sincerely ("I'm really sorry that happened"), no selling or upsell in that conversation, then make sure the team follows up quickly (urgency high). NEVER write, post or promise a public review for them.
+- Before calling case.open, read it back in ONE line and get a yes — including that the team may contact them: "So: order 10259 hasn't arrived and you'd like tracking — the team will reach you on 98xxx. Okay?" Then call case.open with consent:true. For phone numbers in voice, read the digits back in small groups.
+- Use their LATEST values if they correct anything. Only say it's logged if case.open succeeded; share the reference it returns ("your request number is #12"). If it returns an error, it tells you what to fix — ask for that and try again.
+- You can't see order status yourself yet — never invent tracking details, delivery dates or refund outcomes.
+`
+    : '';
+
   // For adapters that can't actually change a cart (dom/suggest, where cart.add
   // is a no-op that fakes success), the cart tools are withheld from the surface
   // — so tell the model the truth and steer it to the product page instead of
@@ -182,7 +205,7 @@ You CANNOT add items to the cart yourself here, and you have no cart tool. ${
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
 Always write the brand name exactly as "${brandName}" — never alter or misspell it (e.g. it is "Calmosis", never "Caliosis").
-${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${pageControlBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}
+${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${pageControlBlock}${customerCareBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.

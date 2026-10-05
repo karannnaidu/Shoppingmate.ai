@@ -430,7 +430,56 @@ const PAGE_SNAPSHOT_TOOLS: ToolDef[] = [
   },
 ];
 
+/** Nav PRD Phase 4 flag: CASE_CAPTURE = "*" or a comma-separated merchant allowlist. */
+export function caseCaptureEnabled(merchant: Pick<Merchant, 'id'>): boolean {
+  const raw = (process.env.CASE_CAPTURE ?? '').trim();
+  if (!raw) return false;
+  if (raw === '*') return true;
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .includes(merchant.id);
+}
+
+export const CASE_OPEN_TOOL: ToolDef = {
+  type: 'function',
+  function: {
+    name: 'case.open',
+    description:
+      "Log a customer need the store team must follow up on: order tracking, a complaint, a return/refund, an unhappy customer / bad experience, or a question you couldn't answer. Call it ONLY after you have (1) what they need, (2) a phone number or email, (3) read it back in one line and they said yes, including that the team may contact them. Never use it for shopping you can do yourself, and never post reviews.",
+    parameters: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['order_tracking', 'complaint', 'return_refund', 'bad_review', 'product_question', 'other'],
+        },
+        summary: { type: 'string', description: "One line in the customer's terms, e.g. 'Order 10259 not delivered, wants tracking'" },
+        details: {
+          type: 'object',
+          description:
+            'Whatever matters for this case, e.g. {order_number, product, issue, desired_resolution, question}',
+          additionalProperties: { type: 'string' },
+        },
+        contact: {
+          type: 'object',
+          properties: { name: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' } },
+        },
+        consent: { type: 'boolean', description: 'true only if they agreed the team can contact them' },
+        urgency: { type: 'string', enum: ['low', 'normal', 'high'] },
+        sentiment: { type: 'string', enum: ['positive', 'neutral', 'negative', 'angry'] },
+      },
+      required: ['type', 'summary', 'contact', 'consent'],
+    },
+  },
+};
+
 export function buildToolSurface(merchant: Merchant): ToolDef[] {
+  const tools = buildBaseToolSurface(merchant);
+  return caseCaptureEnabled(merchant) ? [...tools, CASE_OPEN_TOOL] : tools;
+}
+
+function buildBaseToolSurface(merchant: Merchant): ToolDef[] {
   const productTools: ToolDef[] = [
     {
       type: 'function',

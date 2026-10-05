@@ -28,7 +28,7 @@ import {
   type SessionStore,
 } from '@shoppingmate/agent';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
-import { db, schema, loadVisitorProfile, loadBrandPlaybook, submitConsultationRequest, upsertVisitorProfile } from '@shoppingmate/db';
+import { db, schema, loadVisitorProfile, loadBrandPlaybook, submitConsultationRequest, submitSupportCase, upsertVisitorProfile } from '@shoppingmate/db';
 import {
   type ChatFn,
   classifyLiveSignal,
@@ -566,6 +566,7 @@ const agentDefinition = defineAgent({
           void alertExecutorExhausted(merchant.id, sessionId).catch(() => {});
         }
       },
+      submitCase: (c) => submitSupportCase(c),
       submitConsultation: (req) =>
         submitConsultationRequest({
           merchantId: req.merchantId,

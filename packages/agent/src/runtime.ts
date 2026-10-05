@@ -3,6 +3,7 @@ import type { Merchant } from '@shoppingmate/db';
 import { type ChatToolsResult, chatTools } from '@shoppingmate/shared';
 import { checkCaps } from './caps.js';
 import { validateCheckoutDetails, validateCheckoutFill } from './checkout-fields.js';
+import { type CaseOpen, validateCaseOpen } from './case.js';
 import { validateConsultationRequest } from './consultation.js';
 import type { HostAction, HostActionResult } from './host-actions.js';
 import { redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
@@ -150,6 +151,11 @@ export type RunTurnDeps = {
     merchantId: string;
     sessionId: string;
   }) => Promise<{ ok: true } | { ok: false; reason: string }>;
+  // Nav PRD Phase 4: persist + notify boundary for case.open (any merchant
+  // with CASE_CAPTURE). Wired in apps/api (text) and apps/voice-agent (voice).
+  submitCase?: (
+    c: CaseOpen & { merchantId: string; sessionId: string; visitorId: string | null },
+  ) => Promise<{ ok: true; id: number } | { ok: false; reason: string }>;
 };
 
 export async function* runTurn(
@@ -428,7 +434,34 @@ export async function* runTurn(
           snapshotNav && (call.name === 'page.read' || call.name === 'page.click' || call.name === 'page.fill');
         const isCalmosisCart = isBridgeCart || isCalmosisCheckout || isPageControl;
         if (CHECKOUT_FLOW_TOOLS.has(call.name)) usedCheckoutFlowTool = true;
-        if (call.name === 'consultation.request') {
+        if (call.name === 'case.open') {
+          channel = 'server';
+          const v = validateCaseOpen(args, isCalmosisStitch(merchant) ? '+91' : '');
+          if (!v.ok) {
+            envelope = { ok: false, kind: 'unsupported', reason: v.reason };
+          } else if (!deps.submitCase) {
+            envelope = { ok: false, kind: 'unsupported', reason: 'case_capture_not_wired' };
+          } else {
+            const res = await deps.submitCase({
+              ...v.value,
+              merchantId: merchant.id,
+              sessionId: session.sessionId,
+              visitorId: session.visitorId ?? null,
+            });
+            envelope = res.ok
+              ? { ok: true, value: { opened: true, reference: `#${res.id}` } }
+              : { ok: false, kind: 'unsupported', reason: res.reason };
+            if (res.ok) {
+              await deps.recordMetric('case.opened', {
+                merchantId: merchant.id,
+                sessionId: session.sessionId,
+                caseType: v.value.type,
+                urgency: v.value.urgency,
+                sentiment: v.value.sentiment,
+              });
+            }
+          }
+        } else if (call.name === 'consultation.request') {
           channel = 'server';
           const v = validateConsultationRequest(args);
           if (!v.ok) {
