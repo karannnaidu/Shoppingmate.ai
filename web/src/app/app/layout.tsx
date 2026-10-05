@@ -30,7 +30,7 @@ export default async function AppLayout({
       <Sidebar pathname={pathname} merchantId={session.merchant?.id} />
       <div className="relative z-10 flex-1 flex flex-col">
         <AlertBanner alert={alert as Parameters<typeof AlertBanner>[0]['alert']} />
-        <main className="flex-1 p-6 md:p-8">{children}</main>
+        <main className="dash-enter flex-1 p-6 md:p-8">{children}</main>
       </div>
     </div>
   );

@@ -31,6 +31,8 @@
   --text-primary: #f1f5f9;
   --text-secondary: #b4b4c0;
   --text-muted: #9191a0;
+  /* Lighter violet in dark mode so text-violet links meet WCAG AA (~6:1). */
+  --accent-violet: #a78bfa;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.6);
@@ -294,4 +296,14 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   @keyframes slideIn { from { transform: none; } to { transform: none; } }
+}
+
+/* Subtle dashboard content entrance */
+@keyframes dashEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.dash-enter { animation: dashEnter 280ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .dash-enter { animation: none; }
 }

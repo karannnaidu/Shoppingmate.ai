@@ -7,7 +7,7 @@ export function KpiTile({
   const arrow = delta == null ? null : delta >= 0 ? '↑' : '↓';
   const pct = delta == null ? null : `${(Math.abs(delta) * 100).toFixed(0)}%`;
   return (
-    <Card>
+    <Card className="h-full transition duration-200 hover:border-border-strong hover:-translate-y-0.5">
       <CardContent className="pt-6">
         <p className="text-xs uppercase tracking-wide text-text-muted font-medium">{label}</p>
         <p className="font-display text-3xl font-semibold mt-2 tabular-nums tracking-tight text-text-primary">{value}</p>
