@@ -117,6 +117,7 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
 }
 
 function pageSnapshot(): HostActionResult {
+  const t0 = performance.now();
   const snap = buildSnapshot();
   return {
     ok: true,
@@ -124,6 +125,7 @@ function pageSnapshot(): HostActionResult {
       snapshot: snap.text,
       refs: String(snap.refs),
       chars: String(snap.chars),
+      buildMs: String(Math.round(performance.now() - t0)),
     },
   };
 }

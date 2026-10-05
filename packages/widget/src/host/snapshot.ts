@@ -65,6 +65,19 @@ function hiddenByAria(el: HTMLElement): boolean {
   return el.closest('[aria-hidden="true"],[inert]') !== null;
 }
 
+// Real browsers: an element with no layout boxes (display:none ancestor, a
+// responsive duplicate hidden at this breakpoint) is not on screen. Test DOMs
+// (happy-dom) report no layout at all, so the check only applies when the page
+// itself has layout.
+function hasLayout(): boolean {
+  return (document.body?.getBoundingClientRect().width ?? 0) > 0;
+}
+function rendered(el: HTMLElement, layout: boolean): boolean {
+  if (!layout) return true;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 || r.height > 0;
+}
+
 function roleOf(el: HTMLElement): string {
   const explicit = el.getAttribute('role');
   if (explicit) return explicit;
@@ -171,19 +184,22 @@ export function buildSnapshot(opts: { maxChars?: number } = {}): Snapshot {
   const seen = new Set<HTMLElement>();
   let order = 0;
 
+  const layout = hasLayout();
   const consider = (
     el: HTMLElement,
     kind: 'interactive' | 'context' | 'price',
     inDialog: boolean,
   ) => {
     if (seen.has(el) || isOwnNode(el) || !isVisible(el) || hiddenByAria(el)) return;
+    if (!rendered(el, layout)) return;
     if (el instanceof HTMLInputElement && el.type === 'hidden') return;
     seen.add(el);
     const role = kind === 'price' ? 'text' : roleOf(el);
     const name = kind === 'price' ? clean(el.textContent ?? '', 40) : clean(controlName(el));
     const st = kind === 'price' ? [] : states(el, role);
     if (!name && st.length === 0 && kind !== 'interactive') return;
-    if (!name && kind === 'interactive' && role === 'link') return; // icon-only links add noise
+    // Unlabelled icon-only links/buttons add noise the bot can't act on sensibly.
+    if (!name && kind === 'interactive' && (role === 'link' || role === 'button')) return;
     let priority = inDialog ? 0 : kind === 'interactive' ? 2 : kind === 'context' ? 1 : 2;
     if (!inDialog && !nearViewport(el)) priority += 3;
     if (!inDialog && inChrome(el)) priority += 4;

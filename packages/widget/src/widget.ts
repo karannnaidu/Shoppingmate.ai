@@ -156,6 +156,10 @@ class WidgetElement extends HTMLElement {
   private stopCollapse: (() => void) | null = null;
   private cartObserver: MutationObserver | null = null;
   private scrollResizeRaf = false;
+  // While hidden behind a host overlay, re-check periodically: a transient
+  // covering element (load splash, hero animation) can disappear without any
+  // gesture/scroll/class change, which left the launcher hidden for good.
+  private overlayRecheck: number | null = null;
   private stopDrag: (() => void) | null = null;
   // Subtle office room tone during a live call. Configured in connectedCallback
   // from the data-ambience attribute ("off" disables). The switch the user asked
@@ -278,6 +282,7 @@ class WidgetElement extends HTMLElement {
     document.removeEventListener('keyup', this.onHostGesture, true);
     window.removeEventListener('scroll', this.onScrollResize);
     window.removeEventListener('resize', this.onScrollResize);
+    if (this.overlayRecheck) window.clearInterval(this.overlayRecheck);
     this.stopDrag?.();
   }
 
@@ -307,6 +312,9 @@ class WidgetElement extends HTMLElement {
     document.addEventListener('keyup', this.onHostGesture, true);
     window.addEventListener('scroll', this.onScrollResize, { passive: true });
     window.addEventListener('resize', this.onScrollResize);
+    this.overlayRecheck = window.setInterval(() => {
+      if (this.rootEl?.classList.contains('host-overlay-hidden')) this.onCartVisibilityChange();
+    }, 1500);
   }
 
   // A drawer opens/closes on a gesture; re-check right after, plus a couple of
@@ -330,7 +338,12 @@ class WidgetElement extends HTMLElement {
     if (!this.rootEl) return;
     const s = this.store.get();
     const inCall = s.mode === 'call' || s.voiceState !== 'idle';
-    const covered = (isHostOverlayOpen() || this.launcherCovered()) && !inCall;
+    // An open chat panel must not vanish just because a generic large element
+    // (e.g. a product page's sticky price card) sits under the launcher — the
+    // bot navigating the visitor to a product page made the whole conversation
+    // disappear. Real host overlays (cart / menu drawer) still hide it.
+    const chatting = s.mode === 'chat' || s.mode === 'expanded';
+    const covered = (isHostOverlayOpen() || (!chatting && this.launcherCovered())) && !inCall;
     this.rootEl.classList.toggle('host-overlay-hidden', covered);
   };
 
