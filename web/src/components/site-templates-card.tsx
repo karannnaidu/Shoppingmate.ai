@@ -1,5 +1,6 @@
 // Nav Phase 2 — "How your pages work": the store layouts the assistant has
 // learned, in owner language (no jargon), with a re-scan button.
+import { Button } from '@/components/ui/button';
 
 type TemplateRow = {
   pageType: string;
@@ -64,8 +65,9 @@ export function SiteTemplatesCard({ templates, rescanQueued }: { templates: Temp
       )}
       {autoFixed.length > 0 && (
         <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          We noticed your {autoFixed.map((t) => (PAGE_NAMES[t.pageType] ?? t.pageType).toLowerCase()).join(', ')}{' '}
-          changed and re-checked {autoFixed.length === 1 ? 'it' : 'them'} automatically.
+          We noticed changes on your{' '}
+          {autoFixed.map((t) => (PAGE_NAMES[t.pageType] ?? t.pageType).toLowerCase()).join(', ')} and re-learned
+          the layout automatically — nothing for you to do.
         </p>
       )}
 
@@ -96,12 +98,7 @@ export function SiteTemplatesCard({ templates, rescanQueued }: { templates: Temp
       )}
 
       <form action="/api/site-templates/rescan" method="post" className="mt-6">
-        <button
-          type="submit"
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
-        >
-          Re-scan my site
-        </button>
+        <Button type="submit">Re-scan my site</Button>
       </form>
     </div>
   );

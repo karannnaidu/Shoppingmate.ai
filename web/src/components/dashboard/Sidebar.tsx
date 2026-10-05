@@ -14,6 +14,7 @@ const BASE_NAV = [
   { href: '/app/audience', label: 'Audience' },
   { href: '/app/audit', label: 'Audit' },
   { href: '/app/knowledge', label: 'Knowledge' },
+  { href: '/app/site-graph', label: 'Your website' },
   { href: '/app/settings', label: 'Settings' },
   { href: '/app/billing', label: 'Billing' },
 ];
