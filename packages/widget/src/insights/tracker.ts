@@ -123,6 +123,17 @@ function docHeight(): number {
 }
 
 function cartCount(): number | null {
+  // Brands with a storefront cart hook (e.g. Calmosis) report the exact count.
+  try {
+    const hook = (window as unknown as { __shoppingmateGetCart__?: () => { count?: number } | null })
+      .__shoppingmateGetCart__;
+    if (typeof hook === 'function') {
+      const c = hook()?.count;
+      if (typeof c === 'number') return c;
+    }
+  } catch {
+    /* fall back to the theme's badge */
+  }
   const n = Number(
     (document.querySelector(CART_COUNT_SELECTOR)?.textContent ?? '').replace(/\D/g, ''),
   );

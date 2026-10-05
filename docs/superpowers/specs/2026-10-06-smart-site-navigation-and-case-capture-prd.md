@@ -446,3 +446,20 @@ Target after this design: 1M-session merchant ≈ 0.3–0.5 GB/mo; typical (100k
 | Insights tracking = privacy/legal exposure (UK/EU/AU markets, India DPDP) | Consent-gated, no input values/keystrokes, IP truncation, retention limits, privacy page + DPA (8.3, 8.17) |
 | Event volume blows up Postgres / cost | Browser-side aggregation (1 beacon/pageview), counters not rows, sticky sampling, plan session caps, detail rows only for qualifying sessions w/ 7–14 d TTL, volume monitor; Starter sends nothing (8.0, 8.5–8.7) |
 | Tracker slows merchant sites | 5 KB budget, idle-time batching, perf check in CI (8.1, 8.19) |
+
+---
+
+## Needs Karan (collected while building — everything else was done autonomously)
+
+| # | What | Why it needs you |
+|---|---|---|
+| 1 | **Slack webhook for ops alerts** → set `OPS_SLACK_WEBHOOK_URL` on the Railway `worker` service | Nightly QA failures already write `alerts` rows; Slack delivery needs a webhook from your workspace (internal ops channel). |
+| 2 | **Plan decisions for Insights** — which plan(s) actually include it, and switch Calmosis off the `INSIGHTS_FORCE_MERCHANTS` pilot override when billing reflects it | All merchants are on `starter` today; I didn't touch billing data. Marketing page lists Growth at $60 while billing uses $99/$299 (starter/growth/scale) — pick one. |
+| 3 | **Owner usability test (PRD 8.13e)** with 3–5 non-technical owners (5-second test on /app/insights) + review the prototype | Needs real people. |
+| 4 | **7 days of real Calmosis traffic** for the Insights acceptance numbers (synthetic QA data proved the pipeline) | Time. Real tracking is live now. |
+| 5 | **First Shopify / WooCommerce pilot store** to live-smoke `products.live`, Section-Rendering cart refresh and the Woo Store API bridge (then set `WOO_STOREFRONT_BRIDGE=1`) | No Shopify/Woo merchant in prod yet. |
+| 6 | **Store backend access (Phase 7)** — Shopify Admin/Customer Account API or Calmosis order API, for order-status lookup with email/phone verification | Credentials / app scopes. |
+| 7 | **Gmail read scope** (optional) — the Gmail connector here can't read mail, so dashboard tests used the magic-link token from the DB | Connector permission. |
+| 8 | **Chrome DevTools MCP** profile was locked by your other Claude session's browser — UI checks ran with Playwright (same engine) instead | Close the other session's browser if you want MCP-driven checks. |
+| 9 | Pre-existing failing tests on `main` (not caused by this work): web `kb/upload`, `install/start-url`, `signup` (+ `audience-repo` suite), worker `ingestKbDoc` | Decide whether to fix now. |
+| 10 | Price-strip post-processor says "subtotal the price on the card" for cart totals (pre-existing "never say numeric prices" rule) — allow cart subtotals? | Product decision. |
