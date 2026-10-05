@@ -84,6 +84,15 @@ await page.waitForTimeout(3000);
 const input = page.locator('shoppingmate-widget input[type="text"]').first();
 async function openChat() {
   if (await input.isVisible().catch(() => false)) return;
+  // A storefront cart drawer (opened by an add-to-cart) hides the widget by
+  // design; close it like a shopper would before continuing the chat.
+  await page.keyboard.press('Escape').catch(() => {});
+  const closeBtn = page.locator('[aria-label*="close" i]:visible').first();
+  if (!(await input.isVisible().catch(() => false)) && (await closeBtn.count())) {
+    await closeBtn.click({ timeout: 3000 }).catch(() => {});
+  }
+  await page.waitForTimeout(800);
+  if (await input.isVisible().catch(() => false)) return;
   const chatBtn = page.locator('shoppingmate-widget [data-action="chat"]').first();
   if (await chatBtn.isVisible().catch(() => false)) await chatBtn.click();
   else await page.locator('shoppingmate-widget [data-action="toggle"]').first().click();

@@ -182,16 +182,20 @@ Principle: **structure is the same for every visitor → cache it per template. 
 
 Flag: per-channel, default on where verified. Shopify cart bridge **already exists** (`packages/widget/src/shopifyCart.ts`, verify-after-write) — extend, don't rebuild.
 
-- [ ] **3.1** Channel router in `host/actions.ts`: for each cart/product action pick `platform API → snapshot ref → intent string`; log the channel used (Phase 0 telemetry).
-- [ ] **3.2** Shopify: confirm all cart actions (`cart_add`, `cart_set_qty`, `cart_clear`, `cart_get`) route through `/cart/*.js`; add `/products/<handle>.js` for variant/stock lookup so the bot knows availability without clicking.
-- [ ] **3.3** WooCommerce: Store API (`/wp-json/wc/store/v1/cart`, nonce from page) with verify-after-write.
-- [ ] **3.4** Calmosis custom hooks (`window.__shoppingmate*__`) stay as their own channel.
-- [ ] **3.5** After any API cart mutation, refresh the theme's cart UI (Shopify: dispatch theme cart-refresh events / re-fetch section; fallback: open the cart drawer) so the page matches what the bot says.
+- [x] **3.1** Channel router in `host/actions.ts`: for each cart/product action pick `platform API → snapshot ref → intent string`; log the channel used (Phase 0 telemetry). — 6d0ea6d
+- [x] **3.2** Shopify: confirm all cart actions (`cart_add`, `cart_set_qty`, `cart_clear`, `cart_get`) route through `/cart/*.js`; add `/products/<handle>.js` for variant/stock lookup so the bot knows availability without clicking. — 6d0ea6d
+- [x] **3.3** WooCommerce: Store API (`/wp-json/wc/store/v1/cart`, nonce from page) with verify-after-write. — 6d0ea6d (built + unit-tested against a fake Store API; live behind WOO_STOREFRONT_BRIDGE=1 — no Woo merchant in prod to smoke yet)
+- [x] **3.4** Calmosis custom hooks (`window.__shoppingmate*__`) stay as their own channel. — 6d0ea6d
+- [x] **3.5** After any API cart mutation, refresh the theme's cart UI (Shopify: dispatch theme cart-refresh events / re-fetch section; fallback: open the cart drawer) so the page matches what the bot says. — 6d0ea6d
 
 **Acceptance:** Shopify dev store + Calmosis: add/update/clear all `verified:true` via API channel; theme cart badge updates without reload.
 
 **Phase log:**
-> _(paste)_
+> **Phase 3 proof — 2026-10-06 (prod, calmosis.com, real Chromium)**
+> - "add one Green Mantra" → `cart_add` → `{"channel":"storefront-hooks","ok":true}`; "what is in my cart right now?" → **new `cart_get`** → `{"channel":"storefront-hooks","values":{"count":"1","items":"green-mantra x1","subtotal":"5100"}}` → bot answers from the REAL cart (before: no cart-read tool for bridge merchants; answered from memory).
+> - Shopify: `products.live` (/products/<handle>.js → variants + stock) and Section-Rendering cart refresh (Dawn `cart-icon-bubble`) unit-tested; WooCommerce Store API bridge unit-tested (nonce, verify-after-write, set/remove/clear). No live Shopify/Woo merchant in prod yet → live smoke deferred to the first pilot (see "Needs Karan").
+> - `cartChannel` now tagged on `agent.tool.invoked`.
+> - Found during the UX pass: the existing price-strip post-processor turns cart totals into "subtotal the price on the card" (pre-existing policy: never say numeric prices) — flagged, not changed.
 
 ---
 
