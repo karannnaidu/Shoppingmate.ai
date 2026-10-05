@@ -55,6 +55,18 @@ const EMAIL_RE = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g;
 const PHONE_RE = /(?:\+\d{1,3}[\s-]?)?(?:\d[\s-]?){10,15}/g; // catches ten-digit and intl
 const CARD_RE = /\b(?:\d[\s-]?){13,19}\b/g;
 
+/** Nav Phase 4: the contact details a visitor just typed/said (first match of
+ *  each), so they can be held for this session only — history stays redacted. */
+export function extractContact(input: string): { phone?: string; email?: string } {
+  const email = input.match(new RegExp(EMAIL_RE.source))?.[0];
+  const phone = input.match(new RegExp(PHONE_RE.source))?.[0]?.trim();
+  const out: { phone?: string; email?: string } = {};
+  if (email) out.email = email;
+  if (phone && phone.replace(/\D/g, '').length >= 10 && phone.replace(/\D/g, '').length <= 15)
+    out.phone = phone;
+  return out;
+}
+
 export function redactPii(input: string): string {
   return input
     .replace(CARD_RE, '[redacted]')

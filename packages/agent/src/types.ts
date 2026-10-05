@@ -90,4 +90,8 @@ export type SessionState = {
   // corrections that match no keyword — on the precise model so contact details
   // are captured and re-filled accurately. See pickTurnModel.
   inCheckout?: boolean;
+  // Nav Phase 4: the visitor's latest phone/email for THIS session only (Redis
+  // session TTL), so case.open can use a number given a turn earlier — history
+  // and transcripts stay redacted. Expires CONTACT_TTL_MS after capture.
+  transientContact?: { phone?: string; email?: string; at: number };
 };

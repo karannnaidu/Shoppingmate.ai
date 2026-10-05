@@ -824,6 +824,68 @@ describe('runTurn() — case.open (nav PRD Phase 4)', () => {
     expect(events.find((e) => e.type === 'tool_result')).toMatchObject({ toolName: 'case.open', ok: true });
   });
 
+  it('uses the phone given on an EARLIER turn (history is redacted) when the case opens on "yes"', async () => {
+    process.env.CASE_CAPTURE = '*';
+    let saved: ReturnType<typeof baseSession> | null = null;
+    const saveSession = vi.fn(async (s: ReturnType<typeof baseSession>) => {
+      saved = s;
+    });
+    // Turn 1: visitor gives their number; model just reads it back.
+    vi.mocked(chatTools).mockResolvedValueOnce({
+      text: "So: order 10259 hasn't arrived — we'll reach you on the number ending 3210. Okay?",
+      toolCalls: [],
+      stopReason: 'stop',
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+    for await (const _ of runTurn({ ...deps, saveSession }, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'my phone is 9876543210',
+      mode: 'text',
+    })) {
+      // drain
+    }
+    expect(saved).not.toBeNull();
+    const s1 = saved as unknown as ReturnType<typeof baseSession> & { transientContact?: { phone?: string } };
+    expect(s1.transientContact?.phone).toBe('9876543210');
+    expect(JSON.stringify(s1.history)).not.toContain('9876543210'); // user turn stored redacted
+
+    // Turn 2: "yes" → model calls case.open with an EMPTY contact.
+    vi.mocked(chatTools)
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [
+          {
+            id: 'k3',
+            name: 'case.open',
+            argumentsJson: JSON.stringify({
+              type: 'order_tracking',
+              summary: 'Order 10259 not arrived',
+              details: { order_number: '10259' },
+              contact: {},
+              consent: true,
+            }),
+          },
+        ],
+        stopReason: 'tool_calls',
+        inputTokens: 1,
+        outputTokens: 1,
+      })
+      .mockResolvedValueOnce({ text: 'Logged — #9.', toolCalls: [], stopReason: 'stop', inputTokens: 1, outputTokens: 1 });
+    const submitCase = vi.fn(async () => ({ ok: true as const, id: 9 }));
+    for await (const _ of runTurn({ ...deps, submitCase }, merchant, s1, {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'yes',
+      mode: 'text',
+    })) {
+      // drain
+    }
+    expect(submitCase).toHaveBeenCalledWith(expect.objectContaining({ contactPhone: '9876543210' }));
+    delete process.env.CASE_CAPTURE;
+  });
+
   it('relays the missing field instead of submitting', async () => {
     vi.mocked(chatTools)
       .mockResolvedValueOnce({

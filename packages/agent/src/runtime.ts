@@ -6,11 +6,12 @@ import { validateCheckoutDetails, validateCheckoutFill } from './checkout-fields
 import { type CaseOpen, validateCaseOpen } from './case.js';
 import { validateConsultationRequest } from './consultation.js';
 import type { HostAction, HostActionResult } from './host-actions.js';
-import { redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
+import { extractContact, redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
 import {
   type ToolResultEnvelope,
   buildToolSurface,
+  caseCaptureEnabled,
   dispatchTool,
   isCalmosisStitch,
   navSnapshotEnabled,
@@ -157,6 +158,14 @@ export type RunTurnDeps = {
     c: CaseOpen & { merchantId: string; sessionId: string; visitorId: string | null },
   ) => Promise<{ ok: true; id: number } | { ok: false; reason: string }>;
 };
+
+// Nav Phase 4: how long a visitor's given contact stays usable in-session.
+const CONTACT_TTL_MS = 30 * 60 * 1000;
+
+function maskEmail(email: string): string {
+  const [user = '', domain = ''] = email.split('@');
+  return `${user.slice(0, 2)}…@${domain}`;
+}
 
 export async function* runTurn(
   deps: RunTurnDeps,
@@ -305,10 +314,27 @@ export async function* runTurn(
   // read a dictated phone number into consultation.request), but we never PERSIST
   // raw PII — stored history keeps the redacted form.
   const redactedUserText = redactPii(message.text);
+  // Nav Phase 4: hold the latest contact the visitor gave (session-only) and
+  // tell the model it's on file — masked — so a read-back + "yes" on a later
+  // turn can still open the case without the raw number in history.
+  const found = extractContact(message.text);
+  const prevContact =
+    session.transientContact && now - session.transientContact.at < CONTACT_TTL_MS ? session.transientContact : undefined;
+  const transientContact =
+    found.phone || found.email ? { ...prevContact, ...found, at: now } : prevContact;
+  const contactNote =
+    transientContact && caseCaptureEnabled(merchant)
+      ? `\nCONTACT ON FILE (this conversation, given by the visitor): ${[
+          transientContact.phone ? `phone ending ${transientContact.phone.replace(/\D/g, '').slice(-4)}` : '',
+          transientContact.email ? `email ${maskEmail(transientContact.email)}` : '',
+        ]
+          .filter(Boolean)
+          .join(', ')}. Earlier messages show it as [redacted] for privacy — that's expected. When you call case.open you may leave contact.phone / contact.email empty and the system fills them from this record; read it back using only the last 4 digits.\n`
+      : '';
   const history: AnthropicMessage[] = [
     {
       role: 'system',
-      content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }),
+      content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) + contactNote,
     },
     ...session.history,
     { role: 'user', content: message.text },
@@ -436,7 +462,16 @@ export async function* runTurn(
         if (CHECKOUT_FLOW_TOOLS.has(call.name)) usedCheckoutFlowTool = true;
         if (call.name === 'case.open') {
           channel = 'server';
-          const v = validateCaseOpen(args, isCalmosisStitch(merchant) ? '+91' : '');
+          // Fill contact from the session-held record when the model left it
+          // empty or only had the redacted form.
+          const c = (args.contact && typeof args.contact === 'object' ? args.contact : {}) as Record<string, unknown>;
+          const usable = (v: unknown) => typeof v === 'string' && v.trim() !== '' && !v.includes('redacted');
+          const contact = {
+            ...c,
+            phone: usable(c.phone) ? c.phone : transientContact?.phone,
+            email: usable(c.email) ? c.email : transientContact?.email,
+          };
+          const v = validateCaseOpen({ ...args, contact }, isCalmosisStitch(merchant) ? '+91' : '');
           if (!v.ok) {
             envelope = { ok: false, kind: 'unsupported', reason: v.reason };
           } else if (!deps.submitCase) {
@@ -673,6 +708,7 @@ export async function* runTurn(
   const finalAssistant: AnthropicMessage = { role: 'assistant', content: responseText };
   const updated: SessionState = {
     ...session,
+    transientContact,
     history: [...session.history, { role: 'user', content: redactedUserText }, finalAssistant],
     turnCount: session.turnCount + 1,
     voiceMs: session.mode === 'voice' ? session.voiceMs + (Date.now() - now) : session.voiceMs,
