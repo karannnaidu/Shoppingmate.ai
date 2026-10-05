@@ -204,7 +204,7 @@ Flag: per-channel, default on where verified. Shopify cart bridge **already exis
 Flag: `CASE_CAPTURE`. Independent of Phases 1–3.
 
 ### 4a. One flexible tool
-- [ ] **4.1** New tool `case.open` (`packages/agent/src/tools.ts`):
+- [x] **4.1** New tool `case.open` (`packages/agent/src/tools.ts`): — 57c3852
   ```ts
   {
     type: 'order_tracking' | 'complaint' | 'return_refund' | 'bad_review'
@@ -217,30 +217,37 @@ Flag: `CASE_CAPTURE`. Independent of Phases 1–3.
     consent: boolean                 // customer agreed to be contacted
   }
   ```
-- [ ] **4.2** Keep `consultation.request` working; internally it writes a case with `type:'consult'` (don't remove the tool or its table).
-- [ ] **4.3** Per-type field hints in the prompt (ask only what's missing):
+- [x] **4.2** Keep `consultation.request` working; internally it writes a case with `type:'consult'` (don't remove the tool or its table). — 57c3852
+- [x] **4.3** Per-type field hints in the prompt (ask only what's missing): — 57c3852
   - order_tracking → order number + email/phone used on the order
   - complaint / return_refund → what happened, order number, product, desired resolution
   - bad_review → what went wrong, order/product; **de-escalate, never post a review**, offer fix/callback, urgency high
   - product_question (bot couldn't answer) → the question + contact for follow-up
-- [ ] **4.4** Read-back before saving (voice especially): "So: order 10259, hasn't arrived, you want tracking — I'll reach you on 98xxx. Right?" Only call `case.open` after a yes.
+- [x] **4.4** Read-back before saving (voice especially): "So: order 10259, hasn't arrived, you want tracking — I'll reach you on 98xxx. Right?" Only call `case.open` after a yes. — 57c3852
 
 ### 4b. Contact capture
-- [ ] **4.5** Ask for phone/email **at the value moment** (when needed to help: tracking, callback, follow-up), never upfront.
-- [ ] **4.6** Validate format (phone with country code defaulting from merchant locale; email regex); voice: read digits back in groups.
-- [ ] **4.7** Reuse transient-PII handling from consultation intake (PII to model only as needed, stored server-side, not in transcripts verbatim).
+- [x] **4.5** Ask for phone/email **at the value moment** (when needed to help: tracking, callback, follow-up), never upfront. — 57c3852
+- [x] **4.6** Validate format (phone with country code defaulting from merchant locale; email regex); voice: read digits back in groups. — 57c3852
+- [x] **4.7** Reuse transient-PII handling from consultation intake (PII to model only as needed, stored server-side, not in transcripts verbatim). — 57c3852
 
 ### 4c. Storage, routing, dashboard
-- [ ] **4.8** Migration: `support_cases` table (`id, merchant_id, conversation_id, visitor_id, type, summary, details jsonb, contact (encrypted/PII-handled like consultations), urgency, sentiment, consent, status open|in_progress|resolved, created_at`).
-- [ ] **4.9** API handler + Resend email to merchant (template per type; `high` urgency in subject).
-- [ ] **4.10** Dashboard: extend `web/src/app/app/consultations` into **Cases** inbox (`/app/cases`) — filter by type/status/urgency, mark resolved, link to transcript. Keep `/app/consultations` route working (redirect or filtered view).
-- [ ] **4.11** Link case contact to `visitor_profiles` (intent-capture merge).
-- [ ] **4.12** Tests: tool schema validation, consult alias, PII not in transcript, email sent.
+- [x] **4.8** Migration: `support_cases` table (`id, merchant_id, conversation_id, visitor_id, type, summary, details jsonb, contact (encrypted/PII-handled like consultations), urgency, sentiment, consent, status open|in_progress|resolved, created_at`). — 57c3852
+- [x] **4.9** API handler + Resend email to merchant (template per type; `high` urgency in subject). — 57c3852
+- [x] **4.10** Dashboard: extend `web/src/app/app/consultations` into **Cases** inbox (`/app/cases`) — filter by type/status/urgency, mark resolved, link to transcript. Keep `/app/consultations` route working (redirect or filtered view). — 57c3852
+- [x] **4.11** Link case contact to `visitor_profiles` (intent-capture merge). — 57c3852 (case stores visitor_id; contact reaches visitor_profiles via the existing session-end profiler)
+- [x] **4.12** Tests: tool schema validation, consult alias, PII not in transcript, email sent. — 57c3852
 
 **Acceptance (prove with logs):** 4 live scripted convos on Calmosis — tracking (order 10259), broken product complaint, angry bad review, unanswerable question — each produces a correct case row, merchant email, and appears in `/app/cases`; read-back observed in transcript.
 
 **Phase log:**
-> _(paste)_
+> **Phase 4 proof — 2026-10-06 (prod: CASE_CAPTURE=SM-2SCCLZ, migration 0022; real Chromium on calmosis.com, human-paced turns)**
+> - Tracking: "where is my order 10259?" → asks for contact → one-line read-back ("number ending 3210") + consent → "yes" → `case.open ok=true` → "reference number #2".
+> - Complaint: broken + leaking Sleep Mantra, order 10311 → replacement wanted → email captured → `case.open` → #3 (Return / refund).
+> - Angry: "worst product… 1 star review everywhere" → acknowledge first, no upsell, no review promise → contact + order → #4 (urgency high, "Reply first").
+> - Unanswerable: Peace Mantra + lithium → no medical answer, offers consult, logs question → #5.
+> - Dashboard "Customer requests" (desktop + iPhone 13): urgent-first cards, plain chips, details, contact, "Read the conversation"; "Mark as handled" (pending "Saving…" state added) resolved the test cases.
+> - **Bugs found + fixed while proving:** (1) PRE-EXISTING session clobber — the live-signal step saved a stale session after every turn ≥2, so the bot lost the previous exchange whenever a human paused >~1 s (cause of "asks for the phone again"); visitor_action had the same race. (2) Contact given one turn earlier was unavailable on the "yes" turn (history redacted) → session-only held contact (30 min) + masked "CONTACT ON FILE". (3) Confirmation turn ran on the cheap model → precise model while a contact is held. (4) Empty reply after a tool call → one nudge.
+> - Known gap (not changed): the bot's own read-back of a phone/address is stored unredacted in session history — the Calmosis checkout depends on it to re-fill fields on a later turn.
 
 ---
 

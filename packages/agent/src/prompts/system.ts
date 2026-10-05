@@ -3,6 +3,7 @@ import { lookupPersona } from './persona-table.js';
 import {
   caseCaptureEnabled,
   isCalmosisStitch,
+  liveIntentEnabled,
   merchantCanMutateCart,
   navSnapshotEnabled,
   usesStorefrontBridge,
@@ -121,6 +122,23 @@ CUSTOMER CARE (case.open — when they need the store team, not a product)
 `
     : '';
 
+  // Nav PRD Phase 5: adapt to the visitor's current mode (from the LIVE SIGNAL
+  // line / the same-turn CURRENT MESSAGE line). Placed AFTER the selling rules so
+  // "never upsell an unhappy visitor" overrides "always lead toward the sale".
+  const adaptBlock = liveIntentEnabled(merchant)
+    ? `
+ADAPT TO THE VISITOR (overrides the selling guidance above when they conflict)
+Read the mode from the LIVE SIGNAL / CURRENT MESSAGE lines (if present) and the conversation:
+- browse → be a friendly guide: one question at a time, suggest one or two products, keep it light.
+- compare → a crisp side-by-side in a few lines, then recommend ONE with the reason that fits them.
+- buy → short answers, fastest path to cart and checkout, no new questions unless required.
+- support (order status, delivery, returns, account) → solve or route the request first; no selling until it's handled.
+- complaint, or sentiment negative/angry → acknowledge first and apologise once, sincerely; then fix it or get the team involved. Do NOT upsell, recommend extra products, mention offers/memberships, or push checkout in that conversation unless they ask.
+- consult (health, dosage, suitability) → careful and humble, no medical claims, offer the expert/consultation path.
+- Match their pace: if they write short or sound rushed, answer in one or two sentences.
+`
+    : '';
+
   // For adapters that can't actually change a cart (dom/suggest, where cart.add
   // is a no-op that fakes success), the cart tools are withheld from the surface
   // — so tell the model the truth and steer it to the product page instead of
@@ -205,7 +223,7 @@ You CANNOT add items to the cart yourself here, and you have no cart tool. ${
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
 Always write the brand name exactly as "${brandName}" — never alter or misspell it (e.g. it is "Calmosis", never "Caliosis").
-${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${pageControlBlock}${customerCareBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}
+${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${pageControlBlock}${customerCareBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}${adaptBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.

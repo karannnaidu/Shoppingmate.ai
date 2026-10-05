@@ -4,6 +4,7 @@ import { type ChatToolsResult, chatTools } from '@shoppingmate/shared';
 import { checkCaps } from './caps.js';
 import { validateCheckoutDetails, validateCheckoutFill } from './checkout-fields.js';
 import { type CaseOpen, validateCaseOpen } from './case.js';
+import { quickMode } from './live-signal.js';
 import { validateConsultationRequest } from './consultation.js';
 import type { HostAction, HostActionResult } from './host-actions.js';
 import { extractContact, redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
@@ -13,6 +14,7 @@ import {
   buildToolSurface,
   caseCaptureEnabled,
   dispatchTool,
+  liveIntentEnabled,
   isCalmosisStitch,
   navSnapshotEnabled,
   isShopify,
@@ -338,10 +340,27 @@ export async function* runTurn(
           .filter(Boolean)
           .join(', ')}. Earlier messages show it as [redacted] for privacy — that's expected. When you call case.open you may leave contact.phone / contact.email empty and the system fills them from this record; read it back using only the last 4 digits.\n`
       : '';
+  // Nav Phase 5: same-turn mode from obvious cues in THIS message (the LLM live
+  // signal lags a turn) — e.g. "my bottle arrived broken" → complaint now.
+  const quick = liveIntentEnabled(merchant) ? quickMode(message.text) : null;
+  const currentNote = quick
+    ? `\nCURRENT MESSAGE: mode=${quick.mode}${quick.sentiment ? ` · sentiment=${quick.sentiment}` : ''} — follow ADAPT TO THE VISITOR for this mode.\n`
+    : '';
+  if (quick) {
+    void deps
+      .recordMetric('agent.mode.detected', {
+        merchantId: merchant.id,
+        sessionId: session.sessionId,
+        mode: quick.mode,
+        source: 'quick',
+      })
+      .catch(() => {});
+  }
   const history: AnthropicMessage[] = [
     {
       role: 'system',
-      content: buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) + contactNote,
+      content:
+        buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) + contactNote + currentNote,
     },
     ...session.history,
     { role: 'user', content: message.text },

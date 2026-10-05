@@ -430,6 +430,17 @@ const PAGE_SNAPSHOT_TOOLS: ToolDef[] = [
   },
 ];
 
+/** Nav PRD Phase 5 flag: LIVE_INTENT = "*" or a comma-separated merchant allowlist. */
+export function liveIntentEnabled(merchant: Pick<Merchant, 'id'>): boolean {
+  const raw = (process.env.LIVE_INTENT ?? '').trim();
+  if (!raw) return false;
+  if (raw === '*') return true;
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .includes(merchant.id);
+}
+
 /** Nav PRD Phase 4 flag: CASE_CAPTURE = "*" or a comma-separated merchant allowlist. */
 export function caseCaptureEnabled(merchant: Pick<Merchant, 'id'>): boolean {
   const raw = (process.env.CASE_CAPTURE ?? '').trim();
