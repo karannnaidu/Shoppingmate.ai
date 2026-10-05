@@ -26,7 +26,11 @@ export default function LoginPage() {
     <Card>
       <CardHeader>
         <CardTitle>Sign in to shoppingmate</CardTitle>
-        <CardDescription>Continue with Google or get a magic link.</CardDescription>
+        <CardDescription>
+          {process.env.NEXT_PUBLIC_GOOGLE_ENABLED === 'true'
+            ? 'Continue with Google or get a magic link.'
+            : 'Magic-link sign-in — no password.'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {sent ? (
@@ -35,12 +39,16 @@ export default function LoginPage() {
           </p>
         ) : (
           <div className="flex flex-col gap-4">
-            <GoogleSignInButton callbackURL="/app" label="Continue with Google" />
-            <div className="flex items-center gap-3 text-xs text-text-muted">
-              <span className="h-px flex-1 bg-border" />
-              or
-              <span className="h-px flex-1 bg-border" />
-            </div>
+            {process.env.NEXT_PUBLIC_GOOGLE_ENABLED === 'true' && (
+              <>
+                <GoogleSignInButton callbackURL="/app" label="Continue with Google" />
+                <div className="flex items-center gap-3 text-xs text-text-muted">
+                  <span className="h-px flex-1 bg-border" />
+                  or
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+              </>
+            )}
             <form onSubmit={onSubmit} className="flex flex-col gap-3">
               <Input
                 type="email"

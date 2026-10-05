@@ -46,12 +46,16 @@ export default function SignupPage() {
           </p>
         ) : (
           <div className="flex flex-col gap-4">
-            <GoogleSignInButton callbackURL="/app/onboarding" label="Continue with Google" />
-            <div className="flex items-center gap-3 text-xs text-text-muted">
-              <span className="h-px flex-1 bg-border" />
-              or
-              <span className="h-px flex-1 bg-border" />
-            </div>
+            {process.env.NEXT_PUBLIC_GOOGLE_ENABLED === 'true' && (
+              <>
+                <GoogleSignInButton callbackURL="/app/onboarding" label="Continue with Google" />
+                <div className="flex items-center gap-3 text-xs text-text-muted">
+                  <span className="h-px flex-1 bg-border" />
+                  or
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+              </>
+            )}
             <form onSubmit={onSubmit} className="flex flex-col gap-3">
               <Input
                 type="email"

@@ -1,14 +1,16 @@
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
 
-export function CatalogChip({ syncedAt, productCount }: { syncedAt: Date | null; productCount: number }) {
-  const hours = syncedAt ? (Date.now() - syncedAt.getTime()) / 3600000 : Infinity;
+export function CatalogChip({ syncedAt, productCount }: { syncedAt: Date | string | null; productCount: number }) {
+  // syncedAt can arrive as a string from the DB layer — coerce before getTime().
+  const at = syncedAt ? new Date(syncedAt) : null;
+  const hours = at ? (Date.now() - at.getTime()) / 3600000 : Infinity;
   const tone = hours > 24 ? 'red' : hours > 6 ? 'amber' : 'green';
-  const label = !syncedAt
+  const label = !at
     ? 'Catalog never synced'
     : hours > 24
       ? `Catalog stale — ${Math.floor(hours)}h ago`
-      : `Synced ${formatAgo(syncedAt)} — ${productCount} products`;
+      : `Synced ${formatAgo(at)} — ${productCount} products`;
   return (
     <Link
       href="/app/settings"

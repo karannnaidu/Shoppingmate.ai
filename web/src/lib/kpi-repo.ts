@@ -42,7 +42,13 @@ export async function voiceRecordedToday(args: { merchantId: string }): Promise<
         ),
       ),
   ]);
-  return { recordedToday: todayRows[0]?.count ?? 0, lastRecordedAt: latestRows[0]?.latest ?? null };
+  // `max(ts)` comes back as a string from the raw sql aggregate (not a Date), so
+  // coerce — consumers call .getTime() on it. (Was the cause of the /app 500.)
+  const latest = latestRows[0]?.latest ?? null;
+  return {
+    recordedToday: todayRows[0]?.count ?? 0,
+    lastRecordedAt: latest ? new Date(latest as unknown as string) : null,
+  };
 }
 
 export async function computeKpis(args: { merchantId: string; days: number }): Promise<Kpis> {

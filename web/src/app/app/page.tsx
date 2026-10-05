@@ -28,8 +28,8 @@ export default async function HomePage() {
     db.query.merchants.findFirst({ where: eq(merchants.id, merchantId) }),
   ]);
 
-  const ago = (d: Date): string => {
-    const m = Math.floor((Date.now() - d.getTime()) / 60000);
+  const ago = (d: Date | string): string => {
+    const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
     if (m < 1) return 'just now';
     if (m < 60) return `${m}m ago`;
     const h = Math.floor(m / 60);
