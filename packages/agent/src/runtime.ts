@@ -367,6 +367,7 @@ export async function* runTurn(
   // calls this turn took — emitted with the turn latency at end_of_turn.
   let llmCalls = 0;
   let toolCallsThisTurn = 0;
+  let nudgedForReply = false;
   for (let iter = 0; iter < MAX_TOOL_LOOP_ITERATIONS; iter += 1) {
     llmCalls += 1;
     let attemptResult: ChatToolsResult | undefined;
@@ -405,6 +406,21 @@ export async function* runTurn(
       yield { type: 'say', text: 'Hold on a sec…' };
     }
     response = attemptResult;
+    // Tools ran but the model ended with NO words (live smoke: page.read then
+    // silence — the shopper saw nothing). Nudge once for a spoken reply.
+    if (
+      response.toolCalls.length === 0 &&
+      toolCallsThisTurn > 0 &&
+      !response.text.trim() &&
+      !nudgedForReply
+    ) {
+      nudgedForReply = true;
+      history.push({
+        role: 'user',
+        content: '(System: you used tools but sent no reply. Answer the visitor now in plain words.)',
+      });
+      continue;
+    }
     if (response.toolCalls.length === 0) break;
     history.push({
       role: 'assistant',

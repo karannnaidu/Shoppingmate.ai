@@ -766,6 +766,33 @@ describe('runTurn() — turn + tool telemetry (nav PRD Phase 0)', () => {
   });
 });
 
+describe('runTurn() — never silent after tools', () => {
+  it('nudges once when tools ran but the model returned no text', async () => {
+    vi.mocked(chatTools)
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ id: 't1', name: 'products.search', argumentsJson: '{"query":"sleep"}' }],
+        stopReason: 'tool_calls',
+        inputTokens: 1,
+        outputTokens: 1,
+      })
+      .mockResolvedValueOnce({ text: '', toolCalls: [], stopReason: 'stop', inputTokens: 1, outputTokens: 1 })
+      .mockResolvedValueOnce({ text: 'Here are a couple of options.', toolCalls: [], stopReason: 'stop', inputTokens: 1, outputTokens: 1 });
+    const events: AgentEvent[] = [];
+    for await (const ev of runTurn(deps, merchant, baseSession(), {
+      type: 'user_text',
+      sessionId: 's-1',
+      text: 'help me sleep',
+      mode: 'text',
+    })) {
+      events.push(ev);
+    }
+    expect(events.filter((e) => e.type === 'say').map((e) => (e as { text: string }).text)).toContain(
+      'Here are a couple of options.',
+    );
+  });
+});
+
 describe('runTurn() — case.open (nav PRD Phase 4)', () => {
   it('validates, submits with session ids, returns a reference, and emits case.opened', async () => {
     vi.mocked(chatTools)
