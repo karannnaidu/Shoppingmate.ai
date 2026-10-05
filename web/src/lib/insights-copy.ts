@@ -63,6 +63,7 @@ export function elementWords(key: string): string {
   const [role, ...rest] = key.split(/[/|]/);
   const name = rest.join(' ').trim();
   if (!name || name === '-') return 'something on the page';
+  if (role === 'text') return `“${name}” (it isn’t a link or button)`;
   const kind = role === 'link' ? 'link' : role === 'button' ? 'button' : 'control';
   return `the “${name}” ${kind}`;
 }

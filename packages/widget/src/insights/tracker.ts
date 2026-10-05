@@ -271,12 +271,47 @@ export function startInsights(ctx: Ctx): (() => void) | null {
       page.rage += 1;
       if (key && page.rageTargets.length < 5) page.rageTargets.push(key);
     }
-    // Dead: nothing on the page (outside our widget) changed within 800 ms.
+    // Dead: the tap had no effect within 800 ms. Background animations
+    // (twinkles, carousels) mutate styles constantly, so only count effects
+    // that a tap causes: navigation, content added/removed, or a change on
+    // the tapped element's own branch (e.g. aria-expanded, a class toggle).
     page.lastClickAt = now;
     const href = location.href;
+    const tapped = e.target instanceof Element ? e.target : null;
+    // "Near the tap" = the tapped control (or its direct parent). Ancestors only
+    // count through STATE attributes (aria-*, open, hidden) — hero sections with
+    // animated decoration would otherwise make every tap look effective.
+    const control = tapped?.closest(
+      'a,button,label,summary,[role="button"],[role="tab"],[role="option"]',
+    );
+    const branch = control ?? tapped?.parentElement ?? tapped;
+    const activeBefore = document.activeElement;
     let changed = false;
+    const overlay = (n: Node) =>
+      n instanceof HTMLElement &&
+      (n.matches('dialog,[role="dialog"],[aria-modal="true"],[role="alert"],[role="status"]') ||
+        /fixed|sticky/.test(getComputedStyle(n).position));
     const mo = new MutationObserver((recs) => {
-      if (recs.some((r) => !isOwnNode(r.target))) changed = true;
+      for (const r of recs) {
+        if (isOwnNode(r.target)) continue;
+        if (branch?.contains(r.target)) {
+          changed = true;
+          return;
+        }
+        if (
+          r.type === 'attributes' &&
+          branch &&
+          (r.target as Node).contains?.(branch) &&
+          /^(aria-|open$|hidden$)/.test(r.attributeName ?? '')
+        ) {
+          changed = true;
+          return;
+        }
+        if (r.type === 'childList' && [...r.addedNodes].some(overlay)) {
+          changed = true;
+          return;
+        }
+      }
     });
     mo.observe(document.body, {
       subtree: true,
@@ -286,10 +321,23 @@ export function startInsights(ctx: Ctx): (() => void) | null {
     });
     window.setTimeout(() => {
       mo.disconnect();
-      if (!changed && location.href === href && page.path === location.pathname) {
+      const focusMoved =
+        document.activeElement !== activeBefore && document.activeElement !== document.body;
+      if (!changed && !focusMoved && location.href === href && page.path === location.pathname) {
         page.dead += 1;
-        if (key && page.deadTargets.length < 5 && !page.deadTargets.includes(key))
-          page.deadTargets.push(key);
+        // Non-controls (a product title, an image) are the classic "looks
+        // tappable" problem — name them by their visible text.
+        const label =
+          key ??
+          (() => {
+            const t = (tapped?.textContent ?? tapped?.getAttribute('alt') ?? '')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .toLowerCase();
+            return t ? `text|${t.slice(0, 30)}` : null;
+          })();
+        if (label && page.deadTargets.length < 5 && !page.deadTargets.includes(label))
+          page.deadTargets.push(label);
       }
     }, 800);
   };
