@@ -29,7 +29,7 @@ function client(): S3Client | null {
 async function signedScreenshots(merchantId: string): Promise<InsightsView['screenshots']> {
   const c = client();
   if (!c) return {};
-  const bucket = process.env.R2_SITE_GRAPH_BUCKET ?? 'shoppingmate-site-graph';
+  const bucket = process.env.R2_SITE_GRAPH_BUCKET?.trim() || 'shoppingmate-site-graph';
   const rows = await db
     .select({ pageType: siteTemplates.pageType, screenshots: siteTemplates.screenshots })
     .from(siteTemplates)

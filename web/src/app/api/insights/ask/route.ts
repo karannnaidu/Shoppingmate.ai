@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { question?: string; qa?: boolean };
   const question = String(body.question ?? '').slice(0, 300).trim();
   if (!question) return NextResponse.json({ error: 'empty' }, { status: 400 });
-  const key = process.env.OPENROUTER_API_KEY;
+  const key = process.env.OPENROUTER_API_KEY?.trim();
   if (!key) return NextResponse.json({ answer: 'Answers are switching on shortly — check back soon.' });
 
   const facts = await buildInsightFacts(db, session.merchant.id, { days: 7, qa: body.qa === true });
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     method: 'POST',
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6',
+      model: process.env.OPENROUTER_MODEL?.trim() || 'anthropic/claude-sonnet-4.6',
       max_tokens: 350,
       messages: [
         { role: 'system', content: SYS },
