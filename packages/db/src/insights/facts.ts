@@ -60,6 +60,8 @@ export type InsightFacts = {
     device: string;
     kind: string;
     target: string;
+    /** Owner-readable name of what was tapped (raw `target` stays for the UI). */
+    label: string;
     count: number;
   }>;
   abandonedFields: Array<{ pageType: string; field: string; count: number }>;
@@ -107,6 +109,15 @@ async function counters(
     )
     .groupBy(insightCounters.metric, insightCounters.dimKey);
   return rows;
+}
+
+/** "button/add to cart" → the "add to cart" button; "text/x" → "x" (plain text, not a link). */
+export function targetLabel(key: string): string {
+  const [role = '', ...rest] = key.split(/[/|]/);
+  const name = rest.join(' ').trim();
+  if (!name || key === '-') return 'an unidentified spot on the page';
+  if (role === 'text') return `"${name}" (plain text, not a link or button)`;
+  return `the "${name}" ${role === 'link' ? 'link' : role === 'button' ? 'button' : 'control'}`;
 }
 
 function tally(list: string[], top = 8): Array<{ text: string; count: number }> {
@@ -284,7 +295,8 @@ export async function buildInsightFacts(
   for (const r of byMetric(cur, 'friction')) {
     const [pageType = '', device = '', kind = '', ...rest] = r.dimKey.split('|');
     if (kind === 'uturn') pg(pageType).quick += r.count;
-    friction.push({ pageType, device, kind, target: rest.join('|'), count: r.count });
+    const target = rest.join('|');
+    friction.push({ pageType, device, kind, target, label: targetLabel(target), count: r.count });
   }
   friction.sort((a, b) => b.count - a.count);
 

@@ -46,7 +46,7 @@ From the FACTS JSON, write the week's report as JSON:
    "action": ONE concrete thing to do this week,
    "pageType": one of home|pdp|plp|cart|checkout|other or null,
    "metric": {"name": short metric id you'd watch, "before": number} or null}}
-RULES: use ONLY numbers that appear in FACTS (you may round). Never invent numbers, products or quotes.
+RULES: use ONLY numbers that appear in FACTS (you may round). Never invent numbers, products or quotes. Refer to tapped elements by their friction[].label (never the raw target key) and to products by name, not URL path.
 No jargon: never write LCP, INP, CLS, bounce, conversion rate, CTR, funnel, session — say "page took 4 seconds to show",
 "left without looking around", "out of 100 visitors, 2 bought", "visits". If there is not enough data for a claim, skip it.
 JSON only.`;

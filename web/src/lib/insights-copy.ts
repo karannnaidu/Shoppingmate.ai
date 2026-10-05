@@ -68,6 +68,22 @@ export function elementWords(key: string): string {
   return `the “${name}” ${kind}`;
 }
 
+/** "discount_not_applied" → "Discount not applied". */
+export function humanize(tag: string): string {
+  const t = tag.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+}
+
+/** "/shop/green-mantra/" → "Green Mantra". */
+export function productName(path: string): string {
+  const slug = path.replace(/\/+$/, '').split('/').pop() ?? path;
+  return slug
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 export function pageSpeedWords(ms: number | null): string | null {
   if (ms == null) return null;
   const s = Math.round(ms / 100) / 10;

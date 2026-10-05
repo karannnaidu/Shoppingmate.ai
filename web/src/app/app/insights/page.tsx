@@ -12,9 +12,11 @@ import {
   PAGE_LABEL,
   STEP_LABEL,
   elementWords,
+  humanize,
   money,
   outOf100,
   pageSpeedWords,
+  productName,
   trendWords,
 } from '@/lib/insights-copy';
 import { markFix } from './actions';
@@ -228,7 +230,7 @@ export default async function InsightsPage({
         </div>
         {pageInfo && (
           <p className="mt-3 text-sm text-text-secondary">
-            {pageInfo.views} views · people stay {pageInfo.avgSeconds}s and see about {pageInfo.avgScroll}% of the page
+            {pageInfo.views} views · people stay {pageInfo.avgSeconds} seconds and see about {pageInfo.avgScroll}% of the page
             {pageSpeedWords(pageInfo.avgLcpMs) ? ` · it ${pageSpeedWords(pageInfo.avgLcpMs)}` : ''}
             {pageInfo.quickExits ? ` · ${pageInfo.quickExits} left within a few seconds` : ''}
           </p>
@@ -302,7 +304,7 @@ export default async function InsightsPage({
             <table className="w-full text-sm">
               <thead className="text-left text-text-secondary">
                 <tr>
-                  <th className="py-1 pr-4 font-medium">Product page</th>
+                  <th className="py-1 pr-4 font-medium">Product</th>
                   <th className="py-1 pr-4 font-medium">Looked at</th>
                   <th className="py-1 pr-4 font-medium">Added to cart</th>
                   <th className="py-1 font-medium">Out of 100 lookers</th>
@@ -311,7 +313,7 @@ export default async function InsightsPage({
               <tbody>
                 {f.products.slice(0, 8).map((p) => (
                   <tr key={p.path} className="border-t border-border">
-                    <td className="py-1 pr-4 text-text-primary">{p.path}</td>
+                    <td className="py-1 pr-4 text-text-primary">{productName(p.path)}</td>
                     <td className="py-1 pr-4">{p.views}</td>
                     <td className="py-1 pr-4">{p.addToCart}</td>
                     <td className="py-1">{Math.round(p.rate * 100)} add it</td>
@@ -336,7 +338,7 @@ export default async function InsightsPage({
               <ul className="mt-1 space-y-1 text-sm">
                 {f.voice.objections.slice(0, 5).map((o) => (
                   <li key={o.text} className="text-text-primary">
-                    {o.text} <span className="text-text-secondary">· {o.count}×</span>
+                    {humanize(o.text)} <span className="text-text-secondary">· {o.count}×</span>
                   </li>
                 ))}
               </ul>
@@ -350,7 +352,7 @@ export default async function InsightsPage({
               <ul className="mt-1 space-y-1 text-sm">
                 {f.voice.needs.slice(0, 5).map((o) => (
                   <li key={o.text} className="text-text-primary">
-                    {o.text} <span className="text-text-secondary">· {o.count}×</span>
+                    {humanize(o.text)} <span className="text-text-secondary">· {o.count}×</span>
                   </li>
                 ))}
               </ul>
@@ -376,7 +378,7 @@ export default async function InsightsPage({
       <Card>
         <h2 className="font-display text-lg font-semibold text-text-primary">What your assistant did</h2>
         <p className="mt-2 text-sm text-text-primary">
-          {f.bot.engagedSessions} visitors chatted with your assistant this week
+          Of the {f.sessions} visits we measured, {f.bot.engagedSessions} chatted with your assistant
           {f.bot.engagedPurchases + f.bot.otherPurchases > 0
             ? ` · ${f.bot.engagedPurchases} of ${f.bot.engagedPurchases + f.bot.otherPurchases} purchases came from people who chatted`
             : ''}
