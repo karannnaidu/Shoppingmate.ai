@@ -16,10 +16,9 @@ vi.mock('@/lib/razorpay', () => ({
     paymentLink: { create: vi.fn().mockResolvedValue({ id: 'plink_x', short_url: 'https://rzp.io/i/pl' }) },
   },
   TOPUP_AMOUNTS: {
-    topup_50: { amount: 1900, label: '50' },
-    topup_200: { amount: 5900, label: '200' },
-    topup_1000: { amount: 19900, label: '1,000' },
-    topup_5000: { amount: 79900, label: '5,000' },
+    topup_100: { amount: 3000, label: '100' },
+    topup_500: { amount: 15000, label: '500' },
+    topup_1000: { amount: 30000, label: '1,000' },
   },
   BILLING_CURRENCY: 'USD',
 }));
@@ -27,11 +26,22 @@ vi.mock('@/lib/razorpay', () => ({
 import { POST } from './route';
 
 describe('POST /api/billing/topup', () => {
-  it('returns a payment-link short_url for a valid topup_key', async () => {
-    const req = new Request('http://localhost', { method: 'POST', body: JSON.stringify({ topup_key: 'topup_200' }), headers: { 'content-type': 'application/json' } });
+  it('returns a payment-link short_url for a JSON caller', async () => {
+    const req = new Request('http://localhost', { method: 'POST', body: JSON.stringify({ topup_key: 'topup_500' }), headers: { 'content-type': 'application/json' } });
     const res = await POST(req);
     const json = await res.json();
     expect(json.url).toContain('rzp.io');
+  });
+
+  it('redirects a native form submit (urlencoded + Accept html) to the payment link', async () => {
+    const req = new Request('http://localhost', {
+      method: 'POST',
+      body: new URLSearchParams({ topup_key: 'topup_100' }),
+      headers: { accept: 'text/html' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe('https://rzp.io/i/pl');
   });
 
   it('rejects an invalid topup_key', async () => {

@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { validateWebhookSignature, TOPUP_QTYS } from '@/lib/razorpay';
 import { merchants, merchantOwners, razorpayEvents } from '@shoppingmate/db/schema';
 import { eq } from 'drizzle-orm';
-import { generateMerchantId } from '@/lib/merchant-id';
+import { generateMerchantId } from '../../../../lib/merchant-id';
 
 export const runtime = 'nodejs';
 
@@ -35,6 +35,10 @@ export async function POST(req: Request) {
     .values({ id: eventId, type: event.event, payload: event as object })
     .onConflictDoNothing();
 
+  // Attribute this event to a merchant so the dashboard can show a per-merchant
+  // transaction history. Set in each branch where the merchant is known.
+  let resolvedMerchantId: string | null = null;
+
   switch (event.event) {
     case 'subscription.activated': {
       const sub = event.payload.subscription?.entity as {
@@ -45,6 +49,7 @@ export async function POST(req: Request) {
       const userId = sub?.notes?.user_id;
       if (!userId) break;
       const merchantId = generateMerchantId();
+      resolvedMerchantId = merchantId;
       await db
         .insert(merchants)
         .values({
@@ -67,6 +72,7 @@ export async function POST(req: Request) {
       };
       const topupKey = link?.notes?.topup_key;
       const merchantId = link?.notes?.merchant_id;
+      if (merchantId) resolvedMerchantId = merchantId;
       if (topupKey && merchantId) {
         const qty = TOPUP_QTYS[topupKey as keyof typeof TOPUP_QTYS];
         if (qty !== undefined) {
@@ -83,6 +89,7 @@ export async function POST(req: Request) {
         await db.update(merchants).set({ billingStatus: 'past_due' }).where(eq(merchants.razorpaySubscriptionId, sub.id));
         const m = await db.query.merchants.findFirst({ where: eq(merchants.razorpaySubscriptionId, sub.id) });
         if (m) {
+          resolvedMerchantId = m.id;
           const { createAlert } = await import('@/lib/alerts-repo');
           await createAlert({ merchantId: m.id, kind: 'payment_failed', severity: 'critical', payload: {} });
         }
@@ -94,12 +101,17 @@ export async function POST(req: Request) {
     case 'subscription.completed': {
       const sub = event.payload.subscription?.entity as { id: string } | undefined;
       if (sub?.id) {
+        const m = await db.query.merchants.findFirst({ where: eq(merchants.razorpaySubscriptionId, sub.id) });
+        if (m) resolvedMerchantId = m.id;
         await db.update(merchants).set({ billingStatus: 'canceled' }).where(eq(merchants.razorpaySubscriptionId, sub.id));
       }
       break;
     }
   }
 
-  await db.update(razorpayEvents).set({ processedAt: new Date() }).where(eq(razorpayEvents.id, eventId));
+  await db
+    .update(razorpayEvents)
+    .set({ processedAt: new Date(), merchantId: resolvedMerchantId })
+    .where(eq(razorpayEvents.id, eventId));
   return NextResponse.json({ ok: true });
 }

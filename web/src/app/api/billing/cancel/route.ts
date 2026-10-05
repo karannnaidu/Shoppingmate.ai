@@ -5,8 +5,9 @@ import { merchants } from '@shoppingmate/db/schema';
 import { eq } from 'drizzle-orm';
 import { getDashboardSession } from '@/lib/session';
 import { razorpay } from '@/lib/razorpay';
+import { respond } from '../../../../lib/billing-http';
 
-export async function POST() {
+export async function POST(req: Request) {
   const hdrs = await headers();
   const session = await getDashboardSession({ headers: hdrs });
   if (!session?.merchant) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -16,5 +17,6 @@ export async function POST() {
 
   // Second arg is a positional boolean (true = cancel at end of billing cycle).
   await razorpay.subscriptions.cancel(m.razorpaySubscriptionId, true);
-  return NextResponse.json({ ok: true });
+  // Browser form → back to billing; fetch/test caller → JSON.
+  return respond(req, { redirectTo: new URL('/app/billing', req.url).toString(), json: { ok: true } });
 }

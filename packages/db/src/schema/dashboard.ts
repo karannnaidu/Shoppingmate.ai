@@ -65,6 +65,10 @@ export const stripeEvents = pgTable('stripe_events', {
 export const razorpayEvents = pgTable('razorpay_events', {
   id: text('id').primaryKey(),
   type: text('type').notNull(),
+  // Resolved merchant for this event when known (subscription/customer/notes).
+  // Lets the dashboard show a per-merchant transaction history. Nullable:
+  // pre-linkage rows + events we can't attribute stay null.
+  merchantId: text('merchant_id'),
   receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
   processedAt: timestamp('processed_at', { withTimezone: true }),
   payload: jsonb('payload'),

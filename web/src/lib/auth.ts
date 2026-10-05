@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { magicLink } from 'better-auth/plugins';
+import { nextCookies } from 'better-auth/next-js';
 import { db, schema } from './db';
 import { sendMagicLink } from './resend';
 
@@ -41,6 +42,11 @@ function getAuth(): AuthInstance {
         },
         expiresIn: 60 * 15,
       }),
+      // MUST be last: forwards better-auth's Set-Cookie through Next.js so the
+      // session cookie actually persists after magic-link / social sign-in.
+      // Without it, sessions are created in the DB but the cookie never sticks,
+      // so the user is bounced back to /login on the next request.
+      nextCookies(),
     ],
     rateLimit: {
       window: 15 * 60,

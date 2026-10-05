@@ -3,15 +3,16 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getDashboardSession } from '@/lib/session';
 import { razorpay, TOPUP_AMOUNTS, BILLING_CURRENCY } from '@/lib/razorpay';
+import { readBody, respond } from '../../../../lib/billing-http';
 
-const Body = z.object({ topup_key: z.enum(['topup_50', 'topup_200', 'topup_1000', 'topup_5000']) });
+const Body = z.object({ topup_key: z.enum(['topup_100', 'topup_500', 'topup_1000']) });
 
 export async function POST(req: Request) {
   const hdrs = await headers();
   const session = await getDashboardSession({ headers: hdrs });
   if (!session?.merchant) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const parsed = Body.safeParse(await req.json().catch(() => ({})));
+  const parsed = Body.safeParse(await readBody(req));
   if (!parsed.success) return NextResponse.json({ error: 'invalid topup_key' }, { status: 400 });
 
   const pack = TOPUP_AMOUNTS[parsed.data.topup_key];
@@ -34,5 +35,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ url: link.short_url });
+  return respond(req, { redirectTo: link.short_url, json: { url: link.short_url } });
 }

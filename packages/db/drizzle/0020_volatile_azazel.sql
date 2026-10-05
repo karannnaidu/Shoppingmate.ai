@@ -1,0 +1,1 @@
+ALTER TABLE "razorpay_events" ADD COLUMN "merchant_id" text;

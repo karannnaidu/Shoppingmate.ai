@@ -14,10 +14,10 @@ describe('razorpay wrapper', () => {
     expect(PLAN_IDS.scale).toBeDefined();
   });
 
-  it('exports TOPUP_AMOUNTS + TOPUP_QTYS for all packs', () => {
-    expect(TOPUP_AMOUNTS.topup_50.amount).toBe(1900);
-    expect(TOPUP_AMOUNTS.topup_5000.label).toBe('5,000');
-    expect(TOPUP_QTYS.topup_200).toBe(200);
+  it('exports TOPUP_AMOUNTS + TOPUP_QTYS at $0.30/credit for all packs', () => {
+    expect(TOPUP_AMOUNTS.topup_100.amount).toBe(3000); // $30 for 100 credits
+    expect(TOPUP_AMOUNTS.topup_1000.label).toBe('1,000');
+    expect(TOPUP_QTYS.topup_500).toBe(500);
     expect(TOPUP_QTYS.topup_1000).toBe(1000);
   });
 });

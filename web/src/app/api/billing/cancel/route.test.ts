@@ -21,11 +21,19 @@ vi.mock('@/lib/db', () => ({
 import { POST } from './route';
 
 describe('POST /api/billing/cancel', () => {
-  it('cancels the subscription at cycle end', async () => {
-    const res = await POST();
+  it('cancels the subscription at cycle end (JSON caller)', async () => {
+    const res = await POST(new Request('http://localhost/api/billing/cancel', { method: 'POST' }));
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(cancel).toHaveBeenCalledWith('sub_x', true);
+  });
+
+  it('redirects a native form submit back to billing', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/billing/cancel', { method: 'POST', headers: { accept: 'text/html' } }),
+    );
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toContain('/app/billing');
   });
 });

@@ -36,20 +36,19 @@ export const PLAN_IDS = {
 
 export const BILLING_CURRENCY = process.env.BILLING_CURRENCY ?? 'USD';
 
-export type TopupKey = 'topup_50' | 'topup_200' | 'topup_1000' | 'topup_5000';
+export type TopupKey = 'topup_100' | 'topup_500' | 'topup_1000';
 
-// Charge amount in the smallest currency unit (cents/paise).
+// One-time credit packs, priced at a flat $0.30/credit (~67% margin, same value
+// as plan credits). Amount is the smallest currency unit (cents/paise).
 export const TOPUP_AMOUNTS: Record<TopupKey, { amount: number; label: string }> = {
-  topup_50: { amount: 1900, label: '50' },
-  topup_200: { amount: 5900, label: '200' },
-  topup_1000: { amount: 19900, label: '1,000' },
-  topup_5000: { amount: 79900, label: '5,000' },
+  topup_100: { amount: 3000, label: '100' }, // $30
+  topup_500: { amount: 15000, label: '500' }, // $150
+  topup_1000: { amount: 30000, label: '1,000' }, // $300
 };
 
-// Conversations credited to topupBalance when a pack is paid.
+// Credits added to topupBalance when a pack is paid.
 export const TOPUP_QTYS: Record<TopupKey, number> = {
-  topup_50: 50,
-  topup_200: 200,
+  topup_100: 100,
+  topup_500: 500,
   topup_1000: 1000,
-  topup_5000: 5000,
 };
