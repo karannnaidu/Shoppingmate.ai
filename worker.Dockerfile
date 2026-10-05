@@ -18,4 +18,7 @@ WORKDIR /app/apps/worker
 # Nav Phase 2: real-browser template scans need Chromium; Phase 6 nightly QA
 # also runs WebKit (the Safari engine) for Safari desktop + iPhone coverage.
 RUN npx playwright install --with-deps chromium webkit
+# WebKit validates TLS against the SYSTEM CA store (Chromium bundles its own);
+# node:20-slim ships without it → "Unacceptable TLS certificate" on every site.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && update-ca-certificates && rm -rf /var/lib/apt/lists/*
 CMD ["node", "dist/index.js"]
