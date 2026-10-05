@@ -182,7 +182,14 @@ export async function* runTurn(
     ? await deps.loadPromptOpts(merchant, session.visitorId)
     : {};
   // Default to Sonnet; a session may carry a cheap-model override for smoke runs.
-  const turnModel = pickTurnModel(message, session.model, session.inCheckout);
+  // A held contact means a case / checkout capture is in flight — keep the
+  // precise model so the confirming "yes" turn reliably calls the tool (live
+  // smoke: Haiku re-asked for the number instead of opening the case).
+  const turnModel = pickTurnModel(
+    message,
+    session.model,
+    session.inCheckout === true || (session.transientContact !== undefined && caseCaptureEnabled(merchant)),
+  );
   // Becomes true once we're in checkout (this turn or earlier) so the next turn
   // — including a free-form correction — also gets the precise model.
   let usedCheckoutFlowTool = false;
