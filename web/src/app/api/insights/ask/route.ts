@@ -12,7 +12,8 @@ const SYS = `You answer a SHOP OWNER's question about their online store using O
 - 2–4 short sentences, plain words, money and people (no jargon: never say conversion rate, funnel, session, bounce, LCP, CTR).
 - Quote the specific numbers you used from FACTS.
 - If FACTS don't contain what's needed, say "I don't have data on that yet" and suggest what you can answer.
-- If there are fewer than 20 visits, say it's too early to be sure.`;
+- If there are fewer than 20 visits, say it's too early to be sure.
+- Plain text only: no markdown, no asterisks, no bullet symbols.`;
 
 export async function POST(req: Request) {
   const session = await getDashboardSession({ headers: await headers() });
@@ -41,5 +42,6 @@ export async function POST(req: Request) {
   });
   if (!res.ok) return NextResponse.json({ answer: 'Sorry — I could not answer that right now. Try again in a moment.' });
   const j = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  return NextResponse.json({ answer: j.choices?.[0]?.message?.content?.trim() || "I don't have data on that yet." });
+  const text = (j.choices?.[0]?.message?.content ?? '').replace(/\*\*|__/g, '').replace(/^#+\s*/gm, '').trim();
+  return NextResponse.json({ answer: text || "I don't have data on that yet." });
 }

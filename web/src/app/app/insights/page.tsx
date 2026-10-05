@@ -66,7 +66,9 @@ export default async function InsightsPage({
   const qa = sp.qa === '1';
   const pageType = typeof sp.page === 'string' ? sp.page : 'pdp';
   const device = sp.device === 'mobile' ? 'mobile' : 'desktop';
-  const { facts: f, report, screenshots } = await loadInsights(m.id, { qa });
+  const { facts: f, report: anyReport, screenshots } = await loadInsights(m.id, { qa });
+  // Only show a report built from the same kind of data as this view (real vs test).
+  const report = anyReport && ((anyReport.facts as { qa?: boolean })?.qa === true) === qa ? anyReport : null;
 
   const enough = f.sessions >= MIN_VISITS;
   const atRisk = f.leaks.reduce((a, l) => a + l.valueAtRisk, 0);
