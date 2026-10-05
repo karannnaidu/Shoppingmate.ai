@@ -337,24 +337,24 @@ Flags: `INSIGHTS_TRACKING` (collection) + plan gate. Depends on Phase 0 (telemet
 Target after this design: 1M-session merchant ≈ 0.3–0.5 GB/mo; typical (100k sessions) ≈ 30–50 MB/mo.
 
 ### 8b. Collection (widget)
-- [ ] **8.1** `packages/widget/src/insights/tracker.ts`: accumulate in memory during the pageview, send **one summary beacon** on `pagehide` (+ a safety flush at 60 s): `{template, device, source/utm, entry/exit, maxScrollPct, attentionSecBySection, clickCountsByCell (element ref or 5% grid cell), frictionFlags {rage, dead, error, uturn}, formFieldsAbandoned (names only, no values), webVitals, jsErrorCount}`. `requestIdleCallback`; ≤ 5 KB gz. Sampling decision made once per session (sticky) from bootstrap config.
-- [ ] **8.2** Friction detectors in the widget (rage/dead/error clicks, U-turns) — set flags/counts in the summary, never raw mouse streams.
-- [ ] **8.3** Privacy by default: never capture input values or keystrokes; mask text in elements marked `data-sm-mask` + all inputs; truncate IP server-side; respect consent — Shopify Customer Privacy API (`window.Shopify.customerPrivacy.analyticsProcessingAllowed()`), common CMPs (OneTrust/Cookiebot) and GPC; if no consent signal in UK/EU visitors → don't track. Configurable sampling % per merchant.
-- [ ] **8.4** Only enabled when merchant plan ∈ {growth, scale} **and** flag on (served via bootstrap config) — Starter merchants send nothing (no cost).
+- [x] **8.1** `packages/widget/src/insights/tracker.ts`: accumulate in memory during the pageview, send **one summary beacon** on `pagehide` (+ a safety flush at 60 s): `{template, device, source/utm, entry/exit, maxScrollPct, attentionSecBySection, clickCountsByCell (element ref or 5% grid cell), frictionFlags {rage, dead, error, uturn}, formFieldsAbandoned (names only, no values), webVitals, jsErrorCount}`. `requestIdleCallback`; ≤ 5 KB gz. Sampling decision made once per session (sticky) from bootstrap config. — c848a86+
+- [x] **8.2** Friction detectors in the widget (rage/dead/error clicks, U-turns) — set flags/counts in the summary, never raw mouse streams. — c848a86+
+- [x] **8.3** Privacy by default: never capture input values or keystrokes; mask text in elements marked `data-sm-mask` + all inputs; truncate IP server-side; respect consent — Shopify Customer Privacy API (`window.Shopify.customerPrivacy.analyticsProcessingAllowed()`), common CMPs (OneTrust/Cookiebot) and GPC; if no consent signal in UK/EU visitors → don't track. Configurable sampling % per merchant. — c848a86+
+- [x] **8.4** Only enabled when merchant plan ∈ {growth, scale} **and** flag on (served via bootstrap config) — Starter merchants send nothing (no cost). — c848a86+
 
 ### 8c. Storage & processing
-- [ ] **8.5** Ingest endpoint `POST /v1/insights/pageview` (api): validate, rate-limit per tenant, enforce plan session cap, then **fan out to counters** (heatmap cells, funnel steps, friction, product) — the summary itself is only persisted if the session qualifies for detail (8.0). Keep the handler stateless so it can move to an edge function if request volume demands.
-- [ ] **8.6** Storage: counter/rollup tables `insight_heatmap_cells (merchant, template, device, cell, day) → count`, `insight_funnel_daily`, `insight_friction_daily`, `insight_product_daily`, `insight_segment_daily`; plus `insight_sessions_detail` (qualifying sessions only, TTL 7 days Growth / 14 days Scale, daily partition drop). Rollups retained: Growth 90 days, Scale 12 months. Funnel counters via Redis INCR, flushed every 5 min.
-- [ ] **8.7** Worker jobs: counter flush, TTL partition drops, per-merchant auto-sampling rate adjust (target ≤ cap), and a **volume monitor** (rows/day, GB per merchant) emitted to internal ops alerts; ClickHouse/Tinybird only if detail rows exceed ~50M/month total.
-- [ ] **8.8** Template screenshots for heatmap backgrounds: Phase 2 crawler captures a full-page screenshot per template × device (desktop + mobile) on each scan.
-- [ ] **8.8a** **Brand knowledge graph = the backbone.** Rollups are keyed to site-graph node/edge ids: template nodes carry heatmap/drop-off/friction numbers; page→page edges carry transition counts (the "store map"); product nodes carry views/ATC/purchase + objection counts + a few sample quotes. **Never** raw events or per-visitor state in the graph (volume + staleness).
-- [ ] **8.8b** Bot-proposed graph additions: from conversations, propose new FAQ answers (unanswered questions), recurring product complaints, missing-catalog demand → **pending** state; merchant approves in dashboard ("Add answer") before the bot ever uses it with customers (prevents one wrong reply becoming a permanent "fact").
-- [ ] **8.9** Join behavior ↔ conversations ↔ cases by `visitor_id` / session (Shopify `sm_visitor_id` cart attribute already injected) so a drop-off can show "what they asked before leaving".
+- [x] **8.5** Ingest endpoint `POST /v1/insights/pageview` (api): validate, rate-limit per tenant, enforce plan session cap, then **fan out to counters** (heatmap cells, funnel steps, friction, product) — the summary itself is only persisted if the session qualifies for detail (8.0). Keep the handler stateless so it can move to an edge function if request volume demands. — c848a86+ (direct merged upsert into counters; Redis buffering unnecessary at current volume)
+- [x] **8.6** Storage: counter/rollup tables `insight_heatmap_cells (merchant, template, device, cell, day) → count`, `insight_funnel_daily`, `insight_friction_daily`, `insight_product_daily`, `insight_segment_daily`; plus `insight_sessions_detail` (qualifying sessions only, TTL 7 days Growth / 14 days Scale, daily partition drop). Rollups retained: Growth 90 days, Scale 12 months. Funnel counters via Redis INCR, flushed every 5 min. — c848a86+ (one generic fixed-size insight_counters table instead of five; detail rows TTL 7/14 d; rollup retention via counters)
+- [~] **8.7** Worker jobs: counter flush, TTL partition drops, per-merchant auto-sampling rate adjust (target ≤ cap), and a **volume monitor** (rows/day, GB per merchant) emitted to internal ops alerts; ClickHouse/Tinybird only if detail rows exceed ~50M/month total. — c848a86+ — purge + anomaly done; per-merchant auto-sampling + volume monitor NOT built yet (sampleRate is an env setting; counters are fixed-size)
+- [x] **8.8** Template screenshots for heatmap backgrounds: Phase 2 crawler captures a full-page screenshot per template × device (desktop + mobile) on each scan. — Phase 2 crawler already stores desktop + mobile screenshots per template; shown via signed R2 URLs
+- [~] **8.8a** **Brand knowledge graph = the backbone.** Rollups are keyed to site-graph node/edge ids: template nodes carry heatmap/drop-off/friction numbers; page→page edges carry transition counts (the "store map"); product nodes carry views/ATC/purchase + objection counts + a few sample quotes. **Never** raw events or per-visitor state in the graph (volume + staleness). — c848a86+ — counters keyed by page TEMPLATE type (the graph's template nodes) rather than node ids; store-map path view shipped as 'Where shoppers leave'
+- [~] **8.8b** Bot-proposed graph additions: from conversations, propose new FAQ answers (unanswered questions), recurring product complaints, missing-catalog demand → **pending** state; merchant approves in dashboard ("Add answer") before the bot ever uses it with customers (prevents one wrong reply becoming a permanent "fact"). — not built: unanswered questions surface on Insights + Customer requests with an Add an answer link to Knowledge (manual approval by design)
+- [~] **8.9** Join behavior ↔ conversations ↔ cases by `visitor_id` / session (Shopify `sm_visitor_id` cart attribute already injected) so a drop-off can show "what they asked before leaving". — c848a86+ — joined at the aggregate level (objections/needs/cases per week), not per individual visit
 
 ### 8d. "Why are they dropping?" — AI insights
-- [ ] **8.10** Weekly insights job: feed rollups + objection/question/case aggregates to the LLM → **Top 5 CRO fixes**, each with evidence (numbers, heatmap/friction link, sample shopper quotes), the affected segment, and estimated impact (lost sessions × current CR × AOV). No made-up numbers — every claim cites a metric from the rollups.
-- [ ] **8.11** Anomaly alerts: conversion rate / checkout completion drop > X% vs 4-week baseline, JS error spike on checkout, ATC button dead-click spike → **email + dashboard notice to the merchant** (not Slack — Slack is our internal ops only).
-- [ ] **8.12** Each insight has "Mark done" → we track the metric before/after so owners see if the fix worked.
+- [x] **8.10** Weekly insights job: feed rollups + objection/question/case aggregates to the LLM → **Top 5 CRO fixes**, each with evidence (numbers, heatmap/friction link, sample shopper quotes), the affected segment, and estimated impact (lost sessions × current CR × AOV). No made-up numbers — every claim cites a metric from the rollups. — c848a86+
+- [x] **8.11** Anomaly alerts: conversion rate / checkout completion drop > X% vs 4-week baseline, JS error spike on checkout, ATC button dead-click spike → **email + dashboard notice to the merchant** (not Slack — Slack is our internal ops only). — c848a86+
+- [~] **8.12** Each insight has "Mark done" → we track the metric before/after so owners see if the fix worked. — c848a86+ — Mark as done shipped; automatic before/after measurement NOT built yet
 
 ### 8e. Owner-first UX — the data is worthless if a shop owner can't read it
 
@@ -375,7 +375,7 @@ Target after this design: 1M-session merchant ≈ 0.3–0.5 GB/mo; typical (100k
 12. **Empty states teach:** what we'll show, when, and why it isn't there yet.
 
 ### 8e-2. Dashboard (`web/src/app/app/insights`)
-- [ ] **8.13** **Insights** section (locked state + upgrade CTA on Starter), built to the rules above:
+- [x] **8.13** **Insights** section (locked state + upgrade CTA on Starter), built to the rules above: — c848a86+
   - **Home:** one-sentence summary of the week · ₹ at risk · top 3 fix cards · "Ask about your store" box.
   - **Where shoppers leave:** store-map path (Home → Product → Cart → Checkout) with ₹/people leaking at each step; tap a step → annotated page screenshot + what shoppers said there.
   - **Your pages:** per template (mobile/desktop toggle), annotated screenshot with numbered pins (scroll stop, ignored sections, taps that did nothing). Raw click/scroll overlay only under "Details".
@@ -383,19 +383,19 @@ Target after this design: 1M-session merchant ≈ 0.3–0.5 GB/mo; typical (100k
   - **What shoppers are saying:** top reasons for hesitating (price, shipping, trust…) with real quotes; questions the assistant couldn't answer, each with "Add answer" (feeds the knowledge graph).
   - **Assistant impact:** "Shoppers who talked to the assistant bought X× more often, spent ₹Y more."
   - **Details (analyst mode):** full funnels, segment filters, friction tables, exports (Scale).
-- [ ] **8.13a** `insights-copy.ts` dictionary + lint check: no raw metric names/acronyms in default-view components.
-- [ ] **8.13b** Weekly email digest (Resend): summary sentence, top 3 fix cards with annotated screenshots, ₹ impact, one CTA each; Monday morning merchant-local time; respects email prefs.
-- [ ] **8.13c** "Ask about your store": chat endpoint grounded **only** on rollups + graph (cites the numbers it used; says "I don't have data on that" otherwise).
-- [ ] **8.13d** Design pass with the `ui-ux-pro-max` / `visual-critique` skills before build; clickable prototype reviewed by Karan first.
-- [ ] **8.13e** **Usability test with 3–5 real non-technical owners** (Calmosis team + pilot merchants): 5-second test — after 5 s on Home they can say (a) the biggest problem and (b) what to do. Ship only when ≥ 4/5 pass.
-- [ ] **8.14** Plan gate helper `hasFeature(plan, feature)` in `web/src/lib` (create if absent) — used by bootstrap config (8.4), API, and dashboard.
-- [ ] **8.15** Scale-only extras: session journey timeline (event list per session, not video), segment comparison, CSV export / API, 12-month retention.
-- [ ] **8.16** Update Pricing page + billing plan feature lists (Growth/Scale) — copy follows "no agent language" rule.
-- [ ] **8.17** Privacy policy page (`/legal/privacy`) + merchant DPA note: what we collect, consent handling, retention.
+- [x] **8.13a** `insights-copy.ts` dictionary + lint check: no raw metric names/acronyms in default-view components. — c848a86+
+- [x] **8.13b** Weekly email digest (Resend): summary sentence, top 3 fix cards with annotated screenshots, ₹ impact, one CTA each; Monday morning merchant-local time; respects email prefs. — c848a86+
+- [x] **8.13c** "Ask about your store": chat endpoint grounded **only** on rollups + graph (cites the numbers it used; says "I don't have data on that" otherwise). — c848a86+
+- [~] **8.13d** Design pass with the `ui-ux-pro-max` / `visual-critique` skills before build; clickable prototype reviewed by Karan first. — design pass done in-session (Playwright screenshots, desktop + iPhone, several fixes); Karan prototype review pending
+- [ ] **8.13e** **Usability test with 3–5 real non-technical owners** (Calmosis team + pilot merchants): 5-second test — after 5 s on Home they can say (a) the biggest problem and (b) what to do. Ship only when ≥ 4/5 pass. — NEEDS KARAN (real owners)
+- [x] **8.14** Plan gate helper `hasFeature(plan, feature)` in `web/src/lib` (create if absent) — used by bootstrap config (8.4), API, and dashboard. — c848a86+
+- [~] **8.15** Scale-only extras: session journey timeline (event list per session, not video), segment comparison, CSV export / API, 12-month retention. — c848a86+ — Scale Details (sources, devices) shipped; journey timeline + CSV export NOT built
+- [x] **8.16** Update Pricing page + billing plan feature lists (Growth/Scale) — copy follows "no agent language" rule. — c848a86+ (marketing pricing; billing page has no feature list)
+- [x] **8.17** Privacy policy page (`/legal/privacy`) + merchant DPA note: what we collect, consent handling, retention. — c848a86+ (privacy page section; DPA note pending legal)
 
 ### 8f. Tests
-- [ ] **8.18** Tracker unit tests: no input values ever in payloads; consent-denied → zero events; detectors fire on synthetic rage/dead clicks.
-- [ ] **8.19** Perf check (Phase 6 harness): tracker on vs off on Calmosis → LCP/INP delta within noise; bundle size budget enforced in CI.
+- [x] **8.18** Tracker unit tests: no input values ever in payloads; consent-denied → zero events; detectors fire on synthetic rage/dead clicks. — c848a86+
+- [~] **8.19** Perf check (Phase 6 harness): tracker on vs off on Calmosis → LCP/INP delta within noise; bundle size budget enforced in CI. — c848a86+ — widget bundle 33.1 KB gz (27% of budget; all Phase 2–8 widget work ≈ +5 KB); LCP/INP before/after check not run
 
 **Acceptance (prove with logs):**
 - Calmosis (set to Growth for test) for 7 days: funnel, heatmaps (mobile + desktop PDP), friction list and voice-of-customer populated; weekly report generated with ≥ 3 evidence-backed fixes.
@@ -405,7 +405,14 @@ Target after this design: 1M-session merchant ≈ 0.3–0.5 GB/mo; typical (100k
 - Volume check: ≤ 1 beacon per pageview (network log); Calmosis insights storage growth ≤ 50 MB/month extrapolated from the 7-day run; heatmap table row count flat as traffic grows.
 
 **Phase log:**
-> _(paste)_
+> **Phase 8 proof — 2026-10-06 (prod: INSIGHTS_TRACKING=1, INSIGHTS_FORCE_MERCHANTS=SM-2SCCLZ pilot, migration 0023)**
+> - Install config returns `{"enabled":true,"sampleRate":1}` for Calmosis; deployed bundle carries the tracker.
+> - 30 synthetic shoppers (real Chromium, desktop + iPhone 13, 6 personas, `sm_qa=1` → stored under `qa:` metrics, never mixed with real numbers): **60 beacons for 60 pageviews (1 per pageview)**; visits = 30 (after the visit-id fix); path 30 → 25 product → 10 add to cart → 3 checkout → 0 bought; friction named ("peace mantra — cbd+thc oil for" plain text tapped 3×, 5 rage taps on phones); abandoned field "Enter your full name".
+> - Weekly AI report (worker, Sonnet) → 5 fixes grounded in the numbers (e.g. "7 people added to cart but never made it to checkout … ₹23,660"), money clamped to the computed total at risk. Ask about your store answered from the facts.
+> - Dashboard /app/insights reviewed on desktop + iPhone 13 (Playwright screenshots). Fixed during the pass: endless page from a 13,000 px screenshot (now a scroll frame + tap circles), raw tags/URL paths/keys shown to owners, first-week wording, markdown in answers, test report leaking into the real view.
+> - Bugs found + fixed while proving: visits were counted per page load (widget session) → tab-scoped visit id; mobile emulation wasn't tagged as test → explicit sm_qa; dead taps never fired on animated pages → effect-near-the-tap detection; add-to-cart never registered on Calmosis → storefront cart hook.
+> - Consent-denied + not-entitled → zero beacons (unit tests); typed values never in payloads (unit test).
+> - Test data kept for review at /app/insights?qa=1 (purge any time with purgeQaInsights). Real Calmosis tracking is live; the real view fills as shoppers visit.
 
 ### Other things owners would want (backlog, prioritize after 8 ships)
 - [ ] Zero-result / failed site searches (what shoppers looked for and didn't find)
