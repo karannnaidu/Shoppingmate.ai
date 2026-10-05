@@ -2,7 +2,7 @@ export type HostAction =
   | { type: 'navigate'; path: string }
   | { type: 'scroll_to'; intent: string }
   | { type: 'highlight'; intent: string; durationMs?: number }
-  | { type: 'click'; intent: string }
+  | { type: 'click'; intent: string; ref?: string }
   | { type: 'point_at'; intent: string }
   | { type: 'demo_click'; intent: string }
   // Calmosis stitch: add a SKU to the real storefront cart via the host page's
@@ -20,8 +20,11 @@ export type HostAction =
   | { type: 'apply_coupon'; code: string }
   // Generic DOM control: fill the live page's form fields and read back the
   // values actually present (the read-back). form_read returns current values.
-  | { type: 'form_fill'; fields: Array<{ field: string; value: string }> }
+  | { type: 'form_fill'; fields: Array<{ field: string; value: string; ref?: string }> }
   | { type: 'form_read'; fields?: string[] }
+  // Nav PRD Phase 1: compact accessibility-style page snapshot with [eN] refs
+  // (returned in values.snapshot).
+  | { type: 'page_snapshot' }
   // Brand-agnostic checkout completion (opt-in): the storefront exposes
   // window.__shoppingmateCheckoutFill__(details) and __shoppingmatePlaceOrder__().
   // The bot fills the visitor's details, reads the order back for confirmation,
@@ -45,7 +48,14 @@ export type CheckoutDetails = {
 };
 
 export type HostActionResult =
-  | { ok: true; values?: Record<string, string>; filled?: Array<{ field: string; ok: boolean; value: string }> }
+  | {
+      ok: true;
+      values?: Record<string, string>;
+      filled?: Array<{ field: string; ok: boolean; value: string }>;
+      // Verify-after-action (nav PRD Phase 1): did the page visibly change?
+      verified?: boolean;
+      observed?: string;
+    }
   | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
 
 export type HostActionRequest = {

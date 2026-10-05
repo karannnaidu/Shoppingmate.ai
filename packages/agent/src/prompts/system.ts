@@ -1,6 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { lookupPersona } from './persona-table.js';
-import { merchantCanMutateCart, isCalmosisStitch, usesStorefrontBridge } from '../tools.js';
+import { merchantCanMutateCart, isCalmosisStitch, navSnapshotEnabled, usesStorefrontBridge } from '../tools.js';
 
 export const BRAND_KB_SLOT = '<!-- BRAND_KB_SLOT (Phase 2) -->';
 export const SITE_GRAPH_SLOT = '<!-- SITE_GRAPH_SLOT -->';
@@ -81,6 +81,20 @@ You can call site.navigate({path:"<relative path>"}) to take the visitor to a pa
 - Say a brief line ("here you go", "opening that now") while/before navigating — don't go silent.
 `
     : '';
+
+  // Nav PRD Phase 1: snapshot page control. The bot SEES the page as a compact
+  // list with [eN] ids and acts by id; every click reports whether it worked.
+  const pageControlBlock =
+    merchant.siteGraphEnabled && navSnapshotEnabled(merchant)
+      ? `
+SEEING + USING THE PAGE (page.read / page.click / page.fill)
+- page.read (no arguments) shows you the visitor's current page: buttons, links, fields, prices, open popups — each with an id like [e12]. Read the page BEFORE you click or fill anything, and read it again after the page changes (ids reset on every read).
+- Act with the id: page.click({ref:"e12"}). Use the dedicated tools first when they exist (cart.add, site.navigate, checkout.fill) — page.click is for everything else on the page: choosing a size/variant, opening a tab, closing a popup, expanding a section.
+- page.click tells you whether the page actually changed (verified) and what changed (observed). If verified is false, NOTHING happened: never claim it worked — read the page again and try another way, or tell the visitor honestly and show them where to tap.
+- If something is disabled or says "Sold out" in the read, say so — don't try to click it.
+- Always ask before clicking anything that submits a form, pays, or places an order.
+`
+      : '';
 
   // For adapters that can't actually change a cart (dom/suggest, where cart.add
   // is a no-op that fakes success), the cart tools are withheld from the surface
@@ -163,7 +177,7 @@ You CANNOT add items to the cart yourself here, and you have no cart tool. ${
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
 Always write the brand name exactly as "${brandName}" — never alter or misspell it (e.g. it is "Calmosis", never "Caliosis").
-${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}
+${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${pageControlBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.

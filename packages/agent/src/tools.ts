@@ -322,6 +322,80 @@ const PAGE_CONTROL_TOOLS: ToolDef[] = [
   },
 ];
 
+/**
+ * Nav PRD Phase 1 flag: snapshot-based page control (page.read returns an
+ * accessibility-style list with [eN] refs; page.click/page.fill act by ref and
+ * report verified effects). NAV_SNAPSHOT_V2 = "*" (all site-graph merchants) or
+ * a comma-separated merchant-id allowlist. Unset/empty = off (legacy page.*).
+ */
+export function navSnapshotEnabled(merchant: Pick<Merchant, 'id'>): boolean {
+  const raw = (process.env.NAV_SNAPSHOT_V2 ?? '').trim();
+  if (!raw) return false;
+  if (raw === '*') return true;
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .includes(merchant.id);
+}
+
+// Snapshot-mode page tools (nav PRD Phase 1). Same names as PAGE_CONTROL_TOOLS
+// so the prompt/runtime contract is unchanged; richer params + descriptions.
+const PAGE_SNAPSHOT_TOOLS: ToolDef[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'page.read',
+      description:
+        "Look at the visitor's current page. With no arguments it returns a compact list of what's on screen — buttons, links, form fields (with their current values), headings, prices, open popups — each tagged with an element id like [e12]. Call it before acting on the page, and again after the page changes (ids reset on every read). Pass `fields` instead to read just those form values.",
+      parameters: {
+        type: 'object',
+        properties: { fields: { type: 'array', items: { type: 'string' } } },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'page.click',
+      description:
+        "Click an element on the visitor's page. Pass `ref` (the [eN] id from your latest page.read) — that is exact. `intent` is a short description used only as a fallback (e.g. 'Add to cart button'). The result says whether the page actually changed (verified) and what changed (observed): if verified is false, nothing happened — do NOT tell the visitor it worked; call page.read and try another way or tell them honestly. ALWAYS ask the visitor before clicking anything that submits, pays, or places an order.",
+      parameters: {
+        type: 'object',
+        properties: {
+          ref: { type: 'string', description: 'Element id from page.read, e.g. "e12"' },
+          intent: { type: 'string', description: 'Fallback description of the element' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'page.fill',
+      description:
+        "Type values into form fields on the visitor's page and return what is ACTUALLY in each field afterwards (the read-back). Prefer `ref` from page.read for each field; `field` is the human label (e.g. 'Email', 'Pincode'). Use the visitor's most recent values, exactly as given, and read the returned values back to confirm.",
+      parameters: {
+        type: 'object',
+        properties: {
+          fields: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                field: { type: 'string' },
+                value: { type: 'string' },
+                ref: { type: 'string' },
+              },
+              required: ['field', 'value'],
+            },
+          },
+        },
+        required: ['fields'],
+      },
+    },
+  },
+];
+
 export function buildToolSurface(merchant: Merchant): ToolDef[] {
   const productTools: ToolDef[] = [
     {
@@ -435,16 +509,25 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
     usesStorefrontBridge(merchant) || !merchantCanMutateCart(merchant) ? [] : cartTools;
   const base = [...productTools, ...adapterCartTools, ...checkoutTools];
   if (merchant.siteGraphEnabled) {
+    // Snapshot page control (Phase 1 flag) replaces the legacy page.* tools for
+    // Calmosis and extends page control to every other site-graph merchant.
+    const snapshot = navSnapshotEnabled(merchant);
     let siteTools: ToolDef[];
     if (isCalmosisStitch(merchant)) {
-      siteTools = [...SITE_NAV_TOOLS, ...CALMOSIS_CART_TOOLS, ...CALMOSIS_CHECKOUT_TOOLS, ...PAGE_CONTROL_TOOLS, CALMOSIS_CONSULT_TOOL];
+      siteTools = [
+        ...SITE_NAV_TOOLS,
+        ...CALMOSIS_CART_TOOLS,
+        ...CALMOSIS_CHECKOUT_TOOLS,
+        ...(snapshot ? PAGE_SNAPSHOT_TOOLS : PAGE_CONTROL_TOOLS),
+        CALMOSIS_CONSULT_TOOL,
+      ];
     } else if (isShopify(merchant)) {
       // Shopify: nav + host-action cart tools. Checkout is NATIVE (checkout.url
-      // redirect, already in base) — no checkout.fill/place/state, no page.* DOM
-      // control, no consultation (those are Calmosis-bespoke).
-      siteTools = [...SITE_NAV_TOOLS, ...STOREFRONT_CART_TOOLS];
+      // redirect, already in base) — no checkout.fill/place/state, no
+      // consultation (those are Calmosis-bespoke). page.* only in snapshot mode.
+      siteTools = [...SITE_NAV_TOOLS, ...STOREFRONT_CART_TOOLS, ...(snapshot ? PAGE_SNAPSHOT_TOOLS : [])];
     } else {
-      siteTools = SITE_NAV_TOOLS;
+      siteTools = [...SITE_NAV_TOOLS, ...(snapshot ? PAGE_SNAPSHOT_TOOLS : [])];
     }
     return [...base, ...siteTools];
   }

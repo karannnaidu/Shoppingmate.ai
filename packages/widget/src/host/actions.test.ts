@@ -93,7 +93,8 @@ describe('executeHostAction()', () => {
     btn.click = clickSpy;
     document.body.appendChild(btn);
     const r = await executeHostAction({ type: 'click', intent: 'signup button' });
-    expect(r).toEqual({ ok: true });
+    // The spy changes nothing on the page, so verify-after-action reports it.
+    expect(r).toMatchObject({ ok: true, verified: false });
     expect(clickSpy).toHaveBeenCalledOnce();
   });
 

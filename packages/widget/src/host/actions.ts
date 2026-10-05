@@ -2,6 +2,8 @@ import { resolveIntent } from './ax-tree.js';
 import { hideCursor, moveCursorTo, pulseCursorClick } from './cursor.js';
 import { showPulseRing } from './overlay.js';
 import { formFill, formRead } from './form-control.js';
+import { buildSnapshot, elementForRef } from './snapshot.js';
+import { verifyEffect } from './verify.js';
 import {
   shopifyApplyCoupon,
   shopifyCartAdd,
@@ -32,7 +34,7 @@ export type HostAction =
   | { type: 'navigate'; path: string }
   | { type: 'scroll_to'; intent: string }
   | { type: 'highlight'; intent: string; durationMs?: number }
-  | { type: 'click'; intent: string }
+  | { type: 'click'; intent: string; ref?: string }
   | { type: 'point_at'; intent: string }
   | { type: 'demo_click'; intent: string }
   | { type: 'cart_add'; sku: string; qty: number }
@@ -44,8 +46,10 @@ export type HostAction =
   | { type: 'checkout_fill'; details: CheckoutDetails }
   | { type: 'checkout_place' }
   | { type: 'checkout_state' }
-  | { type: 'form_fill'; fields: Array<{ field: string; value: string }> }
-  | { type: 'form_read'; fields?: string[] };
+  | { type: 'form_fill'; fields: Array<{ field: string; value: string; ref?: string }> }
+  | { type: 'form_read'; fields?: string[] }
+  // Nav PRD Phase 1: compact accessibility-style snapshot with [eN] refs.
+  | { type: 'page_snapshot' };
 
 export type CheckoutDetails = {
   name: string;
@@ -59,7 +63,14 @@ export type CheckoutDetails = {
 };
 
 export type HostActionResult =
-  | { ok: true; values?: Record<string, string>; filled?: Array<{ field: string; ok: boolean; value: string }> }
+  | {
+      ok: true;
+      values?: Record<string, string>;
+      filled?: Array<{ field: string; ok: boolean; value: string }>;
+      // Verify-after-action: did the page visibly change, and how.
+      verified?: boolean;
+      observed?: string;
+    }
   | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
 
 export async function executeHostAction(action: HostAction): Promise<HostActionResult> {
@@ -71,7 +82,7 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
     case 'highlight':
       return highlight(action.intent, action.durationMs ?? 2000);
     case 'click':
-      return click(action.intent);
+      return action.ref ? clickRef(action.ref, action.intent) : click(action.intent);
     case 'point_at':
       return pointAt(action.intent);
     case 'demo_click':
@@ -100,7 +111,58 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return formFill(action.fields);
     case 'form_read':
       return formRead(action.fields);
+    case 'page_snapshot':
+      return pageSnapshot();
   }
+}
+
+function pageSnapshot(): HostActionResult {
+  const snap = buildSnapshot();
+  return {
+    ok: true,
+    values: {
+      snapshot: snap.text,
+      refs: String(snap.refs),
+      chars: String(snap.chars),
+    },
+  };
+}
+
+// Same-origin link to a different page: a full-page navigation will unload the
+// widget before we can observe it, so report it as verified up front.
+function navigationTarget(el: HTMLElement): string | null {
+  const a = el.closest('a[href]') as HTMLAnchorElement | null;
+  if (!a || a.target === '_blank') return null;
+  try {
+    const url = new URL(a.href, window.location.href);
+    if (url.origin !== window.location.origin) return null;
+    if (url.pathname === window.location.pathname && url.search === window.location.search) return null;
+    return url.pathname;
+  } catch {
+    return null;
+  }
+}
+
+// Click by snapshot ref, then verify the page actually changed. If the ref is
+// gone (page re-rendered), fall back to the free-text intent. We never re-click
+// on an unverified result — a delayed effect (e.g. add-to-cart) would double up;
+// the model gets verified:false and re-reads the page instead.
+async function clickRef(ref: string, intent: string): Promise<HostActionResult> {
+  const el = elementForRef(ref) ?? (intent ? resolveIntent(intent) : null);
+  if (!el) return { ok: false, reason: 'stale_target' };
+  await ensureInViewport(el);
+  await moveCursorTo(el, 420);
+  await pulseCursorClick();
+  if (!el.isConnected) return { ok: false, reason: 'stale_target' };
+  const nav = navigationTarget(el);
+  if (nav) {
+    el.click();
+    hideCursor(800);
+    return { ok: true, verified: true, observed: `navigating to ${nav}` };
+  }
+  const v = await verifyEffect(el, () => el.click());
+  hideCursor(800);
+  return { ok: true, verified: v.verified, observed: v.observed };
 }
 
 // ok:true → the visitor is logged in and has a saved address (bot can skip
@@ -319,9 +381,15 @@ async function click(intent: string): Promise<HostActionResult> {
   await moveCursorTo(el, 420);
   await pulseCursorClick();
   if (!el.isConnected) return { ok: false, reason: 'stale_target' };
-  el.click();
+  const nav = navigationTarget(el);
+  if (nav) {
+    el.click();
+    hideCursor(800);
+    return { ok: true, verified: true, observed: `navigating to ${nav}` };
+  }
+  const v = await verifyEffect(el, () => el.click());
   hideCursor(800);
-  return { ok: true };
+  return { ok: true, verified: v.verified, observed: v.observed };
 }
 
 // Scroll the target into view if it's outside the viewport, then wait briefly

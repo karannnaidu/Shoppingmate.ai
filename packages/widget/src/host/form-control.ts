@@ -1,5 +1,6 @@
 import { resolveField } from './ax-tree.js';
 import type { HostActionResult } from './actions.js';
+import { elementForRef } from './snapshot.js';
 
 type FillableEl = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 
@@ -94,17 +95,20 @@ export function resolveFieldCached(field: string, hints?: Map<string, string>): 
 // Fill many fields by intent. Returns the values ACTUALLY in the fields after
 // filling (the read-back). ok:false only if NOT ONE field resolved.
 export function formFill(
-  fields: Array<{ field: string; value: string }>,
+  fields: Array<{ field: string; value: string; ref?: string }>,
   hints?: Map<string, string>,
 ): HostActionResult {
   const values: Record<string, string> = {};
   const filled: Array<{ field: string; ok: boolean; value: string }> = [];
   let anyResolved = false;
-  for (const { field, value } of fields) {
-    // Learn-once resolution: cached selector (no crawl) → data-sm-field anchor →
+  for (const { field, value, ref } of fields) {
+    // A snapshot ref (nav PRD Phase 1) pins the exact control; otherwise
+    // learn-once resolution: cached selector (no crawl) → data-sm-field anchor →
     // ax-tree heuristic; the result is cached so we don't crawl again until the
     // layout changes and the cached selector fails.
-    const el = resolveFieldCached(field, hints);
+    const byRef = ref ? elementForRef(ref) : null;
+    const el =
+      byRef && /^(INPUT|TEXTAREA|SELECT)$/.test(byRef.tagName) ? byRef : resolveFieldCached(field, hints);
     if (!el) {
       filled.push({ field, ok: false, value: '' });
       continue;

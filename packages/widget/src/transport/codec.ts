@@ -62,19 +62,21 @@ export type HostAction =
   | { type: 'navigate'; path: string }
   | { type: 'scroll_to'; intent: string }
   | { type: 'highlight'; intent: string; durationMs?: number }
-  | { type: 'click'; intent: string }
+  | { type: 'click'; intent: string; ref?: string }
   | { type: 'point_at'; intent: string }
   | { type: 'demo_click'; intent: string }
   | { type: 'cart_add'; sku: string; qty: number }
   | { type: 'open_cart' }
   | { type: 'cart_set_qty'; sku: string; qty: number }
   | { type: 'cart_clear' }
+  | { type: 'cart_get' }
   | { type: 'apply_coupon'; code: string }
   | { type: 'checkout_fill'; details: CheckoutDetails }
   | { type: 'checkout_place' }
   | { type: 'checkout_state' }
-  | { type: 'form_fill'; fields: Array<{ field: string; value: string }> }
-  | { type: 'form_read'; fields?: string[] };
+  | { type: 'form_fill'; fields: Array<{ field: string; value: string; ref?: string }> }
+  | { type: 'form_read'; fields?: string[] }
+  | { type: 'page_snapshot' };
 
 export type CheckoutDetails = {
   name: string;
@@ -88,7 +90,13 @@ export type CheckoutDetails = {
 };
 
 export type HostActionResult =
-  | { ok: true; values?: Record<string, string>; filled?: Array<{ field: string; ok: boolean; value: string }> }
+  | {
+      ok: true;
+      values?: Record<string, string>;
+      filled?: Array<{ field: string; ok: boolean; value: string }>;
+      verified?: boolean;
+      observed?: string;
+    }
   | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
 
 function isValidHostAction(a: any): a is HostAction {
@@ -96,9 +104,10 @@ function isValidHostAction(a: any): a is HostAction {
   switch (a.type) {
     case 'navigate':
       return typeof a.path === 'string';
+    case 'click':
+      return typeof a.intent === 'string' && (a.ref === undefined || typeof a.ref === 'string');
     case 'scroll_to':
     case 'highlight':
-    case 'click':
     case 'point_at':
     case 'demo_click':
       return typeof a.intent === 'string';
@@ -107,8 +116,10 @@ function isValidHostAction(a: any): a is HostAction {
       return typeof a.sku === 'string' && typeof a.qty === 'number';
     case 'open_cart':
     case 'cart_clear':
+    case 'cart_get':
     case 'checkout_place':
     case 'checkout_state':
+    case 'page_snapshot':
       return true;
     case 'apply_coupon':
       return typeof a.code === 'string';
@@ -127,7 +138,13 @@ function isValidHostAction(a: any): a is HostAction {
     case 'form_fill':
       return (
         Array.isArray(a.fields) &&
-        a.fields.every((f: any) => f && typeof f.field === 'string' && typeof f.value === 'string')
+        a.fields.every(
+          (f: any) =>
+            f &&
+            typeof f.field === 'string' &&
+            typeof f.value === 'string' &&
+            (f.ref === undefined || typeof f.ref === 'string'),
+        )
       );
     case 'form_read':
       return a.fields === undefined || Array.isArray(a.fields);

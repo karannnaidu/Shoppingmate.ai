@@ -12,6 +12,7 @@ import {
   buildToolSurface,
   dispatchTool,
   isCalmosisStitch,
+  navSnapshotEnabled,
   isShopify,
   normalizeCalmosisSku,
   usesStorefrontBridge,
@@ -419,7 +420,11 @@ export async function* runTurn(
             call.name === 'page.fill' ||
             call.name === 'page.read' ||
             call.name === 'page.click');
-        const isCalmosisCart = isBridgeCart || isCalmosisCheckout;
+        // Nav PRD Phase 1: snapshot page control for any site-graph merchant.
+        const snapshotNav = navSnapshotEnabled(merchant) && merchant.siteGraphEnabled === true;
+        const isPageControl =
+          snapshotNav && (call.name === 'page.read' || call.name === 'page.click' || call.name === 'page.fill');
+        const isCalmosisCart = isBridgeCart || isCalmosisCheckout || isPageControl;
         if (CHECKOUT_FLOW_TOOLS.has(call.name)) usedCheckoutFlowTool = true;
         if (call.name === 'consultation.request') {
           channel = 'server';
@@ -458,7 +463,7 @@ export async function* runTurn(
           if (!deps.dispatchHostAction) {
             envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
           } else {
-            let action = toHostAction(call.name, args);
+            let action = toHostAction(call.name, args, { snapshot: snapshotNav });
             hostActionType = action.type;
             // Hard-validate checkout details/fields before anything is written to
             // the real page: a malformed phone/pincode/email is rejected (the bot
@@ -816,7 +821,12 @@ function formatPrice(cents: number, currency: string): string {
   return `${currency} ${amount}`;
 }
 
-export function toHostAction(name: string, args: Record<string, unknown>): HostAction {
+export function toHostAction(
+  name: string,
+  args: Record<string, unknown>,
+  opts: { snapshot?: boolean } = {},
+): HostAction {
+  const ref = typeof args.ref === 'string' && args.ref.trim() ? args.ref.trim() : undefined;
   switch (name) {
     case 'site.navigate':
       return { type: 'navigate', path: String(args.path ?? '') };
@@ -856,21 +866,25 @@ export function toHostAction(name: string, args: Record<string, unknown>): HostA
       return {
         type: 'form_fill',
         fields: Array.isArray(args.fields)
-          ? (args.fields as Array<Record<string, unknown>>).map((f) => ({
-              field: String(f.field ?? ''),
-              value: String(f.value ?? ''),
-            }))
+          ? (args.fields as Array<Record<string, unknown>>).map((f) => {
+              const field = { field: String(f.field ?? ''), value: String(f.value ?? '') };
+              return typeof f.ref === 'string' && f.ref.trim() ? { ...field, ref: f.ref.trim() } : field;
+            })
           : [],
       };
-    case 'page.read':
-      return {
-        type: 'form_read',
-        fields: Array.isArray(args.fields)
+    case 'page.read': {
+      const fields =
+        Array.isArray(args.fields) && args.fields.length > 0
           ? (args.fields as unknown[]).map((s) => String(s))
-          : undefined,
-      };
+          : undefined;
+      // Snapshot mode: a bare page.read returns the whole-page snapshot.
+      if (opts.snapshot && !fields) return { type: 'page_snapshot' };
+      return { type: 'form_read', fields };
+    }
     case 'page.click':
-      return { type: 'click', intent: String(args.intent ?? '') };
+      return ref
+        ? { type: 'click', intent: String(args.intent ?? ''), ref }
+        : { type: 'click', intent: String(args.intent ?? '') };
     case 'coupon.apply':
       return { type: 'apply_coupon', code: String(args.code ?? '') };
     case 'checkout.fill':

@@ -19,6 +19,8 @@ function parseHostActionResult(value: unknown): HostActionResult | null {
     if (Array.isArray(o.filled)) {
       ok.filled = o.filled as Exclude<HostActionResult, { ok: false }>['filled'];
     }
+    if (typeof o.verified === 'boolean') ok.verified = o.verified;
+    if (typeof o.observed === 'string') ok.observed = o.observed.slice(0, 200);
     return ok;
   }
   if (o.ok === false && typeof o.reason === 'string') {

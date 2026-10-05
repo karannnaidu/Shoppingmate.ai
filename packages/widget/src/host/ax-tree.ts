@@ -81,7 +81,7 @@ function collectCandidates(root: HTMLElement): Candidate[] {
   return out;
 }
 
-function accessibleName(el: HTMLElement): string {
+export function accessibleName(el: HTMLElement): string {
   // AccName 1.2 (subset): aria-labelledby → aria-label → <label for> → alt/title → text
   const labelledby = el.getAttribute('aria-labelledby');
   if (labelledby) {
@@ -104,7 +104,7 @@ function accessibleName(el: HTMLElement): string {
   return '';
 }
 
-function isVisible(el: HTMLElement): boolean {
+export function isVisible(el: HTMLElement): boolean {
   if (!el.isConnected) return false;
   const style = el.ownerDocument.defaultView?.getComputedStyle(el);
   if (!style) return true;
