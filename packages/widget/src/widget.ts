@@ -367,7 +367,11 @@ class WidgetElement extends HTMLElement {
       let node: Element | null = el;
       while (node && node !== document.body && node !== document.documentElement) {
         const cs = getComputedStyle(node);
-        if (cs.position === 'fixed' || cs.position === 'absolute') {
+        // Only FIXED layers are overlays (drawers, modals, menus — an absolute
+        // child of one is caught when the walk reaches its fixed ancestor).
+        // Absolute elements are page decoration: Calmosis product pages' hero
+        // background (absolute inset-0, full width) hid the launcher for good.
+        if (cs.position === 'fixed' && cs.pointerEvents !== 'none') {
           const b = node.getBoundingClientRect();
           const covers = b.left <= cx && b.right >= cx && b.top <= cy && b.bottom >= cy;
           const large =
