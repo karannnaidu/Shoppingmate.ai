@@ -8,11 +8,11 @@ const variants: Record<Variant, string> = {
   primary:
     'bg-foreground text-background hover:opacity-90 active:scale-[0.98]',
   ghost:
-    'bg-transparent text-text-primary hover:bg-surface-muted',
+    'bg-transparent text-text-primary hover:bg-surface-muted active:scale-[0.98]',
   outline:
-    'border border-border bg-surface text-text-primary hover:border-border-strong',
+    'border border-border bg-surface text-text-primary hover:border-border-strong hover:bg-surface-muted active:scale-[0.98]',
   destructive:
-    'bg-rose-500 text-white hover:bg-rose-600',
+    'bg-rose-500 text-white hover:bg-rose-600 active:scale-[0.98]',
 };
 
 const sizes: Record<Size, string> = {
