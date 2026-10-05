@@ -265,15 +265,20 @@ export async function runDailyInsights(args: {
   if (yesterday.sessions >= 30 && baseline.conversionRate > 0) {
     const drop = 1 - yesterday.conversionRate / baseline.conversionRate;
     if (drop >= 0.4) {
+      const message = `Yesterday ${Math.round(yesterday.conversionRate * 1000) / 10} in 100 visitors bought, vs ${Math.round(baseline.conversionRate * 1000) / 10} usually.`;
       await db.insert(schema.alerts).values({
         merchantId: args.merchantId,
         kind: 'insight.anomaly',
         severity: 'warning',
-        payload: {
-          message: `Yesterday ${Math.round(yesterday.conversionRate * 1000) / 10} in 100 visitors bought, vs ${Math.round(baseline.conversionRate * 1000) / 10} usually.`,
-          visits: yesterday.sessions,
-        },
+        payload: { message, visits: yesterday.sessions },
       });
+      await emailOwners(
+        args.merchantId,
+        'Heads up: fewer visitors bought yesterday',
+        `<div style="font-family:system-ui,sans-serif;max-width:560px"><p style="font-size:16px">${message}</p>
+<p>Worth a quick check that checkout and your add-to-cart button work on a phone.</p>
+<p><a href="${DASHBOARD_URL}/app/insights">See what changed</a></p></div>`,
+      ).catch(() => 0);
       return { anomaly: true };
     }
   }
