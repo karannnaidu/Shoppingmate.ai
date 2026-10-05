@@ -13,6 +13,7 @@ import { onboardingHandler } from './handlers/onboarding.js';
 import { ingestKbDoc } from './jobs/ingestKbDoc.js';
 import { runCrawlSite } from './jobs/crawlSite.js';
 import { runExtractSiteGraph } from './jobs/extractSiteGraph.js';
+import { runNightlyQa } from './jobs/nightlyQa.js';
 import { runScanSiteTemplates } from './jobs/scanSiteTemplates.js';
 import { runDriftDetect } from './cron/driftDetect.js';
 import { runPlaybookRefresh } from './cron/refreshPlaybooks.js';
@@ -136,6 +137,35 @@ templateScanWorker.on('completed', (job, rv) =>
 templateScanWorker.on('failed', (job, err) =>
   logger.error({ jobId: job?.id, err: err.message }, 'site-template-scan failed'));
 
+// Nav Phase 6: nightly synthetic QA (Chrome + Safari engines, desktop + mobile)
+// per site-graph merchant; on demand via job name 'run' with {merchantId}.
+const qaQueue = new Queue('nightly-qa', { connection: createRedisConnection() });
+await qaQueue.add('nightly', {}, { repeat: { pattern: '30 1 * * *' } });
+const qaWorker = new Worker(
+  'nightly-qa',
+  async (job) => {
+    if (job.name === 'run') {
+      return runNightlyQa({ merchantId: job.data.merchantId as string, combos: job.data.combos as string[] | undefined });
+    }
+    const merchants = await db.query.merchants.findMany({ where: eq(schema.merchants.siteGraphEnabled, true) });
+    const summary: Array<{ merchantId: string; passed: number; total: number }> = [];
+    for (const m of merchants) {
+      try {
+        const r = await runNightlyQa({ merchantId: m.id });
+        summary.push({ merchantId: m.id, passed: r.passed, total: r.total });
+      } catch (err) {
+        logger.error({ merchantId: m.id, err: (err as Error).message }, 'nightly qa failed');
+      }
+    }
+    return summary;
+  },
+  { connection: createRedisConnection(), concurrency: 1 },
+);
+qaWorker.on('ready', () => logger.info('nightly-qa worker ready'));
+qaWorker.on('completed', (job, rv) =>
+  logger.info({ jobId: job.id, result: Array.isArray(rv) ? rv : { passed: rv?.passed, total: rv?.total } }, 'nightly-qa completed'));
+qaWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: err.message }, 'nightly-qa failed'));
+
 // Nightly brand selling-playbook refresh cron: distils each merchant's last-90d
 // conversation outcomes into a fresh selling playbook at 4am UTC.
 const playbookChat = (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) =>
@@ -182,6 +212,8 @@ const shutdown = async (signal: string) => {
     playbookWorker.close(),
     playbookQueue.close(),
     templateScanWorker.close(),
+    qaWorker.close(),
+    qaQueue.close(),
   ]);
   process.exit(0);
 };

@@ -15,6 +15,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app /app
 WORKDIR /app/apps/worker
-# Nav Phase 2: real-browser template scans (and Phase 6 QA) need Chromium.
-RUN npx playwright install --with-deps chromium
+# Nav Phase 2: real-browser template scans need Chromium; Phase 6 nightly QA
+# also runs WebKit (the Safari engine) for Safari desktop + iPhone coverage.
+RUN npx playwright install --with-deps chromium webkit
 CMD ["node", "dist/index.js"]

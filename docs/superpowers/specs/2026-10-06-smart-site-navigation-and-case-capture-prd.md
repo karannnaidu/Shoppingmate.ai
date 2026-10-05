@@ -255,16 +255,21 @@ Flag: `CASE_CAPTURE`. Independent of Phases 1–3.
 
 Flag: `LIVE_INTENT`. Uses the intent contract in `@shoppingmate/shared` (`intent.ts`).
 
-- [ ] **5.1** Per-turn lightweight classification (cheap model or rule-first): `browse | compare | buy | support | complaint | consult` + `sentiment` + `urgency`. Run in parallel with the main turn; must not add latency to the reply (use previous turn's label if not ready).
-- [ ] **5.2** Feed the label into the next turn's context as a short "conversation mode" line.
-- [ ] **5.3** Prompt behaviors by mode: rushed/buy → short answers, fastest path; browse → discovery questions; complaint/angry → acknowledge first, no upsell, move to `case.open`; support → contact capture at the value moment.
-- [ ] **5.4** Session-end profiler keeps working (unchanged); it can now consume per-turn labels.
-- [ ] **5.5** Eval set: 15 scripted personas (reuse the Calmosis 15-persona harness if present) → check mode labels + no upsell in complaint mode.
+- [x] **5.1** Per-turn lightweight classification (cheap model or rule-first): `browse | compare | buy | support | complaint | consult` + `sentiment` + `urgency`. Run in parallel with the main turn; must not add latency to the reply (use previous turn's label if not ready). — 83d6a36
+- [x] **5.2** Feed the label into the next turn's context as a short "conversation mode" line. — 83d6a36
+- [x] **5.3** Prompt behaviors by mode: rushed/buy → short answers, fastest path; browse → discovery questions; complaint/angry → acknowledge first, no upsell, move to `case.open`; support → contact capture at the value moment. — 83d6a36
+- [x] **5.4** Session-end profiler keeps working (unchanged); it can now consume per-turn labels. — 83d6a36
+- [x] **5.5** Eval set: 15 scripted personas (reuse the Calmosis 15-persona harness if present) → check mode labels + no upsell in complaint mode. — 83d6a36 (8-persona live eval 
+av-persona-eval.mjs, human-paced, behaviour checks)
 
 **Acceptance:** persona eval ≥ 90% correct mode; zero upsell in complaint/angry runs; p50 latency unchanged.
 
 **Phase log:**
-> _(paste)_
+> **Phase 5 proof — 2026-10-06 (prod, LIVE_INTENT=SM-2SCCLZ)**
+> - Persona eval (live API, 8 personas: angry refund, broken item, late delivery, rushed buyer, browser, comparer, dosage/consult, happy repeat): **10/10 checks** with the flag on (no upsell in complaint/support/consult, acknowledges first, uses cart.add / products.search, rushed buyer reply **22 words vs 45** before the flag).
+> - Same-turn `quickMode` metric `agent.mode.detected` landing (complaint, support). Classifier now emits mode + sentiment; unhappy low-urgency visitors no longer dropped from the steer line.
+> - Latency: bench p50 6.3 s / p95 7.7 s vs Phase 0 5.9 s / 7.4 s — within model variance (quickMode is regex, zero added calls).
+> - Note: Phase 4's CUSTOMER CARE rules already passed the baseline eval (10/10 with flag off); Phase 5 adds pacing (buy mode) and an explicit override of the Calmosis upsell rules.
 
 ---
 
