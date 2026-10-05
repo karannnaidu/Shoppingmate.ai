@@ -21,6 +21,7 @@ function parseHostActionResult(value: unknown): HostActionResult | null {
     }
     if (typeof o.verified === 'boolean') ok.verified = o.verified;
     if (typeof o.observed === 'string') ok.observed = o.observed.slice(0, 200);
+    if (typeof o.channel === 'string') ok.channel = o.channel.slice(0, 40);
     return ok;
   }
   if (o.ok === false && typeof o.reason === 'string') {

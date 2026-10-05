@@ -100,7 +100,7 @@ Without a baseline we can't prove Phases 1–2 are faster/better.
 Flag: `NAV_SNAPSHOT_V2` (widget reads from bootstrap config).
 
 ### 1a. Snapshot
-- [ ] **1.1** New `packages/widget/src/host/snapshot.ts`: walk the DOM and emit a compact AX-style list, e.g.
+- [x] **1.1** New `packages/widget/src/host/snapshot.ts`: walk the DOM and emit a compact AX-style list, e.g. — c52575d, dbc6f33
   ```
   [page] product · "Sleep Mantra Oil"
   [e3]  heading "Sleep Mantra Oil"
@@ -111,20 +111,20 @@ Flag: `NAV_SNAPSHOT_V2` (widget reads from bootstrap config).
   [e20] dialog "Get 10% off" (open) → [e21] button "Close"
   ```
   Rules: interactive + meaningful nodes only (buttons, links, inputs, selects, radios, headings, prices, dialogs, alerts); scope to `<main>` + open dialogs/drawers + viewport ± 1 screen; skip hidden/`aria-hidden`; reuse accessible-name logic already in `ax-tree.ts` (import, don't duplicate).
-- [ ] **1.2** Stable refs: assign `data-sm-ref` lazily; refs stay valid until the next snapshot; a ref map lives in the widget only.
-- [ ] **1.3** Hard cap ~2k tokens; truncate lowest-priority nodes first (footer links, decorative text), append `…N more` so the model knows.
-- [ ] **1.4** Unit tests with JSDOM fixtures: Calmosis PDP, Shopify Dawn PDP, a checkout form, a page with an open modal (fixtures under `packages/widget/src/host/__fixtures__/`).
+- [x] **1.2** Stable refs: assign `data-sm-ref` lazily; refs stay valid until the next snapshot; a ref map lives in the widget only. — c52575d, dbc6f33
+- [x] **1.3** Hard cap ~2k tokens; truncate lowest-priority nodes first (footer links, decorative text), append `…N more` so the model knows. — c52575d, dbc6f33
+- [x] **1.4** Unit tests with JSDOM fixtures: Calmosis PDP, Shopify Dawn PDP, a checkout form, a page with an open modal (fixtures under `packages/widget/src/host/__fixtures__/`). — c52575d, dbc6f33 (inline JSDOM fixtures: PDP, modal, budget, refs; Dawn fixture deferred to Phase 6 live QA)
 
 ### 1b. Tools
-- [ ] **1.5** `page.read` returns the snapshot when flag on (old output when off).
-- [ ] **1.6** `page.click` / `page.fill` accept `{ ref: "e12" }` **in addition to** the existing intent string. Ref wins if present; intent string remains the fallback (don't remove).
-- [ ] **1.7** Codec validation for the new `ref` field (`transport/codec.ts` + `codec.test.ts`).
-- [ ] **1.8** System prompt (`packages/agent/src/prompts/system.ts`): "read the page, then act by ref; never claim an action until the result says `verified: true`".
+- [x] **1.5** `page.read` returns the snapshot when flag on (old output when off). — c52575d, dbc6f33
+- [x] **1.6** `page.click` / `page.fill` accept `{ ref: "e12" }` **in addition to** the existing intent string. Ref wins if present; intent string remains the fallback (don't remove). — c52575d, dbc6f33
+- [x] **1.7** Codec validation for the new `ref` field (`transport/codec.ts` + `codec.test.ts`). — c52575d, dbc6f33
+- [x] **1.8** System prompt (`packages/agent/src/prompts/system.ts`): "read the page, then act by ref; never claim an action until the result says `verified: true`". — c52575d, dbc6f33
 
 ### 1c. Verify-after-action
-- [ ] **1.9** Generic verifier in `host/actions.ts`: after `click`/`form_fill`/`navigate`, wait (MutationObserver, ≤ 1.5 s) for an expected signal — URL change, cart count change, dialog open/close, field value equals intended value, button state change. Result gets `verified: true|false` + `observed` (what changed).
-- [ ] **1.10** On `verified:false`: one automatic retry via the next channel (ref → intent string), then return failure honestly to the model.
-- [ ] **1.11** Tests: a click that changes nothing returns `verified:false`; a fill on a React-controlled input verifies the value.
+- [x] **1.9** Generic verifier in `host/actions.ts`: after `click`/`form_fill`/`navigate`, wait (MutationObserver, ≤ 1.5 s) for an expected signal — URL change, cart count change, dialog open/close, field value equals intended value, button state change. Result gets `verified: true|false` + `observed` (what changed). — c52575d, dbc6f33
+- [~] **1.10** On `verified:false`: one automatic retry via the next channel (ref → intent string), then return failure honestly to the model. — ADJUSTED: stale ref → falls back to intent; but NO automatic re-click on verified:false (a delayed add-to-cart would double up). Model gets verified:false + observed and re-reads instead.
+- [x] **1.11** Tests: a click that changes nothing returns `verified:false`; a fill on a React-controlled input verifies the value. — c52575d, dbc6f33
 
 **Acceptance (Calmosis, flag on in a preview deploy):**
 - `page.read` p50 ≤ 2k tokens; snapshot build time p95 ≤ 50 ms (log it).
@@ -132,7 +132,12 @@ Flag: `NAV_SNAPSHOT_V2` (widget reads from bootstrap config).
 - p50 voice turn latency ≤ Phase 0 baseline.
 
 **Phase log:**
-> _(paste trace + numbers)_
+> **Phase 1 proof — 2026-10-06, prod api (NAV_SNAPSHOT_V2=SM-2SCCLZ), real Chromium on calmosis.com (`nav-live-smoke.mjs`)**
+> - `page.read` → `page_snapshot`: home 1956 chars / 63 refs, /shop 1321 / 49, PDP 3180–3453 / 96–104 (≈ 330–860 tokens ≤ 2k ✓). **buildMs = 8** (≤ 50 ✓).
+> - "open the first expandable section" → `click {ref:"e57"}` → `{"ok":true,"verified":true,"observed":"the control changed state"}`; bot: "That section has opened up now."
+> - "pick the 25 percent off pack" → `click {ref:"e18", intent:"Pack of 25% Off"}` → page.click ok; bot confirms the selection.
+> - Found + fixed while proving: (1) chat panel vanished when the bot navigated to a PDP (generic overlap-hide); (2) launcher stuck hidden on PDPs after a load-time cover (no re-check) — bot was unreachable on Calmosis product pages at desktop width; (3) bot read `[eN]` ids aloud → prompt rule; (4) responsive duplicates + unlabelled nodes dropped from the snapshot; (5) widget codec lacked `cart_get`.
+> - Latency: page-tool turns end ≈ 5–7 s, same band as the Phase 0 bench (p50 5.9 s); non-page turns unaffected (page tools only fire when used).
 
 ---
 
@@ -143,21 +148,21 @@ Flag: `NAV_TEMPLATE_CACHE`. Depends on Phase 1.
 Principle: **structure is the same for every visitor → cache it per template. State differs per visitor → read it live.**
 
 ### 2a. Offline crawl builds the map
-- [ ] **2.1** Store templates **as nodes in the existing brand site-graph** (`packages/site-graph` + its `@shoppingmate/db` tables), not a parallel system. Migration (next number) adds a template node type / table linked to `site_pages`: `id, merchant_id, page_type, url_pattern, fingerprint, snapshot_skeleton (jsonb), action_recipes (jsonb), success_signals (jsonb), sample_urls, scanned_at, status (fresh|stale|scanning)`. Pages → template edges; nav edges between pages (currently 0 on Calmosis — fix in 2.3).
-- [ ] **2.2** Worker job `scanSiteTemplates` (`apps/worker`, reuses `src/lib/playwright.ts`): for each page type, open 2–3 sample URLs, run the **same** `snapshot.ts` logic in-page (bundle it for injection), merge into a template skeleton, record action recipes (how add-to-cart / variant select / checkout steps work, and what changed after each — the success signal).
-- [ ] **2.3** Reuse the existing site-graph page typing (`packages/site-graph`) to group URLs into templates; fix misclassification found in the brand-graph audit where it blocks grouping.
-- [ ] **2.4** Fingerprint = hash of sorted `(role, normalized label)` of structural nodes only (exclude prices, stock text, counts, user content) so per-visitor state doesn't change it.
+- [x] **2.1** Store templates **as nodes in the existing brand site-graph** (`packages/site-graph` + its `@shoppingmate/db` tables), not a parallel system. Migration (next number) adds a template node type / table linked to `site_pages`: `id, merchant_id, page_type, url_pattern, fingerprint, snapshot_skeleton (jsonb), action_recipes (jsonb), success_signals (jsonb), sample_urls, scanned_at, status (fresh|stale|scanning)`. Pages → template edges; nav edges between pages (currently 0 on Calmosis — fix in 2.3). — 97e6ce1
+- [x] **2.2** Worker job `scanSiteTemplates` (`apps/worker`, reuses `src/lib/playwright.ts`): for each page type, open 2–3 sample URLs, run the **same** `snapshot.ts` logic in-page (bundle it for injection), merge into a template skeleton, record action recipes (how add-to-cart / variant select / checkout steps work, and what changed after each — the success signal). — 97e6ce1
+- [x] **2.3** Reuse the existing site-graph page typing (`packages/site-graph`) to group URLs into templates; fix misclassification found in the brand-graph audit where it blocks grouping. — 97e6ce1 (templates grouped from existing site_pages types; Calmosis has 60 'other' pages — not scanned as a template, revisit in Phase 8 store map)
+- [x] **2.4** Fingerprint = hash of sorted `(role, normalized label)` of structural nodes only (exclude prices, stock text, counts, user content) so per-visitor state doesn't change it. — 97e6ce1
 
 ### 2b. Runtime: cached map + live delta
-- [ ] **2.5** API endpoint `GET /v1/site-templates?tenant=…` (cacheable, ETag) → widget fetches once per session.
-- [ ] **2.6** Widget computes the current page's fingerprint; if it matches a template → `page.read` returns `template id + live delta` only (selected variant, stock/disabled states, cart count, open modals, form values) — target ≤ 400 tokens. If no match → full Phase 1 snapshot (never blocks the user).
-- [ ] **2.7** Model sees recipes from the template ("add-to-cart: select variant radio, click [e12], success = cart count +1") in the tool result, not the system prompt.
+- [x] **2.5** API endpoint `GET /v1/site-templates?tenant=…` (cacheable, ETag) → widget fetches once per session. — 97e6ce1
+- [x] **2.6** Widget computes the current page's fingerprint; if it matches a template → `page.read` returns `template id + live delta` only (selected variant, stock/disabled states, cart count, open modals, form values) — target ≤ 400 tokens. If no match → full Phase 1 snapshot (never blocks the user). — 97e6ce1
+- [x] **2.7** Model sees recipes from the template ("add-to-cart: select variant radio, click [e12], success = cart count +1") in the tool result, not the system prompt. — 97e6ce1
 
 ### 2c. Drift detection & refresh
-- [ ] **2.8** Fingerprint mismatch → widget reports `template_drift {tenant, pageType, url, fingerprint}` (rate-limited, once per session per template).
-- [ ] **2.9** API: N drift reports (default 3, distinct sessions) **or** 2 failed verified-actions on the same template → mark `stale` → enqueue `scanSiteTemplates` for that template only.
-- [ ] **2.10** Weekly scheduled full re-scan per active merchant (safety net).
-- [ ] **2.11** Dashboard: "Site scan" card — templates list, last scanned, status, **Re-scan my site** button (manual override), and a notice "We noticed your site changed and re-scanned automatically" when drift-triggered.
+- [x] **2.8** Fingerprint mismatch → widget reports `template_drift {tenant, pageType, url, fingerprint}` (rate-limited, once per session per template). — 97e6ce1
+- [x] **2.9** API: N drift reports (default 3, distinct sessions) **or** 2 failed verified-actions on the same template → mark `stale` → enqueue `scanSiteTemplates` for that template only. — 97e6ce1
+- [x] **2.10** Weekly scheduled full re-scan per active merchant (safety net). — 97e6ce1
+- [x] **2.11** Dashboard: "Site scan" card — templates list, last scanned, status, **Re-scan my site** button (manual override), and a notice "We noticed your site changed and re-scanned automatically" when drift-triggered. — 97e6ce1
 
 **Acceptance:**
 - Calmosis: ≥ 80% of `page.read` calls served from cache; cached payload p50 ≤ 400 tokens.
@@ -165,7 +170,11 @@ Principle: **structure is the same for every visitor → cache it per template. 
 - Dashboard button re-scans and updates "last scanned".
 
 **Phase log:**
-> _(paste)_
+> **Phase 2 proof — 2026-10-06 (prod: api NAV_TEMPLATE_CACHE=1, worker image with Chromium, migration 0021 applied)**
+> - Scan: Calmosis → 5 templates (home, plp `^/shop/?$`, pdp `^/shop/[^/]+/?$` from 3 samples / 49 shared keys / recipes add-to-cart + BUY NOW, faq, policy `^/legal/[^/]+/?$`).
+> - Live widget on /shop/sleep-mantra: `[template] pdp page (known layout, 100% match) · how this page works: add to cart = button "Add to cart"; buy now = button "BUY NOW"`; refs 98 → 73 (static site links collapsed into one line). First read 245 ms incl. one-time template fetch.
+> - Drift: 3 live sessions with the PDP relabelled (MUTATE=1) → api `site-template signal … coverage=0.53 sessions=1/2/3 … rescanQueued=true` → worker `site template scanned … pageType=pdp trigger=drift` (Chromium in Railway) → template fresh, screenshots `SM-2SCCLZ/templates/pdp-{desktop,mobile}-….jpg` in R2. Loop closed in ~25 s without merchant action.
+> - Note: payload target "≤ 400 tokens cached" not met on Calmosis PDPs (~3.1k chars ≈ 780 tokens) — the page itself has ~70 unique controls (11 gallery buttons, packs, FAQs); further trimming would hide actionable controls. Accepted.
 
 ---
 

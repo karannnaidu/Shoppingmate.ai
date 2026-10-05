@@ -216,7 +216,11 @@ export function buildSnapshot(opts: SnapshotOptions = {}): Snapshot {
     if (opts.collapse && role === 'link' && (footer || navbar)) {
       const k = keyFor(role, name);
       if (k && opts.collapse.has(k)) {
-        if (collapsedNames.length < 30 && !collapsedNames.includes(name)) collapsedNames.push(name);
+        // Short nav labels only — addresses / phone numbers / long footer text
+        // are dropped from the summary line (they're never navigation targets).
+        if (collapsedNames.length < 12 && name.length <= 24 && !/\d{3}|@/.test(name) && !collapsedNames.includes(name)) {
+          collapsedNames.push(name);
+        }
         return;
       }
     }

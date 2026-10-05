@@ -409,6 +409,8 @@ export async function* runTurn(
             call.name === 'cart.open' ||
             call.name === 'cart.update' ||
             call.name === 'cart.clear' ||
+            call.name === 'cart.get' ||
+            call.name === 'products.live' ||
             call.name === 'coupon.apply');
         // Checkout-fill / page-control host actions are Calmosis-bespoke (Shopify
         // uses native checkout via checkout.url, no custom form fill).
@@ -687,9 +689,12 @@ export function toolTelemetryTags(
     const reason = (envelope as { reason?: unknown }).reason;
     tags.failReason = typeof reason === 'string' ? reason : envelope.kind;
   } else {
-    const value = envelope.value as { verified?: unknown } | null | undefined;
+    const value = envelope.value as { verified?: unknown; channel?: unknown } | null | undefined;
     if (value && typeof value === 'object' && typeof value.verified === 'boolean') {
       tags.verified = value.verified;
+    }
+    if (value && typeof value === 'object' && typeof value.channel === 'string') {
+      tags.cartChannel = value.channel;
     }
   }
   return tags;
@@ -862,6 +867,10 @@ export function toHostAction(
       };
     case 'cart.clear':
       return { type: 'cart_clear' };
+    case 'cart.get':
+      return { type: 'cart_get' };
+    case 'products.live':
+      return { type: 'product_lookup', handle: String(args.handle ?? '') };
     case 'page.fill':
       return {
         type: 'form_fill',

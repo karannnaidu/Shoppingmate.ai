@@ -90,6 +90,20 @@ async function openChat() {
   await input.waitFor({ state: 'visible', timeout: 20_000 });
 }
 
+// MUTATE=1 simulates a site redesign (drift): relabel the page's buttons and
+// drop its nav links before the bot reads the page.
+if (process.env.MUTATE === '1') {
+  const n = await page.evaluate(() => {
+    let c = 0;
+    for (const b of Array.from(document.querySelectorAll('main button, main a, header a, footer a'))) {
+      if (b.closest('shoppingmate-widget')) continue;
+      b.textContent = `Redesigned ${c++}`;
+    }
+    return c;
+  });
+  log('MUTATE relabelled', n, 'controls');
+}
+
 for (const text of turns) {
   await openChat();
   const done = new Promise((resolve) => {

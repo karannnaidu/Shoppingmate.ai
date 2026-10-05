@@ -12,7 +12,9 @@ import {
   shopifyCartClear,
   shopifyCartGet,
   shopifyCartSetQty,
+  shopifyProductLookup,
 } from '../shopifyCart.js';
+import { wooCartAdd, wooCartClear, wooCartGet, wooCartSetQty } from '../wooCart.js';
 
 // Cart actions route to the Shopify Cart AJAX bridge on a Shopify storefront, or
 // the custom window.__shoppingmate*__ hooks otherwise (Calmosis). The platform is
@@ -51,7 +53,9 @@ export type HostAction =
   | { type: 'form_fill'; fields: Array<{ field: string; value: string; ref?: string }> }
   | { type: 'form_read'; fields?: string[] }
   // Nav PRD Phase 1: compact accessibility-style snapshot with [eN] refs.
-  | { type: 'page_snapshot' };
+  | { type: 'page_snapshot' }
+  // Nav PRD Phase 3: live variants + stock from the storefront (Shopify).
+  | { type: 'product_lookup'; handle: string };
 
 export type CheckoutDetails = {
   name: string;
@@ -72,8 +76,23 @@ export type HostActionResult =
       // Verify-after-action: did the page visibly change, and how.
       verified?: boolean;
       observed?: string;
+      // Nav Phase 3: channel that served a cart action (telemetry).
+      channel?: string;
     }
   | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
+
+// Nav Phase 3: which channel served a cart action — store API (exact, verified)
+// or the brand's custom storefront hooks. Reported to telemetry.
+type CartChannel = 'shopify-ajax' | 'woo-store-api' | 'storefront-hooks';
+function cartChannel(): CartChannel {
+  if (isShopifyHost()) return 'shopify-ajax';
+  if (hostPlatform === 'woocommerce') return 'woo-store-api';
+  return 'storefront-hooks';
+}
+async function tagged(channel: CartChannel, r: HostActionResult | Promise<HostActionResult>): Promise<HostActionResult> {
+  const res = await r;
+  return res.ok ? { channel, ...res } : res;
+}
 
 export async function executeHostAction(action: HostAction): Promise<HostActionResult> {
   switch (action.type) {
@@ -89,18 +108,35 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return pointAt(action.intent);
     case 'demo_click':
       return demoClick(action.intent);
-    case 'cart_add':
-      return isShopifyHost() ? shopifyCartAdd(action.sku, action.qty) : cartAdd(action.sku, action.qty);
+    case 'cart_add': {
+      const ch = cartChannel();
+      if (ch === 'shopify-ajax') return tagged(ch, shopifyCartAdd(action.sku, action.qty));
+      if (ch === 'woo-store-api') return wooCartAdd(action.sku, action.qty);
+      return tagged(ch, cartAdd(action.sku, action.qty));
+    }
     case 'open_cart':
+      if (cartChannel() === 'woo-store-api') return navigate('/cart');
       return isShopifyHost() ? navigate('/cart') : openCart();
-    case 'cart_set_qty':
-      return isShopifyHost()
-        ? shopifyCartSetQty(action.sku, action.qty)
-        : cartSetQty(action.sku, action.qty);
-    case 'cart_clear':
-      return isShopifyHost() ? shopifyCartClear() : clearCart();
-    case 'cart_get':
-      return isShopifyHost() ? shopifyCartGet() : cartGet();
+    case 'cart_set_qty': {
+      const ch = cartChannel();
+      if (ch === 'shopify-ajax') return tagged(ch, shopifyCartSetQty(action.sku, action.qty));
+      if (ch === 'woo-store-api') return wooCartSetQty(action.sku, action.qty);
+      return tagged(ch, cartSetQty(action.sku, action.qty));
+    }
+    case 'cart_clear': {
+      const ch = cartChannel();
+      if (ch === 'shopify-ajax') return tagged(ch, shopifyCartClear());
+      if (ch === 'woo-store-api') return wooCartClear();
+      return tagged(ch, clearCart());
+    }
+    case 'cart_get': {
+      const ch = cartChannel();
+      if (ch === 'shopify-ajax') return tagged(ch, shopifyCartGet());
+      if (ch === 'woo-store-api') return wooCartGet();
+      return tagged(ch, cartGet());
+    }
+    case 'product_lookup':
+      return isShopifyHost() ? shopifyProductLookup(action.handle) : { ok: false, reason: 'not_found' };
     case 'apply_coupon':
       return isShopifyHost() ? shopifyApplyCoupon(action.code) : applyCoupon(action.code);
     case 'checkout_fill':

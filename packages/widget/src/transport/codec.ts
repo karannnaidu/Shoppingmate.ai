@@ -76,7 +76,8 @@ export type HostAction =
   | { type: 'checkout_state' }
   | { type: 'form_fill'; fields: Array<{ field: string; value: string; ref?: string }> }
   | { type: 'form_read'; fields?: string[] }
-  | { type: 'page_snapshot' };
+  | { type: 'page_snapshot' }
+  | { type: 'product_lookup'; handle: string };
 
 export type CheckoutDetails = {
   name: string;
@@ -96,6 +97,7 @@ export type HostActionResult =
       filled?: Array<{ field: string; ok: boolean; value: string }>;
       verified?: boolean;
       observed?: string;
+      channel?: string;
     }
   | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
 
@@ -123,6 +125,8 @@ function isValidHostAction(a: any): a is HostAction {
       return true;
     case 'apply_coupon':
       return typeof a.code === 'string';
+    case 'product_lookup':
+      return typeof a.handle === 'string';
     case 'checkout_fill':
       return (
         !!a.details &&

@@ -25,6 +25,8 @@ export type HostAction =
   // Nav PRD Phase 1: compact accessibility-style page snapshot with [eN] refs
   // (returned in values.snapshot).
   | { type: 'page_snapshot' }
+  // Nav PRD Phase 3: live variants + stock from the storefront (Shopify /products/<handle>.js).
+  | { type: 'product_lookup'; handle: string }
   // Brand-agnostic checkout completion (opt-in): the storefront exposes
   // window.__shoppingmateCheckoutFill__(details) and __shoppingmatePlaceOrder__().
   // The bot fills the visitor's details, reads the order back for confirmation,
@@ -55,6 +57,8 @@ export type HostActionResult =
       // Verify-after-action (nav PRD Phase 1): did the page visibly change?
       verified?: boolean;
       observed?: string;
+      // Nav Phase 3: channel that served a cart action (shopify-ajax | woo-store-api | storefront-hooks).
+      channel?: string;
     }
   | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
 

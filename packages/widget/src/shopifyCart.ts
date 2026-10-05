@@ -78,6 +78,71 @@ function notifyThemeCartChanged(cart: ShopifyCart | null): void {
   } catch {
     /* best-effort visual refresh only */
   }
+  void refreshShopifySections();
+}
+
+// Nav Phase 3: most Shopify themes (Dawn and its descendants) ignore the events
+// above and re-render their cart badge/drawer through the Section Rendering API.
+// Ask for the common cart sections and swap in any that exist on this page.
+const CART_SECTIONS = ['cart-icon-bubble', 'cart-live-region-text', 'cart-notification-button', 'cart-drawer'];
+
+export async function refreshShopifySections(fetchFn: typeof fetch = fetch): Promise<number> {
+  try {
+    const present = CART_SECTIONS.filter((id) => document.getElementById(`shopify-section-${id}`) || document.getElementById(id));
+    if (present.length === 0) return 0;
+    const res = await fetchFn(`${location.pathname}?sections=${present.join(',')}`, { credentials: 'same-origin' });
+    if (!res.ok) return 0;
+    const sections = (await res.json()) as Record<string, string | null>;
+    let swapped = 0;
+    for (const [id, html] of Object.entries(sections)) {
+      if (!html) continue;
+      const target = document.getElementById(`shopify-section-${id}`) ?? document.getElementById(id);
+      if (!target) continue;
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const fresh = doc.getElementById(`shopify-section-${id}`) ?? doc.querySelector('.shopify-section') ?? doc.body;
+      target.innerHTML = fresh.innerHTML;
+      swapped += 1;
+    }
+    return swapped;
+  } catch {
+    return 0;
+  }
+}
+
+type ShopifyProductJs = {
+  title?: string;
+  handle?: string;
+  available?: boolean;
+  variants?: Array<{ id: number; title?: string; available?: boolean; price?: number }>;
+};
+
+/** Nav Phase 3: live variants + stock straight from the storefront (no backend). */
+export async function shopifyProductLookup(handle: string, fetchFn: typeof fetch = fetch): Promise<HostActionResult> {
+  const h = String(handle ?? '')
+    .trim()
+    .replace(/^\/?products\//, '')
+    .replace(/[?#].*$/, '')
+    .replace(/\/$/, '');
+  if (!h) return { ok: false, reason: 'not_found' };
+  try {
+    const res = await fetchFn(`/products/${encodeURIComponent(h)}.js`, { credentials: 'same-origin' });
+    if (!res.ok) return { ok: false, reason: 'not_found' };
+    const p = (await res.json()) as ShopifyProductJs;
+    const variants = (p.variants ?? [])
+      .slice(0, 30)
+      .map(
+        (v) =>
+          `${v.title ?? 'Default'} (variantId ${v.id}, ${v.available ? 'in stock' : 'SOLD OUT'}${v.price != null ? `, ${(v.price / 100).toFixed(2)}` : ''})`,
+      )
+      .join('; ');
+    return {
+      ok: true,
+      channel: 'shopify-ajax',
+      values: { title: p.title ?? h, available: String(p.available ?? false), variants },
+    };
+  } catch {
+    return { ok: false, reason: 'not_found' };
+  }
 }
 
 async function readCart(fetchFn: typeof fetch): Promise<ShopifyCart | null> {

@@ -50,8 +50,42 @@ export function isShopify(merchant: Pick<Merchant, 'platform'>): boolean {
  *  server-side adapter cart. These get host-action cart tools, not adapter ones —
  *  a server cart would be a different cart than the shopper's own session. */
 export function usesStorefrontBridge(merchant: Pick<Merchant, 'id' | 'platform'>): boolean {
-  return isCalmosisStitch(merchant) || isShopify(merchant);
+  return isCalmosisStitch(merchant) || isShopify(merchant) || isWooBridge(merchant);
 }
+
+/** Nav Phase 3: WooCommerce merchants drive the shopper's REAL cart through the
+ *  widget's Store API bridge (packages/widget/src/wooCart.ts) — behind
+ *  WOO_STOREFRONT_BRIDGE=1 until a Woo pilot proves it end-to-end. */
+export function isWooBridge(merchant: Pick<Merchant, 'platform'>): boolean {
+  return merchant.platform === 'woocommerce' && process.env.WOO_STOREFRONT_BRIDGE === '1';
+}
+
+// Nav Phase 3: read the shopper's REAL cart (bridge merchants) instead of
+// answering "what's in my cart?" from memory.
+export const BRIDGE_CART_GET_TOOL: ToolDef = {
+  type: 'function',
+  function: {
+    name: 'cart.get',
+    description:
+      "Read what is in the visitor's cart RIGHT NOW (items, quantities, subtotal). Use whenever they ask about their cart, before checkout, and after any cart change you want to confirm. Never describe the cart from memory.",
+    parameters: { type: 'object', properties: {} },
+  },
+};
+
+// Nav Phase 3: live stock + variants straight from the Shopify storefront.
+export const PRODUCT_LIVE_TOOL: ToolDef = {
+  type: 'function',
+  function: {
+    name: 'products.live',
+    description:
+      'Check LIVE availability and the exact variantIds of a product on the store right now (sizes/colours, which are in stock or SOLD OUT). Use before adding to cart when the visitor picks a size/option, or when they ask if something is in stock. Pass the product handle (the last part of its URL, e.g. "classic-tee").',
+    parameters: {
+      type: 'object',
+      properties: { handle: { type: 'string' } },
+      required: ['handle'],
+    },
+  },
+};
 
 // Calmosis cart/coupon tools are HOST ACTIONS (executed by the widget against
 // the storefront's __shoppingmate*__ hooks), not adapter calls.
@@ -517,6 +551,7 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
       siteTools = [
         ...SITE_NAV_TOOLS,
         ...CALMOSIS_CART_TOOLS,
+        BRIDGE_CART_GET_TOOL,
         ...CALMOSIS_CHECKOUT_TOOLS,
         ...(snapshot ? PAGE_SNAPSHOT_TOOLS : PAGE_CONTROL_TOOLS),
         CALMOSIS_CONSULT_TOOL,
@@ -525,7 +560,15 @@ export function buildToolSurface(merchant: Merchant): ToolDef[] {
       // Shopify: nav + host-action cart tools. Checkout is NATIVE (checkout.url
       // redirect, already in base) — no checkout.fill/place/state, no
       // consultation (those are Calmosis-bespoke). page.* only in snapshot mode.
-      siteTools = [...SITE_NAV_TOOLS, ...STOREFRONT_CART_TOOLS, ...(snapshot ? PAGE_SNAPSHOT_TOOLS : [])];
+      siteTools = [
+        ...SITE_NAV_TOOLS,
+        ...STOREFRONT_CART_TOOLS,
+        BRIDGE_CART_GET_TOOL,
+        PRODUCT_LIVE_TOOL,
+        ...(snapshot ? PAGE_SNAPSHOT_TOOLS : []),
+      ];
+    } else if (isWooBridge(merchant)) {
+      siteTools = [...SITE_NAV_TOOLS, ...STOREFRONT_CART_TOOLS, BRIDGE_CART_GET_TOOL, ...(snapshot ? PAGE_SNAPSHOT_TOOLS : [])];
     } else {
       siteTools = [...SITE_NAV_TOOLS, ...(snapshot ? PAGE_SNAPSHOT_TOOLS : [])];
     }
