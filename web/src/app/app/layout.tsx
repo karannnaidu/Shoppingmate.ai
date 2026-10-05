@@ -25,7 +25,7 @@ export default async function AppLayout({
   const alert = session.merchant ? await getActiveAlert(session.merchant.id) : null;
 
   return (
-    <div className="relative flex min-h-dvh bg-background text-text-primary">
+    <div className="relative flex flex-col md:flex-row min-h-dvh bg-background text-text-primary">
       <div className="aurora opacity-40" aria-hidden />
       <Sidebar pathname={pathname} merchantId={session.merchant?.id} />
       <div className="relative z-10 flex-1 flex flex-col">

@@ -6,11 +6,16 @@ import { brandKbDocuments, brandKbChunks } from '@shoppingmate/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { KnowledgeUploader, type KbDoc } from '@/components/dashboard/KnowledgeUploader';
 
+// Always render fresh — token counts change as the KB is edited/re-ingested.
+export const dynamic = 'force-dynamic';
+
 export default async function KnowledgePage() {
   const hdrs = await headers();
   const session = await getDashboardSession({ headers: hdrs });
   if (!session?.merchant) redirect('/app/onboarding?step=2');
 
+  // Sum chunk tokens per doc via a LEFT JOIN + GROUP BY. (A correlated subquery
+  // here returned 0 at runtime despite correct data — this is robust.)
   const rows = await db
     .select({
       id: brandKbDocuments.id,
@@ -18,10 +23,18 @@ export default async function KnowledgePage() {
       sizeBytes: brandKbDocuments.sizeBytes,
       status: brandKbDocuments.status,
       enabled: brandKbDocuments.enabled,
-      tokenCount: sql<number>`coalesce((select sum(${brandKbChunks.tokenCount}) from ${brandKbChunks} where ${brandKbChunks.documentId} = ${brandKbDocuments.id}), 0)::int`,
+      tokenCount: sql<number>`coalesce(sum(${brandKbChunks.tokenCount}), 0)::int`,
     })
     .from(brandKbDocuments)
-    .where(eq(brandKbDocuments.merchantId, session.merchant.id));
+    .leftJoin(brandKbChunks, eq(brandKbChunks.documentId, brandKbDocuments.id))
+    .where(eq(brandKbDocuments.merchantId, session.merchant.id))
+    .groupBy(
+      brandKbDocuments.id,
+      brandKbDocuments.filename,
+      brandKbDocuments.sizeBytes,
+      brandKbDocuments.status,
+      brandKbDocuments.enabled,
+    );
 
   const docs: KbDoc[] = rows.map((r) => ({
     id: r.id,

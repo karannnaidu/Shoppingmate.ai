@@ -44,10 +44,12 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
+                // Dark-first product: default to dark everywhere unless the
+                // user explicitly chose light via the toggle. (A system-pref
+                // default made the dashboard render light inconsistently.)
                 const t = localStorage.getItem('theme');
-                const m = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                if (t === 'dark' || (!t && m)) document.documentElement.classList.add('dark');
-              } catch(e) {}
+                if (t !== 'light') document.documentElement.classList.add('dark');
+              } catch(e) { document.documentElement.classList.add('dark'); }
             `,
           }}
         />
