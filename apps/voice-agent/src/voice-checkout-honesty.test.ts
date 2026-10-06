@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { claimsSavedDetails, geminiSignalsPlacement, wantsDetailsFilled } from './agentWorker.js';
+import {
+  claimsSavedDetails,
+  geminiSignalsPlacement,
+  stripSystemEcho,
+  wantsDetailsFilled,
+} from './agentWorker.js';
 import { describeAction } from './bridge.js';
 
 // Regression for the live 2026-10-06 voice checkout: the bot invented "saved
@@ -36,6 +41,14 @@ describe('voice checkout honesty', () => {
     expect(
       geminiSignalsPlacement('Perfect. Filling in your saved details for you now, one moment.'),
     ).toBe(true);
+  });
+
+  it('drops a voiced "system" label from captions', () => {
+    expect(stripSystemEcho("system Great. I'm applying the Bliss Club benefits.")).toBe(
+      "Great. I'm applying the Bliss Club benefits.",
+    );
+    expect(stripSystemEcho('One moment. system There we go.')).toBe('One moment. There we go.');
+    expect(stripSystemEcho('Our nervous system loves this.')).toBe('Our nervous system loves this.');
   });
 
   it('records what the executor already did so it is not repeated', () => {

@@ -116,6 +116,13 @@ export function hasCheckoutSignal(text: string): boolean {
   );
 }
 
+// Gemini sometimes voices the "SYSTEM:" label of a grounding message, so the
+// caption reads "system Great, I'm applying…" (live 2026-10-06). Drop a bare
+// "system" at the start of a sentence before captions/recording.
+export function stripSystemEcho(text: string): string {
+  return (text ?? '').replace(/(^|[.!?]\s+)(?:system|SYSTEM):?\s+(?=[A-Z])/g, '$1');
+}
+
 // The visitor explicitly asks the bot to fill in their details ("help fill up my
 // details", "fill it in for me") — run the real, validated fill (it asks for
 // whatever is missing instead of pretending).
@@ -1051,7 +1058,7 @@ const agentDefinition = defineAgent({
         const partial = stripToolSyntax(e.text);
         if (partial.trim().length > 0) dataChannel.publish({ type: 'say_partial', text: partial });
       } else if (e.type === 'bot_text' && e.text.trim().length > 0) {
-        const clean = stripToolSyntax(e.text);
+        const clean = stripSystemEcho(stripToolSyntax(e.text));
         if (clean.trim().length > 0) {
           dataChannel.publish({ type: 'say', text: clean });
           recorder.addTurn('agent', clean);

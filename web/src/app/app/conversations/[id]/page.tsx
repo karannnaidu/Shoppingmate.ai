@@ -91,7 +91,7 @@ function WebsiteActionsCard({ steps }: { steps: TimelineStep[] }) {
       <CardHeader>
         <CardTitle>On your website</CardTitle>
         <p className="text-sm text-text-secondary">
-          What Olivia actually did on the page during this conversation
+          What your assistant actually did on the page during this conversation
           {failed > 0 ? ` — ${failed} step${failed > 1 ? 's' : ''} didn't work` : ''}.
         </p>
       </CardHeader>
