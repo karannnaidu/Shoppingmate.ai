@@ -7,7 +7,13 @@ import { type CaseOpen, validateCaseOpen } from './case.js';
 import { quickMode } from './live-signal.js';
 import { validateConsultationRequest } from './consultation.js';
 import type { HostAction, HostActionResult } from './host-actions.js';
-import { extractContact, redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
+import {
+  extractContact,
+  redactPii,
+  segmentSay,
+  stripPrices,
+  stripToolSyntax,
+} from './postprocess.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
 import {
   type ToolResultEnvelope,
@@ -190,7 +196,8 @@ export async function* runTurn(
   const turnModel = pickTurnModel(
     message,
     session.model,
-    session.inCheckout === true || (session.transientContact !== undefined && caseCaptureEnabled(merchant)),
+    session.inCheckout === true ||
+      (session.transientContact !== undefined && caseCaptureEnabled(merchant)),
   );
   // Becomes true once we're in checkout (this turn or earlier) so the next turn
   // — including a free-form correction — also gets the precise model.
@@ -328,17 +335,23 @@ export async function* runTurn(
   // turn can still open the case without the raw number in history.
   const found = extractContact(message.text);
   const prevContact =
-    session.transientContact && now - session.transientContact.at < CONTACT_TTL_MS ? session.transientContact : undefined;
+    session.transientContact && now - session.transientContact.at < CONTACT_TTL_MS
+      ? session.transientContact
+      : undefined;
   const transientContact =
     found.phone || found.email ? { ...prevContact, ...found, at: now } : prevContact;
   const contactNote =
     transientContact && caseCaptureEnabled(merchant)
       ? `\nCONTACT ON FILE (this conversation, given by the visitor): ${[
-          transientContact.phone ? `phone ending ${transientContact.phone.replace(/\D/g, '').slice(-4)}` : '',
+          transientContact.phone
+            ? `phone ending ${transientContact.phone.replace(/\D/g, '').slice(-4)}`
+            : '',
           transientContact.email ? `email ${maskEmail(transientContact.email)}` : '',
         ]
           .filter(Boolean)
-          .join(', ')}. Earlier messages show it as [redacted] for privacy — that's expected. When you call case.open you may leave contact.phone / contact.email empty and the system fills them from this record; read it back using only the last 4 digits.\n`
+          .join(
+            ', ',
+          )}. Earlier messages show it as [redacted] for privacy — that's expected. When you call case.open you may leave contact.phone / contact.email empty and the system fills them from this record; read it back using only the last 4 digits.\n`
       : '';
   // Nav Phase 5: same-turn mode from obvious cues in THIS message (the LLM live
   // signal lags a turn) — e.g. "my bottle arrived broken" → complaint now.
@@ -360,7 +373,9 @@ export async function* runTurn(
     {
       role: 'system',
       content:
-        buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) + contactNote + currentNote,
+        buildSystemPrompt(merchant, { ...promptOpts, liveSignal: session.liveSignal }) +
+        contactNote +
+        currentNote,
     },
     ...session.history,
     { role: 'user', content: message.text },
@@ -386,6 +401,7 @@ export async function* runTurn(
   // calls this turn took — emitted with the turn latency at end_of_turn.
   let llmCalls = 0;
   let toolCallsThisTurn = 0;
+  const actionsDoneThisTurn: string[] = [];
   let nudgedForReply = false;
   for (let iter = 0; iter < MAX_TOOL_LOOP_ITERATIONS; iter += 1) {
     llmCalls += 1;
@@ -436,7 +452,8 @@ export async function* runTurn(
       nudgedForReply = true;
       history.push({
         role: 'user',
-        content: '(System: you used tools but sent no reply. Answer the visitor now in plain words.)',
+        content:
+          '(System: you used tools but sent no reply. Answer the visitor now in plain words.)',
       });
       continue;
     }
@@ -499,15 +516,19 @@ export async function* runTurn(
         // Nav PRD Phase 1: snapshot page control for any site-graph merchant.
         const snapshotNav = navSnapshotEnabled(merchant) && merchant.siteGraphEnabled === true;
         const isPageControl =
-          snapshotNav && (call.name === 'page.read' || call.name === 'page.click' || call.name === 'page.fill');
+          snapshotNav &&
+          (call.name === 'page.read' || call.name === 'page.click' || call.name === 'page.fill');
         const isCalmosisCart = isBridgeCart || isCalmosisCheckout || isPageControl;
         if (CHECKOUT_FLOW_TOOLS.has(call.name)) usedCheckoutFlowTool = true;
         if (call.name === 'case.open') {
           channel = 'server';
           // Fill contact from the session-held record when the model left it
           // empty or only had the redacted form.
-          const c = (args.contact && typeof args.contact === 'object' ? args.contact : {}) as Record<string, unknown>;
-          const usable = (v: unknown) => typeof v === 'string' && v.trim() !== '' && !v.includes('redacted');
+          const c = (
+            args.contact && typeof args.contact === 'object' ? args.contact : {}
+          ) as Record<string, unknown>;
+          const usable = (v: unknown) =>
+            typeof v === 'string' && v.trim() !== '' && !v.includes('redacted');
           const contact = {
             ...c,
             phone: usable(c.phone) ? c.phone : transientContact?.phone,
@@ -711,6 +732,10 @@ export async function* runTurn(
         });
         yield { type: 'checkout_redirect', url: envelope.value };
       }
+      if (envelope.ok) {
+        const done = describeDoneAction(call.name, call.argumentsJson);
+        if (done) actionsDoneThisTurn.push(done);
+      }
       history.push({
         role: 'tool',
         tool_call_id: call.id,
@@ -751,7 +776,23 @@ export async function* runTurn(
   const updated: SessionState = {
     ...session,
     transientContact,
-    history: [...session.history, { role: 'user', content: redactedUserText }, finalAssistant],
+    // Saved history keeps only words, not tool calls — so record what this
+    // turn really changed on the page, or the next turn re-runs it (live
+    // 2026-10-06: "take me to checkout" re-added the item). User-role note
+    // like [VISITOR_CONTEXT]; replaySession never shows user notes.
+    history: [
+      ...session.history,
+      { role: 'user', content: redactedUserText },
+      finalAssistant,
+      ...(actionsDoneThisTurn.length > 0
+        ? [
+            {
+              role: 'user' as const,
+              content: `[ACTIONS_DONE] Already completed on the page last turn: ${actionsDoneThisTurn.join('; ')}. Do NOT repeat these unless the visitor explicitly asks again.`,
+            },
+          ]
+        : []),
+    ],
     turnCount: session.turnCount + 1,
     voiceMs: session.mode === 'voice' ? session.voiceMs + (Date.now() - now) : session.voiceMs,
     totalMs: Date.now() - session.startedAt,
@@ -776,6 +817,38 @@ export async function* runTurn(
     })
     .catch(() => {});
   yield { type: 'end_of_turn' };
+}
+
+/** Short record of a successful page-changing tool call for next turn's memory;
+ *  reads (search, cart.get, page.read, …) return null. */
+export function describeDoneAction(name: string, argumentsJson: string): string | null {
+  let a: Record<string, unknown> = {};
+  try {
+    a = JSON.parse(argumentsJson) as Record<string, unknown>;
+  } catch {
+    // keep a = {}
+  }
+  const item = String(a.sku ?? a.variantId ?? a.lineId ?? 'item');
+  switch (name) {
+    case 'cart.add':
+      return `added ${Number(a.qty ?? 1)} × ${item} to the cart`;
+    case 'cart.update':
+      return Number(a.qty) === 0
+        ? `removed ${item} from the cart`
+        : `set ${item} quantity to ${Number(a.qty)}`;
+    case 'cart.clear':
+      return 'emptied the cart';
+    case 'coupon.apply':
+    case 'coupons.apply':
+      return `applied coupon ${String(a.code ?? '')}`;
+    case 'site.navigate':
+      return `opened ${String(a.path ?? 'a page')}`;
+    case 'checkout.fill':
+    case 'page.fill':
+      return 'filled in the form on the page';
+    default:
+      return null;
+  }
 }
 
 /**
@@ -988,7 +1061,9 @@ export function toHostAction(
         fields: Array.isArray(args.fields)
           ? (args.fields as Array<Record<string, unknown>>).map((f) => {
               const field = { field: String(f.field ?? ''), value: String(f.value ?? '') };
-              return typeof f.ref === 'string' && f.ref.trim() ? { ...field, ref: f.ref.trim() } : field;
+              return typeof f.ref === 'string' && f.ref.trim()
+                ? { ...field, ref: f.ref.trim() }
+                : field;
             })
           : [],
       };
