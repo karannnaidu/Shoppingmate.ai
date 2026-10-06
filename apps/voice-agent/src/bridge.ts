@@ -139,13 +139,22 @@ export function createBridge(deps: BridgeDeps): Bridge {
       };
 
       const hostActionsEnabled = DEMO_TOUR_ENABLED || merchant.siteGraphEnabled;
+      // What the executor actually DID this turn. The voice history is the
+      // spoken dialogue only, so without this the next turn saw "add Sleep
+      // Mantra" again and re-ran cart.add on every utterance (live 2026-10-06).
+      const turnActions: string[] = [];
       const runDeps: RunTurnDeps = {
         loadAdapter: deps.loadAdapter,
         saveSession: deps.saveSession,
         recordMetric: deps.recordMetric,
         loadPromptOpts: deps.loadPromptOpts,
         dispatchHostAction: hostActionsEnabled
-          ? (action) => api.dispatchHostAction!(action)
+          ? async (action) => {
+              const r = await api.dispatchHostAction!(action);
+              const d = describeAction(action, r);
+              if (d) turnActions.push(d);
+              return r;
+            }
           : undefined,
         recommendationStore: deps.recommendationStore,
         submitConsultation: deps.submitConsultation,
@@ -175,6 +184,13 @@ export function createBridge(deps: BridgeDeps): Bridge {
         log.error({ err, sessionId: deps.sessionId }, 'runTurn failed in bridge');
         deps.publishData({ type: 'session_closed', reason: 'error' });
         deps.closeRoom();
+      } finally {
+        if (turnActions.length > 0) {
+          voiceHistory.push({
+            role: 'assistant',
+            content: `[Already done on the page — do NOT repeat these unless the visitor asks again: ${turnActions.join('; ')}]`,
+          });
+        }
       }
     },
     noteAssistantTurn(text) {
@@ -217,6 +233,36 @@ export function createBridge(deps: BridgeDeps): Bridge {
   };
 
   return api;
+}
+
+/** One-line record of a host action + its real outcome for the executor's memory. */
+export function describeAction(action: HostAction, r: HostActionResult): string | null {
+  const status = r.ok ? 'done' : `FAILED (${r.reason})`;
+  switch (action.type) {
+    case 'cart_add':
+      return `added ${action.qty} × ${action.sku} to cart: ${status}`;
+    case 'cart_set_qty':
+      return `set ${action.sku} quantity to ${action.qty}: ${status}`;
+    case 'cart_clear':
+      return `emptied the cart: ${status}`;
+    case 'apply_coupon':
+      return `applied coupon ${action.code}: ${status}`;
+    case 'navigate':
+      return `opened ${action.path}: ${status}`;
+    case 'checkout_state':
+      return r.ok
+        ? 'checked saved details: the visitor HAS a saved address'
+        : 'checked saved details: NO saved details — collect name, phone, email, address, pincode';
+    case 'checkout_fill':
+    case 'form_fill':
+      return `filled the checkout form: ${status}`;
+    case 'checkout_place':
+      return `placed the order: ${status}`;
+    case 'click':
+      return `clicked ${action.intent || action.ref || 'an element'}: ${status}`;
+    default:
+      return null; // reads (snapshot, cart_get, product lookup) change nothing
+  }
 }
 
 async function routeEvent(event: AgentEvent, deps: BridgeDeps): Promise<void> {

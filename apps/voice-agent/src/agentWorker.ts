@@ -101,6 +101,27 @@ export function hasCheckoutSignal(text: string): boolean {
   );
 }
 
+// The visitor explicitly asks the bot to fill in their details ("help fill up my
+// details", "fill it in for me") — run the real, validated fill (it asks for
+// whatever is missing instead of pretending).
+export function wantsDetailsFilled(text: string): boolean {
+  const t = (text ?? '').trim().toLowerCase();
+  if (!t) return false;
+  return /\bfill\b.{0,20}\b(details|detail|form|it|them|everything|up)\b/.test(t) || /\bfill (it )?(in|out)\b/.test(t);
+}
+
+// Gemini claiming the visitor has SAVED details / details from a previous visit.
+// Only true details come from the returning-visitor brief; anything else is
+// invented and gets corrected.
+export function claimsSavedDetails(text: string): boolean {
+  const t = (text ?? '').toLowerCase();
+  if (!t) return false;
+  return (
+    /\b(saved|on file|from (your|the) (last|previous) (visit|order|time)|previous visit|last time)\b.{0,40}\b(number|address|details|phone|email)\b/.test(t) ||
+    /\b(number|address|details|phone|email)\b.{0,30}\b(on file|(we|i) (have|already have) (it )?saved|you saved|from (your|the) (last|previous) (visit|order))\b/.test(t)
+  );
+}
+
 // Maps a "show me / open / take me to <product> page" utterance to its product
 // path so we can navigate DETERMINISTICALLY (the executor's site.navigate is
 // flaky — Gemini narrates "taking you there" but the page may not move). Returns
@@ -155,7 +176,12 @@ export function geminiSignalsPlacement(text: string): boolean {
     /\bfill(ing)?\b.{0,25}\b(form|details)\b/.test(t) || // "fill out the form", "filling in your details"
     /\bfill(ing)?\b.{0,15}\bin\b/.test(t) || // "fill that in", "filling it in"
     /\bfill (out|in)\b/.test(t) ||
-    /\bfilling that in\b/.test(t)
+    /\bfilling that in\b/.test(t) ||
+    // Past-tense claims ("your details filled on the checkout page", "re-submitting
+    // your details") — run the real fill so the claim is either made true or
+    // corrected by the SYSTEM outcome.
+    /\b(details|form)\b.{0,25}\bfilled\b/.test(t) ||
+    /\bre-?submitting\b/.test(t)
   );
 }
 
@@ -520,6 +546,16 @@ const agentDefinition = defineAgent({
         .values({ merchantId: merchant.id, metricName: name, tags })
         .onConflictDoNothing();
     };
+    // Set from REAL page actions (any route to /checkout — the executor's
+    // site.navigate included), so the deterministic checkout gate opens even
+    // when the visitor never literally said "checkout". Declared before the
+    // bridge so its publishData closure can set it safely.
+    const flowState = { checkoutReached: false };
+    // The visitor actually has saved details on file only if the returning-
+    // visitor brief carries them; anything else Gemini says about "saved
+    // details" is invented and must be corrected.
+    const hasSavedDetails = /\b(phone|address|pincode|saved checkout)\b/i.test(visitorSummary);
+    let savedClaimCorrected = false;
     const bridge = createBridge({
       sessionId,
       merchantId: merchant.id,
@@ -606,6 +642,7 @@ const agentDefinition = defineAgent({
           if (msg.action.type === 'cart_add') recorder.markCartAdd();
           if (msg.action.type === 'navigate' && String(msg.action.path).includes('/checkout')) {
             recorder.markCheckoutReached();
+            flowState.checkoutReached = true;
           }
         }
         if (msg.type === 'checkout_redirect') recorder.markCheckoutReached();
@@ -924,11 +961,11 @@ const agentDefinition = defineAgent({
         // Deterministic, state-grounded completion on a confirmation. Route to
         // the contact form if we're in contact mode, else to checkout. Safe to
         // over-trigger: incomplete details just ask for what's missing.
-        if (merchant.siteGraphEnabled && wantsOrderConfirmation(e.text)) {
+        if (merchant.siteGraphEnabled && (wantsOrderConfirmation(e.text) || wantsDetailsFilled(e.text))) {
           if (contactMode && !contactFilled) {
             log.info({ sessionId, text: e.text }, 'contact fill: confirmation detected → filling');
             void completeContactForm();
-          } else if (checkoutEntered && !orderPlaced) {
+          } else if ((checkoutEntered || flowState.checkoutReached) && !orderPlaced) {
             log.info({ sessionId, text: e.text }, 'order completion: confirmation detected → completing');
             void completeOrder();
           }
@@ -987,11 +1024,21 @@ const agentDefinition = defineAgent({
           // deterministic completion. More robust than matching the visitor's
           // multilingual "yes" — and it's exactly when Gemini is about to wait
           // for the system outcome, so it stays silent until we ground it.
+          // Gemini invented "your saved number/address" with nothing on file
+          // (live 2026-10-06: no profile loaded, store had no saved address) —
+          // correct it immediately, once, so it collects details instead.
+          if (!hasSavedDetails && !savedClaimCorrected && claimsSavedDetails(clean)) {
+            savedClaimCorrected = true;
+            log.warn({ sessionId }, 'voice: invented saved details → correcting');
+            ground(
+              "SYSTEM: Correction — this visitor has NO saved details on file (no saved phone, email or address). Apologize briefly for the mix-up, then ask for their full name, phone number, email, delivery address and pincode. Never mention saved details again, and do NOT say anything is filled.",
+            );
+          }
           if (merchant.siteGraphEnabled && geminiSignalsPlacement(clean)) {
             if (contactMode && !contactFilled) {
               log.info({ sessionId }, 'contact fill: placement narration detected → filling');
               void completeContactForm();
-            } else if (checkoutEntered && !orderPlaced) {
+            } else if ((checkoutEntered || flowState.checkoutReached) && !orderPlaced) {
               log.info({ sessionId }, 'order completion: placement narration detected → completing');
               void completeOrder();
             }
