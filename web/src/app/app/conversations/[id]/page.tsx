@@ -33,6 +33,7 @@ export default async function ConversationDetailPage({ params }: { params: Promi
             </p>
           </CardContent>
         </Card>
+        {steps.length > 0 && <WebsiteActionsCard steps={steps} />}
       </div>
     );
   }
