@@ -831,7 +831,6 @@ const agentDefinition = defineAgent({
         // Same telemetry as executor tools so the owner's conversation timeline
         // shows this fill (and whether it really worked).
         void recordMetric('agent.tool.invoked', {
-          merchantId: merchant.id,
           sessionId,
           toolName: 'checkout.fill',
           ok: fill.ok,
