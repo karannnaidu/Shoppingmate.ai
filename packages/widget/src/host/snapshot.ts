@@ -212,13 +212,19 @@ export function buildSnapshot(opts: SnapshotOptions = {}): Snapshot {
     // Unlabelled icon-only links/buttons add noise the bot can't act on sensibly.
     if (!name && kind === 'interactive' && (role === 'link' || role === 'button')) return;
     const footer = !inDialog && inChrome(el);
-    const navbar = !inDialog && el.closest('nav,header,[role="navigation"],[role="banner"]') !== null;
+    const navbar =
+      !inDialog && el.closest('nav,header,[role="navigation"],[role="banner"]') !== null;
     if (opts.collapse && role === 'link' && (footer || navbar)) {
       const k = keyFor(role, name);
       if (k && opts.collapse.has(k)) {
         // Short nav labels only — addresses / phone numbers / long footer text
         // are dropped from the summary line (they're never navigation targets).
-        if (collapsedNames.length < 12 && name.length <= 24 && !/\d{3}|@/.test(name) && !collapsedNames.includes(name)) {
+        if (
+          collapsedNames.length < 12 &&
+          name.length <= 24 &&
+          !/\d{3}|@/.test(name) &&
+          !collapsedNames.includes(name)
+        ) {
           collapsedNames.push(name);
         }
         return;
@@ -265,9 +271,14 @@ export function buildSnapshot(opts: SnapshotOptions = {}): Snapshot {
   }
 
   // Keep the most important lines within the budget, then restore page order.
-  const header = [`[page] ${clean(document.title || '', 70)} · ${location.pathname}`, ...(opts.preface ?? [])];
+  const header = [
+    `[page] ${clean(document.title || '', 70)} · ${location.pathname}`,
+    ...(opts.preface ?? []),
+  ];
   if (collapsedNames.length > 0) {
-    header.push(`[site links] ${collapsedNames.join(', ')} (standard site navigation — use site.navigate)`);
+    header.push(
+      `[site links] ${collapsedNames.join(', ')} (standard site navigation — use site.navigate)`,
+    );
   }
   const ranked = [...entries].sort((a, b) => a.priority - b.priority || a.order - b.order);
   const kept: Entry[] = [];

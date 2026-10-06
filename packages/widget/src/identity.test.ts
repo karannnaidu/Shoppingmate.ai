@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-import { getOrCreateVisitorId, VISITOR_ID_KEY, VISITOR_ID_TTL_MS } from './identity.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { VISITOR_ID_KEY, VISITOR_ID_TTL_MS, getOrCreateVisitorId } from './identity.js';
 
 describe('getOrCreateVisitorId', () => {
   beforeEach(() => {

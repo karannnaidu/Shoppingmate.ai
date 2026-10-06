@@ -523,6 +523,50 @@ export const SHADOW_CSS = `
   100% { opacity: 1; transform: translateY(0); }
 }
 
+/* ---- Action receipts: what actually happened on the page ---- */
+.receipt {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 7px;
+  max-width: 90%;
+  padding: 5px 11px 5px 6px;
+  border-radius: 9999px;
+  font-size: 11.5px; line-height: 1.3; font-weight: 500;
+  letter-spacing: 0.005em;
+  animation: receipt-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.receipt.ok {
+  background: rgba(52, 211, 153, 0.10);
+  color: #a7f3d0;
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.22);
+}
+.receipt.warn {
+  background: rgba(251, 191, 36, 0.10);
+  color: #fde68a;
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.24);
+}
+.receipt-icon {
+  display: grid; place-items: center;
+  width: 16px; height: 16px; flex: 0 0 16px;
+  border-radius: 9999px;
+  font-size: 10px; font-weight: 700;
+}
+.receipt.ok .receipt-icon {
+  background: #34d399; color: #052e1f;
+  animation: receipt-tick 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
+}
+.receipt.warn .receipt-icon { background: #fbbf24; color: #3b2400; }
+@keyframes receipt-in {
+  0% { opacity: 0; transform: translateX(-6px) scale(0.96); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes receipt-tick {
+  0% { transform: scale(0.2) rotate(-25deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .receipt, .receipt-icon { animation: none !important; }
+}
+
 /* ---- Product cards ---- */
 .cards-row { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px; scrollbar-width: thin; }
 .card {

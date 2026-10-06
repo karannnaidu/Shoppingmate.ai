@@ -1,5 +1,5 @@
-import { getOrCreateVisitorId } from './identity.js';
 import { setHostPlatform } from './host/actions.js';
+import { getOrCreateVisitorId } from './identity.js';
 import { injectShopifyCartAttribute } from './shopifyCart.js';
 
 export type BootstrapInput = {

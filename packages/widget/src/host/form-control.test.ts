@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setReactValue, formFill, formRead, resolveFieldCached } from './form-control.js';
 import { resolveField } from './ax-tree.js';
+import { formFill, formRead, resolveFieldCached, setReactValue } from './form-control.js';
 
 beforeEach(() => {
   document.body.innerHTML = '';
-  try { localStorage.clear(); } catch { /* ignore */ }
+  try {
+    localStorage.clear();
+  } catch {
+    /* ignore */
+  }
 });
 
 describe('resolveFieldCached (learn-once + heal)', () => {

@@ -33,9 +33,9 @@ type RoomShape = {
   localParticipant: {
     setMicrophoneEnabled: (b: boolean) => Promise<void>;
     publishData: (bytes: Uint8Array, opts?: { reliable?: boolean }) => Promise<void>;
-    getTrackPublication?: (source: string) =>
-      | { audioTrack?: TrackWithProcessor; track?: TrackWithProcessor }
-      | undefined;
+    getTrackPublication?: (
+      source: string,
+    ) => { audioTrack?: TrackWithProcessor; track?: TrackWithProcessor } | undefined;
   };
   disconnect: () => Promise<void>;
 };
@@ -192,7 +192,10 @@ export async function connectToRoom(opts: {
       // Krisp ML noise filter is ON by default as of 2026-06-23 (part of the
       // heavier pipeline). Disable per-call via `?smAudioFull=0` if it distorts
       // accented speech; the browser's native NS remains as the fallback.
-      if (enabled && audioFull) void applyKrisp(room).catch(() => { /* no-op: browser NS remains */ });
+      if (enabled && audioFull)
+        void applyKrisp(room).catch(() => {
+          /* no-op: browser NS remains */
+        });
     },
     onData: (cb) => {
       room.on('dataReceived', (payload: unknown) => {

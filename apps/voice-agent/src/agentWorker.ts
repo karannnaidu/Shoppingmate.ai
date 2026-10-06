@@ -5,30 +5,27 @@ import {
   AudioSource,
   AudioStream,
   LocalAudioTrack,
-  RoomEvent,
   type RemoteAudioTrack,
+  RoomEvent,
   TrackKind,
   TrackPublishOptions,
   TrackSource,
 } from '@livekit/rtc-node';
-import { and, asc, eq, isNull } from 'drizzle-orm';
-import { Redis } from 'ioredis';
+import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import {
+  type HostActionResult,
   NoOpWSTransport,
+  type RecommendationStore,
+  type SessionStore,
   buildVisitorSummary,
   createConversationRecorder,
-  extractConversationProfile,
   decodeWidgetMessage,
+  extractConversationProfile,
   loadSession,
   runTurn,
   saveSession as saveSessionAgent,
   stripToolSyntax,
-  type HostActionResult,
-  type RecommendationStore,
-  type SessionStore,
 } from '@shoppingmate/agent';
-import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
-import { db, schema, loadVisitorProfile, loadBrandPlaybook, submitConsultationRequest, submitSupportCase, upsertVisitorProfile } from '@shoppingmate/db';
 import {
   type ChatFn,
   classifyLiveSignal,
@@ -37,14 +34,25 @@ import {
   nextNudge,
   signalSteerLine,
 } from '@shoppingmate/agent';
+import {
+  db,
+  loadBrandPlaybook,
+  loadVisitorProfile,
+  schema,
+  submitConsultationRequest,
+  submitSupportCase,
+  upsertVisitorProfile,
+} from '@shoppingmate/db';
 import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
+import { and, asc, eq, isNull } from 'drizzle-orm';
+import { Redis } from 'ioredis';
 import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
-import { createMetricsLedger, defaultSink } from './metrics.js';
 import { voiceEnv } from './env.js';
 import { createGeminiSdkTransport } from './geminiSdkTransport.js';
 import { createGeminiSession } from './geminiSession.js';
+import { createMetricsLedger, defaultSink } from './metrics.js';
 import { alertExecutorExhausted } from './opsAlert.js';
 import { resolveVoiceContext } from './persona.js';
 
@@ -59,11 +67,14 @@ export function wantsCheckoutNavigation(text: string): boolean {
   const t = (text ?? '').trim().toLowerCase();
   if (!t) return false;
   // Passing/question mentions should NOT navigate.
-  if (/\b(what|how|when|where|why|is|does|do|can i|the)\b.*\bcheck\s?out\b.*\?/.test(t)) return false;
+  if (/\b(what|how|when|where|why|is|does|do|can i|the)\b.*\bcheck\s?out\b.*\?/.test(t))
+    return false;
   return (
     /^check\s?out[.!?]*$/.test(t) ||
     /\bcheck\s?out\b\s*(now|please)\b/.test(t) ||
-    /\b(take me to|go to|proceed to|proceed|head to|bring me to|let'?s|ready to|want to|wanna|can we|move to|navigate to)\b[\s\w']*\bcheck\s?out\b/.test(t)
+    /\b(take me to|go to|proceed to|proceed|head to|bring me to|let'?s|ready to|want to|wanna|can we|move to|navigate to)\b[\s\w']*\bcheck\s?out\b/.test(
+      t,
+    )
   );
 }
 
@@ -79,8 +90,12 @@ export function wantsOrderConfirmation(text: string): boolean {
   return (
     /\b(place|confirm|complete|finalize|finalise|submit)\b.*\border\b/.test(t) ||
     /\b(place|confirm|complete)\s+it\b/.test(t) ||
-    /\b(go ahead|proceed|do it|that'?s correct|looks good|all correct|that is correct|sounds good)\b/.test(t) ||
-    /\b(yes|yeah|yep|sure|haan|haa|ha|bilkul|theek hai|thik hai|kar do|kardo|kar dijiye|place kar)\b[\s,.!]*(please|pls|go|placeit|kar do|do it)?\s*$/.test(t) ||
+    /\b(go ahead|proceed|do it|that'?s correct|looks good|all correct|that is correct|sounds good)\b/.test(
+      t,
+    ) ||
+    /\b(yes|yeah|yep|sure|haan|haa|ha|bilkul|theek hai|thik hai|kar do|kardo|kar dijiye|place kar)\b[\s,.!]*(please|pls|go|placeit|kar do|do it)?\s*$/.test(
+      t,
+    ) ||
     /^(yes|yeah|yep|yup|sure|ok|okay|haan|haa|bilkul|theek hai|thik hai)[\s,.!]*$/.test(t)
   );
 }
@@ -107,7 +122,10 @@ export function hasCheckoutSignal(text: string): boolean {
 export function wantsDetailsFilled(text: string): boolean {
   const t = (text ?? '').trim().toLowerCase();
   if (!t) return false;
-  return /\bfill\b.{0,20}\b(details|detail|form|it|them|everything|up)\b/.test(t) || /\bfill (it )?(in|out)\b/.test(t);
+  return (
+    /\bfill\b.{0,20}\b(details|detail|form|it|them|everything|up)\b/.test(t) ||
+    /\bfill (it )?(in|out)\b/.test(t)
+  );
 }
 
 // Gemini claiming the visitor has SAVED details / details from a previous visit.
@@ -117,8 +135,12 @@ export function claimsSavedDetails(text: string): boolean {
   const t = (text ?? '').toLowerCase();
   if (!t) return false;
   return (
-    /\b(saved|on file|from (your|the) (last|previous) (visit|order|time)|previous visit|last time)\b.{0,40}\b(number|address|details|phone|email)\b/.test(t) ||
-    /\b(number|address|details|phone|email)\b.{0,30}\b(on file|(we|i) (have|already have) (it )?saved|you saved|from (your|the) (last|previous) (visit|order))\b/.test(t)
+    /\b(saved|on file|from (your|the) (last|previous) (visit|order|time)|previous visit|last time)\b.{0,40}\b(number|address|details|phone|email)\b/.test(
+      t,
+    ) ||
+    /\b(number|address|details|phone|email)\b.{0,30}\b(on file|(we|i) (have|already have) (it )?saved|you saved|from (your|the) (last|previous) (visit|order))\b/.test(
+      t,
+    )
   );
 }
 
@@ -152,7 +174,9 @@ export function wantsContactForm(text: string): boolean {
   if (!t) return false;
   return (
     /\b(send|submit|fill)[\s\w']*\b(message|inquiry|enquiry|query|contact form)\b/.test(t) ||
-    /\b(contact form|contact us|contact page|get in touch|send us a message|reach out to)\b/.test(t) ||
+    /\b(contact form|contact us|contact page|get in touch|send us a message|reach out to)\b/.test(
+      t,
+    ) ||
     /\b(inquiry|enquiry)\b/.test(t)
   );
 }
@@ -359,7 +383,8 @@ const agentDefinition = defineAgent({
 
     const kbChunkText = kbChunks.length > 0 ? kbChunks.map((c) => c.text).join('\n\n') : '';
     const siteGraphText = projection?.output ?? '';
-    const kbText = [kbChunkText, siteGraphText].filter((s) => s.trim().length > 0).join('\n\n') || undefined;
+    const kbText =
+      [kbChunkText, siteGraphText].filter((s) => s.trim().length > 0).join('\n\n') || undefined;
     const demoMode = merchant.id === sharedEnv.SHOPPINGMATE_DEMO_MERCHANT_ID;
 
     // Cross-session personalization: load the returning-visitor profile and fold
@@ -381,10 +406,20 @@ const agentDefinition = defineAgent({
         const _id = (vp?.identity ?? {}) as Record<string, unknown>;
         log.info(
           {
-            evt: 'pii_diag', phase: 'load', source: 'voice', sessionId,
-            requestedVisitorId: session.visitorId, loadedVisitorId: vp?.visitorId ?? null,
-            sessionCount: vp?.sessionCount ?? 0, injectedPii: Boolean(visitorSummary),
-            has: { name: Boolean(_id.name), phone: Boolean(_id.phone), email: Boolean(_id.email), address: Boolean(_id.address) },
+            evt: 'pii_diag',
+            phase: 'load',
+            source: 'voice',
+            sessionId,
+            requestedVisitorId: session.visitorId,
+            loadedVisitorId: vp?.visitorId ?? null,
+            sessionCount: vp?.sessionCount ?? 0,
+            injectedPii: Boolean(visitorSummary),
+            has: {
+              name: Boolean(_id.name),
+              phone: Boolean(_id.phone),
+              email: Boolean(_id.email),
+              address: Boolean(_id.address),
+            },
           },
           'PII-DIAG load',
         );
@@ -712,7 +747,9 @@ const agentDefinition = defineAgent({
     let contactMode = false;
     let contactFilled = false;
     const checkoutModel =
-      process.env.OPENROUTER_CHECKOUT_MODEL ?? process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6';
+      process.env.OPENROUTER_CHECKOUT_MODEL ??
+      process.env.OPENROUTER_MODEL ??
+      'anthropic/claude-sonnet-4.6';
     const extractChat: ChatFn = (messages) =>
       // Tiny structured reply (7 short fields) — cap output so OpenRouter doesn't
       // reserve credit for the model's 64K default and 402 on a low balance.
@@ -750,7 +787,9 @@ const agentDefinition = defineAgent({
         // block on it — the visitor types/confirms email on the page. We require
         // name/phone/address/pincode (what voice CAN capture); city/state are NOT
         // required — the checkout page derives them from the pincode.
-        const extracted = await extractCheckoutDetails(transcript, extractChat, { requireEmail: false });
+        const extracted = await extractCheckoutDetails(transcript, extractChat, {
+          requireEmail: false,
+        });
         log.info(
           { sessionId, ok: extracted.ok, reason: extracted.ok ? undefined : extracted.reason },
           'order completion: extraction result',
@@ -781,9 +820,26 @@ const agentDefinition = defineAgent({
         const fill = await fillFormWithRetry(fillFields);
         const filledVals = (fill as { values?: Record<string, string> }).values ?? {};
         log.info(
-          { sessionId, ok: fill.ok, filled: fill.ok ? filledVals : undefined, reason: fill.ok ? undefined : (fill as { reason?: string }).reason },
+          {
+            sessionId,
+            ok: fill.ok,
+            filled: fill.ok ? filledVals : undefined,
+            reason: fill.ok ? undefined : (fill as { reason?: string }).reason,
+          },
           'order completion: fill result',
         );
+        // Same telemetry as executor tools so the owner's conversation timeline
+        // shows this fill (and whether it really worked).
+        void recordMetric('agent.tool.invoked', {
+          merchantId: merchant.id,
+          sessionId,
+          toolName: 'checkout.fill',
+          ok: fill.ok,
+          channel: 'host',
+          ...(fill.ok
+            ? {}
+            : { failReason: String((fill as { reason?: string }).reason ?? 'unknown') }),
+        }).catch(() => {});
         if (!fill.ok) {
           ground(
             `The details did NOT get filled on the page (reason: ${(fill as { reason?: string }).reason}). Tell the visitor honestly it didn't go through and offer to try again — do NOT say it's filled or placed.`,
@@ -851,7 +907,12 @@ const agentDefinition = defineAgent({
         const fill = await fillFormWithRetry(fields);
         const vals = (fill as { values?: Record<string, string> }).values ?? {};
         log.info(
-          { sessionId, ok: fill.ok, filled: fill.ok ? vals : undefined, reason: fill.ok ? undefined : (fill as { reason?: string }).reason },
+          {
+            sessionId,
+            ok: fill.ok,
+            filled: fill.ok ? vals : undefined,
+            reason: fill.ok ? undefined : (fill as { reason?: string }).reason,
+          },
           'contact fill: fill result',
         );
         if (!fill.ok) {
@@ -916,7 +977,11 @@ const agentDefinition = defineAgent({
         // site.navigate). This kills the "I'm taking you to checkout" / "still on
         // the shop page" divergence: Gemini narrates it AND the page actually moves.
         // Navigating to /checkout when already there is a client-router no-op.
-        if (merchant.siteGraphEnabled && bridge.dispatchHostAction && wantsCheckoutNavigation(e.text)) {
+        if (
+          merchant.siteGraphEnabled &&
+          bridge.dispatchHostAction &&
+          wantsCheckoutNavigation(e.text)
+        ) {
           const dispatch = bridge.dispatchHostAction;
           // Run AFTER the executor turn so any cart.add from THIS same utterance
           // ("add green mantra and check me out") has landed before we read the
@@ -961,12 +1026,18 @@ const agentDefinition = defineAgent({
         // Deterministic, state-grounded completion on a confirmation. Route to
         // the contact form if we're in contact mode, else to checkout. Safe to
         // over-trigger: incomplete details just ask for what's missing.
-        if (merchant.siteGraphEnabled && (wantsOrderConfirmation(e.text) || wantsDetailsFilled(e.text))) {
+        if (
+          merchant.siteGraphEnabled &&
+          (wantsOrderConfirmation(e.text) || wantsDetailsFilled(e.text))
+        ) {
           if (contactMode && !contactFilled) {
             log.info({ sessionId, text: e.text }, 'contact fill: confirmation detected → filling');
             void completeContactForm();
           } else if ((checkoutEntered || flowState.checkoutReached) && !orderPlaced) {
-            log.info({ sessionId, text: e.text }, 'order completion: confirmation detected → completing');
+            log.info(
+              { sessionId, text: e.text },
+              'order completion: confirmation detected → completing',
+            );
             void completeOrder();
           }
         }
@@ -1016,7 +1087,10 @@ const agentDefinition = defineAgent({
           // The contact form is the only flow that asks for a "subject" / "message"
           // — if the bot asks for those, we're filling the contact form, not
           // checkout (even though a phone number set checkoutEntered).
-          if (merchant.siteGraphEnabled && /\b(subject|your message|what is this about|message you)\b/i.test(clean)) {
+          if (
+            merchant.siteGraphEnabled &&
+            /\b(subject|your message|what is this about|message you)\b/i.test(clean)
+          ) {
             contactMode = true;
           }
           // Reliable completion trigger: when Gemini narrates that it's placing
@@ -1031,7 +1105,7 @@ const agentDefinition = defineAgent({
             savedClaimCorrected = true;
             log.warn({ sessionId }, 'voice: invented saved details → correcting');
             ground(
-              "SYSTEM: Correction — this visitor has NO saved details on file (no saved phone, email or address). Apologize briefly for the mix-up, then ask for their full name, phone number, email, delivery address and pincode. Never mention saved details again, and do NOT say anything is filled.",
+              'SYSTEM: Correction — this visitor has NO saved details on file (no saved phone, email or address). Apologize briefly for the mix-up, then ask for their full name, phone number, email, delivery address and pincode. Never mention saved details again, and do NOT say anything is filled.',
             );
           }
           if (merchant.siteGraphEnabled && geminiSignalsPlacement(clean)) {
@@ -1039,7 +1113,10 @@ const agentDefinition = defineAgent({
               log.info({ sessionId }, 'contact fill: placement narration detected → filling');
               void completeContactForm();
             } else if ((checkoutEntered || flowState.checkoutReached) && !orderPlaced) {
-              log.info({ sessionId }, 'order completion: placement narration detected → completing');
+              log.info(
+                { sessionId },
+                'order completion: placement narration detected → completing',
+              );
               void completeOrder();
             }
           }
@@ -1173,8 +1250,17 @@ const agentDefinition = defineAgent({
           const _wid = (tags.intent.identity ?? {}) as Record<string, unknown>;
           log.info(
             {
-              evt: 'pii_diag', phase: 'write', source: 'voice', sessionId, visitorId,
-              wrote: { name: Boolean(_wid.name), phone: Boolean(_wid.phone), email: Boolean(_wid.email), address: Boolean(_wid.address) },
+              evt: 'pii_diag',
+              phase: 'write',
+              source: 'voice',
+              sessionId,
+              visitorId,
+              wrote: {
+                name: Boolean(_wid.name),
+                phone: Boolean(_wid.phone),
+                email: Boolean(_wid.email),
+                address: Boolean(_wid.address),
+              },
             },
             'PII-DIAG write',
           );

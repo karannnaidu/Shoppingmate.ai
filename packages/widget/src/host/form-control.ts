@@ -1,5 +1,5 @@
-import { resolveField } from './ax-tree.js';
 import type { HostActionResult } from './actions.js';
+import { resolveField } from './ax-tree.js';
 import { elementForRef } from './snapshot.js';
 
 type FillableEl = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -108,7 +108,9 @@ export function formFill(
     // layout changes and the cached selector fails.
     const byRef = ref ? elementForRef(ref) : null;
     const el =
-      byRef && /^(INPUT|TEXTAREA|SELECT)$/.test(byRef.tagName) ? byRef : resolveFieldCached(field, hints);
+      byRef && /^(INPUT|TEXTAREA|SELECT)$/.test(byRef.tagName)
+        ? byRef
+        : resolveFieldCached(field, hints);
     if (!el) {
       filled.push({ field, ok: false, value: '' });
       continue;

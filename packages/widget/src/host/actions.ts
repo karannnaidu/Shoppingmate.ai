@@ -1,11 +1,3 @@
-import { resolveIntent } from './ax-tree.js';
-import { hideCursor, moveCursorTo, pulseCursorClick } from './cursor.js';
-import { showPulseRing } from './overlay.js';
-import { formFill, formRead } from './form-control.js';
-import { keysFromSnapshot, matchTemplate } from './fingerprint.js';
-import { buildSnapshot, elementForRef } from './snapshot.js';
-import { loadTemplates, reportTemplateSignal } from './templates.js';
-import { verifyEffect } from './verify.js';
 import {
   shopifyApplyCoupon,
   shopifyCartAdd,
@@ -15,6 +7,14 @@ import {
   shopifyProductLookup,
 } from '../shopifyCart.js';
 import { wooCartAdd, wooCartClear, wooCartGet, wooCartSetQty } from '../wooCart.js';
+import { resolveIntent } from './ax-tree.js';
+import { hideCursor, moveCursorTo, pulseCursorClick } from './cursor.js';
+import { keysFromSnapshot, matchTemplate } from './fingerprint.js';
+import { formFill, formRead } from './form-control.js';
+import { showPulseRing } from './overlay.js';
+import { buildSnapshot, elementForRef } from './snapshot.js';
+import { loadTemplates, reportTemplateSignal } from './templates.js';
+import { verifyEffect } from './verify.js';
 
 // Cart actions route to the Shopify Cart AJAX bridge on a Shopify storefront, or
 // the custom window.__shoppingmate*__ hooks otherwise (Calmosis). The platform is
@@ -79,7 +79,10 @@ export type HostActionResult =
       // Nav Phase 3: channel that served a cart action (telemetry).
       channel?: string;
     }
-  | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
+  | {
+      ok: false;
+      reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout';
+    };
 
 // Nav Phase 3: which channel served a cart action — store API (exact, verified)
 // or the brand's custom storefront hooks. Reported to telemetry.
@@ -89,7 +92,10 @@ function cartChannel(): CartChannel {
   if (hostPlatform === 'woocommerce') return 'woo-store-api';
   return 'storefront-hooks';
 }
-async function tagged(channel: CartChannel, r: HostActionResult | Promise<HostActionResult>): Promise<HostActionResult> {
+async function tagged(
+  channel: CartChannel,
+  r: HostActionResult | Promise<HostActionResult>,
+): Promise<HostActionResult> {
   const res = await r;
   return res.ok ? { channel, ...res } : res;
 }
@@ -136,7 +142,9 @@ export async function executeHostAction(action: HostAction): Promise<HostActionR
       return tagged(ch, cartGet());
     }
     case 'product_lookup':
-      return isShopifyHost() ? shopifyProductLookup(action.handle) : { ok: false, reason: 'not_found' };
+      return isShopifyHost()
+        ? shopifyProductLookup(action.handle)
+        : { ok: false, reason: 'not_found' };
     case 'apply_coupon':
       return isShopifyHost() ? shopifyApplyCoupon(action.code) : applyCoupon(action.code);
     case 'checkout_fill':
@@ -209,7 +217,8 @@ function navigationTarget(el: HTMLElement): string | null {
   try {
     const url = new URL(a.href, window.location.href);
     if (url.origin !== window.location.origin) return null;
-    if (url.pathname === window.location.pathname && url.search === window.location.search) return null;
+    if (url.pathname === window.location.pathname && url.search === window.location.search)
+      return null;
     return url.pathname;
   } catch {
     return null;
@@ -293,7 +302,8 @@ type CartAddHook = (sku: string, qty?: number) => boolean;
 type OpenCartHook = () => void;
 
 function cartAdd(sku: string, qty: number): HostActionResult {
-  const fn = (window as unknown as { __shoppingmateCartAdd__?: CartAddHook }).__shoppingmateCartAdd__;
+  const fn = (window as unknown as { __shoppingmateCartAdd__?: CartAddHook })
+    .__shoppingmateCartAdd__;
   if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
   try {
     return fn(sku, qty) ? { ok: true } : { ok: false, reason: 'not_found' };
@@ -303,7 +313,8 @@ function cartAdd(sku: string, qty: number): HostActionResult {
 }
 
 function openCart(): HostActionResult {
-  const fn = (window as unknown as { __shoppingmateOpenCart__?: OpenCartHook }).__shoppingmateOpenCart__;
+  const fn = (window as unknown as { __shoppingmateOpenCart__?: OpenCartHook })
+    .__shoppingmateOpenCart__;
   if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
   try {
     fn();
@@ -320,7 +331,8 @@ type GetCartHook = () => { items?: CartItem[]; count?: number; subtotal?: number
 // to checkout with an empty cart). Returns values { count, items, subtotal };
 // absent hook → not_found.
 function cartGet(): HostActionResult {
-  const fn = (window as unknown as { __shoppingmateGetCart__?: GetCartHook }).__shoppingmateGetCart__;
+  const fn = (window as unknown as { __shoppingmateGetCart__?: GetCartHook })
+    .__shoppingmateGetCart__;
   if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
   try {
     const cart = fn();
@@ -347,7 +359,8 @@ type ApplyCouponHook = (code: string) => Promise<boolean>;
 // Empty the entire storefront cart via window.__shoppingmateClearCart__.
 // Absent hook → not_found.
 function clearCart(): HostActionResult {
-  const fn = (window as unknown as { __shoppingmateClearCart__?: ClearCartHook }).__shoppingmateClearCart__;
+  const fn = (window as unknown as { __shoppingmateClearCart__?: ClearCartHook })
+    .__shoppingmateClearCart__;
   if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
   try {
     return fn() ? { ok: true } : { ok: false, reason: 'not_found' };
@@ -357,7 +370,8 @@ function clearCart(): HostActionResult {
 }
 
 function cartSetQty(sku: string, qty: number): HostActionResult {
-  const fn = (window as unknown as { __shoppingmateCartSetQty__?: CartSetQtyHook }).__shoppingmateCartSetQty__;
+  const fn = (window as unknown as { __shoppingmateCartSetQty__?: CartSetQtyHook })
+    .__shoppingmateCartSetQty__;
   if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
   try {
     return fn(sku, qty) ? { ok: true } : { ok: false, reason: 'not_found' };
@@ -367,7 +381,8 @@ function cartSetQty(sku: string, qty: number): HostActionResult {
 }
 
 async function applyCoupon(code: string): Promise<HostActionResult> {
-  const fn = (window as unknown as { __shoppingmateApplyCoupon__?: ApplyCouponHook }).__shoppingmateApplyCoupon__;
+  const fn = (window as unknown as { __shoppingmateApplyCoupon__?: ApplyCouponHook })
+    .__shoppingmateApplyCoupon__;
   if (typeof fn !== 'function') return { ok: false, reason: 'not_found' };
   try {
     return (await fn(code)) ? { ok: true } : { ok: false, reason: 'not_found' };
@@ -394,7 +409,6 @@ function clientRouterNavigate(path: string): boolean {
   }
   return false;
 }
-
 
 async function navigate(path: string): Promise<HostActionResult> {
   try {

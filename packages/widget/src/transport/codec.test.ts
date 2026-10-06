@@ -19,10 +19,22 @@ describe('decodeAgentEvent — host_action_request validation', () => {
 
   it('decodes cart_set_qty and apply_coupon host actions', () => {
     expect(
-      decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'q', action: { type: 'cart_set_qty', sku: 'sleep-mantra', qty: 1 } })),
+      decodeAgentEvent(
+        JSON.stringify({
+          type: 'host_action_request',
+          callId: 'q',
+          action: { type: 'cart_set_qty', sku: 'sleep-mantra', qty: 1 },
+        }),
+      ),
     ).not.toBeNull();
     expect(
-      decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'c', action: { type: 'apply_coupon', code: 'CALM10' } })),
+      decodeAgentEvent(
+        JSON.stringify({
+          type: 'host_action_request',
+          callId: 'c',
+          action: { type: 'apply_coupon', code: 'CALM10' },
+        }),
+      ),
     ).not.toBeNull();
   });
 
@@ -37,10 +49,18 @@ describe('decodeAgentEvent — host_action_request validation', () => {
 
   it('still decodes navigate, and rejects unknown action types', () => {
     expect(
-      decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'a', action: { type: 'navigate', path: '/shop' } })),
+      decodeAgentEvent(
+        JSON.stringify({
+          type: 'host_action_request',
+          callId: 'a',
+          action: { type: 'navigate', path: '/shop' },
+        }),
+      ),
     ).not.toBeNull();
     expect(
-      decodeAgentEvent(JSON.stringify({ type: 'host_action_request', callId: 'b', action: { type: 'bogus' } })),
+      decodeAgentEvent(
+        JSON.stringify({ type: 'host_action_request', callId: 'b', action: { type: 'bogus' } }),
+      ),
     ).toBeNull();
   });
 
@@ -56,7 +76,11 @@ describe('decodeAgentEvent — host_action_request validation', () => {
     ).not.toBeNull();
     expect(
       decodeAgentEvent(
-        JSON.stringify({ type: 'host_action_request', callId: 'q2', action: { type: 'form_read' } }),
+        JSON.stringify({
+          type: 'host_action_request',
+          callId: 'q2',
+          action: { type: 'form_read' },
+        }),
       ),
     ).not.toBeNull();
   });

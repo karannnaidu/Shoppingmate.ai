@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { executeHostAction, setHostPlatform } from './actions.js';
 
 beforeEach(() => {
@@ -21,12 +21,22 @@ describe('cart action platform routing', () => {
         const u = String(url);
         if (u === '/cart/add.js') return { ok: true, json: async () => ({ id: 111 }) } as Response;
         if (u === '/cart.js')
-          return { ok: true, json: async () => ({ item_count: 1, items: [{ id: 111, quantity: 1 }], total_price: 100 }) } as Response;
+          return {
+            ok: true,
+            json: async () => ({
+              item_count: 1,
+              items: [{ id: 111, quantity: 1 }],
+              total_price: 100,
+            }),
+          } as Response;
         return { ok: true, json: async () => ({}) } as Response;
       });
     const r = await executeHostAction({ type: 'cart_add', sku: '111', qty: 1 });
     expect(r.ok).toBe(true);
-    expect(fetchSpy).toHaveBeenCalledWith('/cart/add.js', expect.objectContaining({ method: 'POST' }));
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/cart/add.js',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 
   it('off Shopify, cart_add uses the custom __shoppingmateCartAdd__ hook', async () => {
@@ -44,7 +54,12 @@ describe('executeHostAction()', () => {
   it('navigates to a same-origin path via window.location.assign when no soft-nav hook', async () => {
     const assignSpy = vi.fn();
     Object.defineProperty(window, 'location', {
-      value: { href: 'https://shoppingmate.ai/', assign: assignSpy, origin: 'https://shoppingmate.ai', pathname: '/' },
+      value: {
+        href: 'https://shoppingmate.ai/',
+        assign: assignSpy,
+        origin: 'https://shoppingmate.ai',
+        pathname: '/',
+      },
       writable: true,
     });
     delete (window as unknown as { __shoppingmateSoftNav?: unknown }).__shoppingmateSoftNav;
@@ -57,11 +72,18 @@ describe('executeHostAction()', () => {
   it('uses window.__shoppingmateNavigate__ when host page provides one', async () => {
     const assignSpy = vi.fn();
     Object.defineProperty(window, 'location', {
-      value: { href: 'https://shoppingmate.ai/', assign: assignSpy, origin: 'https://shoppingmate.ai', pathname: '/' },
+      value: {
+        href: 'https://shoppingmate.ai/',
+        assign: assignSpy,
+        origin: 'https://shoppingmate.ai',
+        pathname: '/',
+      },
       writable: true,
     });
     const navSpy = vi.fn();
-    (window as unknown as { __shoppingmateNavigate__: (p: string) => void }).__shoppingmateNavigate__ = navSpy;
+    (
+      window as unknown as { __shoppingmateNavigate__: (p: string) => void }
+    ).__shoppingmateNavigate__ = navSpy;
     const r = await executeHostAction({ type: 'navigate', path: '/pricing' });
     expect(r).toEqual({ ok: true });
     expect(navSpy).toHaveBeenCalledWith('/pricing');
@@ -107,7 +129,11 @@ describe('executeHostAction()', () => {
     const el = document.createElement('div');
     el.setAttribute('aria-label', 'Starter plan card');
     document.body.appendChild(el);
-    const r = await executeHostAction({ type: 'highlight', intent: 'starter plan card', durationMs: 1500 });
+    const r = await executeHostAction({
+      type: 'highlight',
+      intent: 'starter plan card',
+      durationMs: 1500,
+    });
     expect(r).toEqual({ ok: true });
     expect(document.querySelector('[data-shoppingmate-pulse-ring]')).not.toBeNull();
   });

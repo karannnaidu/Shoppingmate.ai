@@ -60,6 +60,20 @@ function createNode(
     for (const c of item.items) row.appendChild(cardEl(c, onCardTap));
     return row;
   }
+  if (item.kind === 'receipt') {
+    // "✓ Added Sleep Mantra to your cart" — what actually happened on the page.
+    const div = document.createElement('div');
+    div.className = `receipt ${item.ok ? 'ok' : 'warn'}`;
+    div.setAttribute('role', 'status');
+    const icon = document.createElement('span');
+    icon.className = 'receipt-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = item.ok ? '✓' : '!';
+    const label = document.createElement('span');
+    label.textContent = item.text;
+    div.append(icon, label);
+    return div;
+  }
   if (item.kind === 'cap_warning') {
     const div = document.createElement('div');
     div.className = 'bubble system';

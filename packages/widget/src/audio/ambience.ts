@@ -12,7 +12,8 @@ const NOOP: Ambience = { start: () => {}, stop: () => {} };
 export function createAmbience(enabled: boolean): Ambience {
   if (!enabled || typeof window === 'undefined') return NOOP;
   const AC: typeof AudioContext | undefined =
-    window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return NOOP;
 
   let ctx: AudioContext | null = null;

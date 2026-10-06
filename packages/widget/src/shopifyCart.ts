@@ -31,7 +31,12 @@ export async function injectShopifyCartAttribute(args: {
 // resolved variant id (the worker resolves a product reference → variantId from
 // the synced catalog before dispatching). A non-numeric ref → not_found.
 
-type ShopifyCartLine = { id: number; quantity: number; product_title?: string; variant_title?: string };
+type ShopifyCartLine = {
+  id: number;
+  quantity: number;
+  product_title?: string;
+  variant_title?: string;
+};
 type ShopifyCart = { item_count: number; items: ShopifyCartLine[]; total_price: number };
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
@@ -65,8 +70,11 @@ function notifyThemeCartChanged(cart: ShopifyCart | null): void {
     }
     const w = window as unknown as Record<string, unknown>;
     if (typeof w.getCartUpdate === 'function') (w.getCartUpdate as () => void)();
-    if (typeof w.after_add_to_cart === 'function') (w.after_add_to_cart as (c: unknown) => void)(cart);
-    const jq = w.jQuery as undefined | ((sel: unknown) => { trigger: (e: string, a?: unknown) => void });
+    if (typeof w.after_add_to_cart === 'function')
+      (w.after_add_to_cart as (c: unknown) => void)(cart);
+    const jq = w.jQuery as
+      | undefined
+      | ((sel: unknown) => { trigger: (e: string, a?: unknown) => void });
     if (jq) {
       try {
         jq(document.body).trigger('cart:updated', [cart]);
@@ -84,22 +92,35 @@ function notifyThemeCartChanged(cart: ShopifyCart | null): void {
 // Nav Phase 3: most Shopify themes (Dawn and its descendants) ignore the events
 // above and re-render their cart badge/drawer through the Section Rendering API.
 // Ask for the common cart sections and swap in any that exist on this page.
-const CART_SECTIONS = ['cart-icon-bubble', 'cart-live-region-text', 'cart-notification-button', 'cart-drawer'];
+const CART_SECTIONS = [
+  'cart-icon-bubble',
+  'cart-live-region-text',
+  'cart-notification-button',
+  'cart-drawer',
+];
 
 export async function refreshShopifySections(fetchFn: typeof fetch = fetch): Promise<number> {
   try {
-    const present = CART_SECTIONS.filter((id) => document.getElementById(`shopify-section-${id}`) || document.getElementById(id));
+    const present = CART_SECTIONS.filter(
+      (id) => document.getElementById(`shopify-section-${id}`) || document.getElementById(id),
+    );
     if (present.length === 0) return 0;
-    const res = await fetchFn(`${location.pathname}?sections=${present.join(',')}`, { credentials: 'same-origin' });
+    const res = await fetchFn(`${location.pathname}?sections=${present.join(',')}`, {
+      credentials: 'same-origin',
+    });
     if (!res.ok) return 0;
     const sections = (await res.json()) as Record<string, string | null>;
     let swapped = 0;
     for (const [id, html] of Object.entries(sections)) {
       if (!html) continue;
-      const target = document.getElementById(`shopify-section-${id}`) ?? document.getElementById(id);
+      const target =
+        document.getElementById(`shopify-section-${id}`) ?? document.getElementById(id);
       if (!target) continue;
       const doc = new DOMParser().parseFromString(html, 'text/html');
-      const fresh = doc.getElementById(`shopify-section-${id}`) ?? doc.querySelector('.shopify-section') ?? doc.body;
+      const fresh =
+        doc.getElementById(`shopify-section-${id}`) ??
+        doc.querySelector('.shopify-section') ??
+        doc.body;
       target.innerHTML = fresh.innerHTML;
       swapped += 1;
     }
@@ -117,7 +138,10 @@ type ShopifyProductJs = {
 };
 
 /** Nav Phase 3: live variants + stock straight from the storefront (no backend). */
-export async function shopifyProductLookup(handle: string, fetchFn: typeof fetch = fetch): Promise<HostActionResult> {
+export async function shopifyProductLookup(
+  handle: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<HostActionResult> {
   const h = String(handle ?? '')
     .trim()
     .replace(/^\/?products\//, '')
@@ -125,7 +149,9 @@ export async function shopifyProductLookup(handle: string, fetchFn: typeof fetch
     .replace(/\/$/, '');
   if (!h) return { ok: false, reason: 'not_found' };
   try {
-    const res = await fetchFn(`/products/${encodeURIComponent(h)}.js`, { credentials: 'same-origin' });
+    const res = await fetchFn(`/products/${encodeURIComponent(h)}.js`, {
+      credentials: 'same-origin',
+    });
     if (!res.ok) return { ok: false, reason: 'not_found' };
     const p = (await res.json()) as ShopifyProductJs;
     const variants = (p.variants ?? [])
@@ -157,7 +183,10 @@ async function readCart(fetchFn: typeof fetch): Promise<ShopifyCart | null> {
 
 function cartToValues(cart: ShopifyCart): Record<string, string> {
   const items = (cart.items ?? [])
-    .map((i) => `${i.product_title ?? 'item'}${i.variant_title ? ` ${i.variant_title}` : ''} x${i.quantity}`)
+    .map(
+      (i) =>
+        `${i.product_title ?? 'item'}${i.variant_title ? ` ${i.variant_title}` : ''} x${i.quantity}`,
+    )
     .join(', ');
   return {
     count: String(cart.item_count ?? 0),

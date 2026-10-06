@@ -2,7 +2,8 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDashboardSession } from '@/lib/session';
 import type * as React from 'react';
-import { getConversation, type ConversationDetail } from '@/lib/conversations-repo';
+import { getConversation, getConversationActions, type ConversationDetail } from '@/lib/conversations-repo';
+import { buildTimeline, type TimelineStep } from '@/lib/action-timeline';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default async function ConversationDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +12,11 @@ export default async function ConversationDetailPage({ params }: { params: Promi
   const session = await getDashboardSession({ headers: hdrs });
   if (!session?.merchant) redirect('/app/onboarding?step=2');
 
-  const convo = await getConversation({ merchantId: session.merchant.id, sessionId: id });
+  const [convo, actions] = await Promise.all([
+    getConversation({ merchantId: session.merchant.id, sessionId: id }),
+    getConversationActions({ merchantId: session.merchant.id, sessionId: id }).catch(() => []),
+  ]);
+  const steps = buildTimeline(actions);
   // Degrade gracefully instead of a hard 404: many older sessions predate
   // transcript recording (or weren't captured), and links to them shouldn't
   // dead-end. New conversations record automatically.
@@ -62,6 +67,7 @@ export default async function ConversationDetailPage({ params }: { params: Promi
           ))}
         </CardContent>
       </Card>
+      {steps.length > 0 && <WebsiteActionsCard steps={steps} />}
       <Card>
         <CardHeader><CardTitle>Cost</CardTitle></CardHeader>
         <CardContent>
@@ -72,6 +78,49 @@ export default async function ConversationDetailPage({ params }: { params: Promi
       </Card>
       {convo.intent && <IntentCard intent={convo.intent} />}
     </div>
+  );
+}
+
+/** What really happened on the storefront — from action results, not from the
+ *  assistant's words — so an owner can tell "said it" from "did it". */
+function WebsiteActionsCard({ steps }: { steps: TimelineStep[] }) {
+  const failed = steps.filter((s) => !s.ok).length;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>On your website</CardTitle>
+        <p className="text-sm text-text-secondary">
+          What Olivia actually did on the page during this conversation
+          {failed > 0 ? ` — ${failed} step${failed > 1 ? 's' : ''} didn't work` : ''}.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <ol className="relative flex flex-col gap-3 border-l border-border pl-5">
+          {steps.map((s, i) => (
+            <li
+              key={i}
+              className="dash-enter relative text-sm"
+              style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}
+            >
+              <span
+                aria-hidden
+                className={`absolute -left-[27px] top-0.5 grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold ${
+                  s.ok ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-amber-950'
+                }`}
+              >
+                {s.ok ? '✓' : '!'}
+              </span>
+              <span className="text-text-primary">
+                {s.ok ? s.label : `Tried: ${s.label.charAt(0).toLowerCase()}${s.label.slice(1)} — didn't work`}
+              </span>
+              {s.count > 1 && <span className="ml-1.5 text-xs tabular-nums text-text-muted">×{s.count}</span>}
+              {s.why && <span className="block text-xs text-text-secondary">Because {s.why}.</span>}
+              <span className="sr-only">{s.ok ? 'worked' : 'failed'}</span>
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
   );
 }
 

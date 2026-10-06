@@ -7,7 +7,11 @@ import {
   shopifyCartGet,
 } from './shopifyCart.js';
 
-const CART = { item_count: 2, items: [{ id: 111, quantity: 2, product_title: 'Tee', variant_title: 'M' }], total_price: 4000 };
+const CART = {
+  item_count: 2,
+  items: [{ id: 111, quantity: 2, product_title: 'Tee', variant_title: 'M' }],
+  total_price: 4000,
+};
 function okJson(body: unknown) {
   return { ok: true, json: async () => body } as unknown as Response;
 }
@@ -51,7 +55,10 @@ describe('shopify Cart AJAX bridge', () => {
     const r = await shopifyCartAdd('111', 2, fetchFn);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.values).toMatchObject({ count: '2', subtotal: '40.00' });
-    expect(fetchFn).toHaveBeenCalledWith('/cart/add.js', expect.objectContaining({ method: 'POST' }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/cart/add.js',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 
   it('reports failure when the add did not actually land in the cart (verify-after)', async () => {
@@ -66,7 +73,10 @@ describe('shopify Cart AJAX bridge', () => {
 
   it('rejects a non-numeric variant ref (must be a resolved variant id)', async () => {
     const fetchFn = vi.fn() as unknown as typeof fetch;
-    expect(await shopifyCartAdd('green-mantra', 1, fetchFn)).toEqual({ ok: false, reason: 'not_found' });
+    expect(await shopifyCartAdd('green-mantra', 1, fetchFn)).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
@@ -90,6 +100,9 @@ describe('shopify Cart AJAX bridge', () => {
     const fetchFn = vi.fn(async () => ({ ok: true }) as Response) as unknown as typeof fetch;
     const r = await shopifyApplyCoupon('SAVE10', fetchFn);
     expect(r.ok).toBe(true);
-    expect(fetchFn).toHaveBeenCalledWith('/discount/SAVE10', expect.objectContaining({ method: 'GET' }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/discount/SAVE10',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 });

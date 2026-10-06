@@ -184,7 +184,10 @@ export function makeDraggable(opts: {
     };
     surface.addEventListener('click', swallow, { capture: true, once: true });
     // If no click materialises, remove the one-shot guard shortly after.
-    window.setTimeout(() => surface.removeEventListener('click', swallow, { capture: true } as never), 350);
+    window.setTimeout(
+      () => surface.removeEventListener('click', swallow, { capture: true } as never),
+      350,
+    );
 
     const r = trayEl().getBoundingClientRect();
     const anchor = quadrantAnchor(

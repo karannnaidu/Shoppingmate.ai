@@ -5,7 +5,9 @@ export type TranscriptItem =
   | { id: string; role: 'user'; kind: 'text'; text: string; ts: number }
   | { id: string; role: 'agent'; kind: 'cards'; items: CardItem[]; ts: number }
   | { id: string; role: 'system'; kind: 'cap_warning'; remaining: number; ts: number }
-  | { id: string; role: 'system'; kind: 'closed'; reason: 'user' | 'cap' | 'error'; ts: number };
+  | { id: string; role: 'system'; kind: 'closed'; reason: 'user' | 'cap' | 'error'; ts: number }
+  // What the assistant actually did on the page (built from the real result).
+  | { id: string; role: 'system'; kind: 'receipt'; text: string; ok: boolean; ts: number };
 
 export type WidgetState = {
   sessionId: string;
@@ -34,6 +36,7 @@ export type Action =
   | { type: 'set_invited'; invited: boolean }
   | { type: 'user_input'; text: string; mode: Mode }
   | { type: 'agent_event'; event: AgentEvent }
+  | { type: 'receipt'; text: string; ok: boolean }
   | { type: 'reset' };
 
 export type Store = {
@@ -75,6 +78,18 @@ function reduce(state: WidgetState, a: Action): WidgetState {
       return { ...state, voiceError: a.error };
     case 'set_invited':
       return { ...state, invited: a.invited };
+    case 'receipt': {
+      // Collapse an identical receipt repeated back-to-back (e.g. a retried add).
+      const last = state.transcript[state.transcript.length - 1];
+      if (last && last.kind === 'receipt' && last.text === a.text && last.ok === a.ok) return state;
+      return {
+        ...state,
+        transcript: [
+          ...state.transcript,
+          { id: nextId(), role: 'system', kind: 'receipt', text: a.text, ok: a.ok, ts: Date.now() },
+        ],
+      };
+    }
     case 'reset':
       return {
         ...state,
@@ -171,6 +186,23 @@ function reduce(state: WidgetState, a: Action): WidgetState {
             ],
           };
         case 'tool_result':
+          // A logged customer request is worth confirming visibly.
+          if (ev.toolName === 'case.open' && ev.ok) {
+            return {
+              ...state,
+              transcript: [
+                ...state.transcript,
+                {
+                  id: nextId(),
+                  role: 'system',
+                  kind: 'receipt',
+                  text: 'Your request is with the team — they’ll contact you',
+                  ok: true,
+                  ts: Date.now(),
+                },
+              ],
+            };
+          }
           return state;
         case 'checkout_redirect':
           return { ...state, checkoutUrl: ev.url };

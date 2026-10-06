@@ -1,13 +1,14 @@
+import { type Ambience, createAmbience } from './audio/ambience.js';
 import { createSTT } from './audio/stt.js';
 import { createTTS } from './audio/tts.js';
 import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
 import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
-import { type Ambience, createAmbience } from './audio/ambience.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
-import { startActivityTracker } from './host/activity.js';
-import { getOrCreateVisitorId } from './identity.js';
 import { executeHostAction } from './host/actions.js';
+import { startActivityTracker } from './host/activity.js';
+import { receiptFor } from './host/receipts.js';
 import { setNavContext } from './host/templates.js';
+import { getOrCreateVisitorId } from './identity.js';
 import { markBotEngaged, startInsights } from './insights/tracker.js';
 import { type PersonaDisplay, getPersonaDisplay, getPersonaPlaceholder } from './persona.js';
 import { type Store, createStore } from './state/store.js';
@@ -15,9 +16,9 @@ import { SHADOW_CSS } from './styles/shadow.css.js';
 import { decodeAgentEvent, encodeWidgetMessage } from './transport/codec.js';
 import { preloadLiveKit } from './transport/livekit.js';
 import { type AgentSocket, connectAgentWs } from './transport/ws.js';
-import { makeDraggable } from './ui/drag.js';
 import { renderCall } from './ui/call.js';
 import { renderChat } from './ui/chat.js';
+import { makeDraggable } from './ui/drag.js';
 import { renderPill } from './ui/pill.js';
 
 const TAG = 'shoppingmate-widget';
@@ -362,9 +363,8 @@ class WidgetElement extends HTMLElement {
     if (!r.width || !r.height) return false;
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height / 2;
-    const host: Element = this;
     for (const el of document.elementsFromPoint(cx, cy)) {
-      if (el === host || host.contains(el) || el.contains(host)) continue;
+      if (el === this || this.contains(el) || el.contains(this)) continue;
       if (el.tagName === 'SHOPPINGMATE-WIDGET') continue;
       let node: Element | null = el;
       while (node && node !== document.body && node !== document.documentElement) {
@@ -376,8 +376,7 @@ class WidgetElement extends HTMLElement {
         if (cs.position === 'fixed' && cs.pointerEvents !== 'none') {
           const b = node.getBoundingClientRect();
           const covers = b.left <= cx && b.right >= cx && b.top <= cy && b.bottom >= cy;
-          const large =
-            b.width >= window.innerWidth * 0.4 || b.height >= window.innerHeight * 0.4;
+          const large = b.width >= window.innerWidth * 0.4 || b.height >= window.innerHeight * 0.4;
           const visible =
             cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.01;
           if (covers && large && visible) return true;
@@ -429,7 +428,11 @@ class WidgetElement extends HTMLElement {
     this.store = createStore({ sessionId: result.sessionId });
     this.store.subscribe(() => this.render());
     // Nav Phase 2: template site map + drift reporting are scoped to this session.
-    setNavContext({ apiBase: this.apiBase, merchantId: this.merchantId, sessionId: result.sessionId });
+    setNavContext({
+      apiBase: this.apiBase,
+      merchantId: this.merchantId,
+      sessionId: result.sessionId,
+    });
     // Nav Phase 8: Store Insights (entitled merchants only; consent-gated inside).
     if (result.insights?.enabled) {
       startInsights({
@@ -540,6 +543,8 @@ class WidgetElement extends HTMLElement {
   ): Promise<void> {
     if (ev.type === 'host_action_request') {
       const result = await executeHostAction(ev.action);
+      const receipt = receiptFor(ev.action, result);
+      if (receipt) this.store.dispatch({ type: 'receipt', text: receipt.text, ok: receipt.ok });
       this.publishWidgetMessage(
         {
           type: 'host_action_result',

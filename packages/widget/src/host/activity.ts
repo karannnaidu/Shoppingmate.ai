@@ -2,7 +2,7 @@ import type { WidgetMessage } from '../transport/codec.js';
 
 export type ActivityTrackerArgs = {
   sessionId: string;
-  hints: Map<string, string>;          // intentKey → selector, lower-cased keys
+  hints: Map<string, string>; // intentKey → selector, lower-cased keys
   send: (msg: WidgetMessage) => void;
 };
 
@@ -23,15 +23,25 @@ export function startActivityTracker(args: ActivityTrackerArgs): () => void {
     const label = labelFor(target);
     const intentKey = label ? matchHintKey(label, args.hints) : null;
     emit({
-      type: 'visitor_action', sessionId: args.sessionId, action: 'click',
-      intentKey, url: window.location.href, elementLabel: label, timestamp: Date.now(),
+      type: 'visitor_action',
+      sessionId: args.sessionId,
+      action: 'click',
+      intentKey,
+      url: window.location.href,
+      elementLabel: label,
+      timestamp: Date.now(),
     });
   };
 
   const onRouteChange = () => {
     emit({
-      type: 'visitor_action', sessionId: args.sessionId, action: 'route_change',
-      intentKey: null, url: window.location.href, elementLabel: null, timestamp: Date.now(),
+      type: 'visitor_action',
+      sessionId: args.sessionId,
+      action: 'route_change',
+      intentKey: null,
+      url: window.location.href,
+      elementLabel: null,
+      timestamp: Date.now(),
     });
   };
 
@@ -43,8 +53,11 @@ export function startActivityTracker(args: ActivityTrackerArgs): () => void {
     const inputType = (target as HTMLInputElement).type;
     if (inputType === 'password') return; // never even acknowledge focus on passwords
     emit({
-      type: 'visitor_action', sessionId: args.sessionId, action: 'form_focus',
-      intentKey: null, url: window.location.href,
+      type: 'visitor_action',
+      sessionId: args.sessionId,
+      action: 'form_focus',
+      intentKey: null,
+      url: window.location.href,
       elementLabel: (target as HTMLInputElement).name || target.id || null,
       timestamp: Date.now(),
     });
@@ -62,10 +75,12 @@ export function startActivityTracker(args: ActivityTrackerArgs): () => void {
 }
 
 function labelFor(el: HTMLElement): string | null {
-  return el.getAttribute('aria-label')
-      ?? el.getAttribute('title')
-      ?? (el.textContent ?? '').trim().slice(0, 80)
-      ?? null;
+  return (
+    el.getAttribute('aria-label') ??
+    el.getAttribute('title') ??
+    (el.textContent ?? '').trim().slice(0, 80) ??
+    null
+  );
 }
 
 function matchHintKey(label: string, hints: Map<string, string>): string | null {

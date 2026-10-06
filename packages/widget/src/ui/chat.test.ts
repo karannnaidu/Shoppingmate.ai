@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { renderChat } from './chat.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { STRINGS } from '../strings.js';
+import { renderChat } from './chat.js';
 
 function baseProps(over = {}) {
   return {

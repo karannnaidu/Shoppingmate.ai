@@ -20,13 +20,17 @@ export function mountSoftPrompt(
   timer = setTimeout(() => {
     if (cancelled || shown) return;
     shown = true;
-    bubble = renderBubble(host, () => {
-      cb.onAccept();
-      removeBubble();
-    }, () => {
-      cb.onDismiss();
-      removeBubble();
-    });
+    bubble = renderBubble(
+      host,
+      () => {
+        cb.onAccept();
+        removeBubble();
+      },
+      () => {
+        cb.onDismiss();
+        removeBubble();
+      },
+    );
   }, DELAY_MS);
 
   function removeBubble(): void {
@@ -43,11 +47,7 @@ export function mountSoftPrompt(
   };
 }
 
-function renderBubble(
-  host: HTMLElement,
-  onAccept: () => void,
-  onDismiss: () => void,
-): HTMLElement {
+function renderBubble(host: HTMLElement, onAccept: () => void, onDismiss: () => void): HTMLElement {
   const wrap = document.createElement('div');
   wrap.setAttribute(ATTR, '');
   Object.assign(wrap.style, {

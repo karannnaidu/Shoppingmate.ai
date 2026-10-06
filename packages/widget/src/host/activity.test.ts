@@ -36,7 +36,11 @@ describe('VisitorActivityTracker', () => {
   it('does not capture form input values', async () => {
     document.body.innerHTML = `<input id="x" type="text">`;
     const sent: any[] = [];
-    const stop = startActivityTracker({ sessionId: 's1', hints: new Map(), send: (m) => sent.push(m) });
+    const stop = startActivityTracker({
+      sessionId: 's1',
+      hints: new Map(),
+      send: (m) => sent.push(m),
+    });
     const input = document.getElementById('x') as HTMLInputElement;
     input.value = 'secret password';
     input.focus();

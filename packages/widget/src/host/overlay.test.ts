@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { showPulseRing } from './overlay.js';
 
 beforeEach(() => {
@@ -11,7 +11,16 @@ describe('showPulseRing()', () => {
   it('attaches an overlay positioned over the target element', () => {
     const target = document.createElement('div');
     target.getBoundingClientRect = () =>
-      ({ x: 10, y: 20, width: 100, height: 50, top: 20, left: 10, right: 110, bottom: 70 }) as DOMRect;
+      ({
+        x: 10,
+        y: 20,
+        width: 100,
+        height: 50,
+        top: 20,
+        left: 10,
+        right: 110,
+        bottom: 70,
+      }) as DOMRect;
     document.body.appendChild(target);
     showPulseRing(target, 2000);
     const ring = document.querySelector('[data-shoppingmate-pulse-ring]') as HTMLElement;

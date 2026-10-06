@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { resolveIntent } from './ax-tree.js';
 
 function mount(html: string): void {
@@ -7,7 +7,9 @@ function mount(html: string): void {
 }
 
 describe('resolveIntent()', () => {
-  beforeEach(() => { document.body.innerHTML = ''; });
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
 
   it('returns the element whose aria-label exactly matches the intent tokens', () => {
     mount(`

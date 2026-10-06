@@ -28,7 +28,8 @@ export type WidgetMessage =
   | { type: 'host_action_result'; callId: string; result: HostActionResult }
   | { type: 'tour_request' }
   | { type: 'start_voice'; sessionId: string }
-  | { type: 'visitor_action';
+  | {
+      type: 'visitor_action';
       sessionId: string;
       action: 'click' | 'route_change' | 'dwell' | 'cart_add' | 'form_focus' | 'outbound_click';
       intentKey: string | null;
@@ -99,7 +100,10 @@ export type HostActionResult =
       observed?: string;
       channel?: string;
     }
-  | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
+  | {
+      ok: false;
+      reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout';
+    };
 
 function isValidHostAction(a: any): a is HostAction {
   if (!a || typeof a.type !== 'string') return false;
@@ -211,7 +215,9 @@ export function decodeAgentEvent(raw: string): AgentEvent | null {
       return { type: 'host_action_request', callId: o.callId, action: a };
     }
     case 'persona_swap':
-      return typeof o.personaId === 'string' ? { type: 'persona_swap', personaId: o.personaId } : null;
+      return typeof o.personaId === 'string'
+        ? { type: 'persona_swap', personaId: o.personaId }
+        : null;
     case 'agent_warmed':
       return { type: 'agent_warmed' };
     case 'agent_ready':

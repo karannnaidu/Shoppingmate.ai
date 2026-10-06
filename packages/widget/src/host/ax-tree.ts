@@ -4,8 +4,21 @@
 // card") to a real HTMLElement on the host page.
 
 const STOPWORDS = new Set([
-  'the', 'a', 'an', 'to', 'of', 'on', 'in', 'and', 'or',
-  'section', 'button', 'link', 'card', 'tile', 'now',
+  'the',
+  'a',
+  'an',
+  'to',
+  'of',
+  'on',
+  'in',
+  'and',
+  'or',
+  'section',
+  'button',
+  'link',
+  'card',
+  'tile',
+  'now',
 ]);
 
 const ROLE_KEYWORDS: Array<{ keyword: string; matchTag: RegExp; matchRole?: string }> = [

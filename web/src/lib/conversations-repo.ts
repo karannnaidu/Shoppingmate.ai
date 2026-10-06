@@ -1,6 +1,7 @@
 import { db } from './db';
 import { metricEvents } from '@shoppingmate/db/schema';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import type { ToolEvent } from './action-timeline';
 
 export type ConversationRow = {
   id: string;
@@ -91,6 +92,32 @@ export type ConversationDetail = {
     dropStage: string | null;
   };
 };
+
+/** Real actions taken on the storefront during a conversation (tool telemetry). */
+export async function getConversationActions(args: {
+  merchantId: string;
+  sessionId: string;
+}): Promise<ToolEvent[]> {
+  const rows = await db
+    .select({ tags: metricEvents.tags, ts: metricEvents.ts })
+    .from(metricEvents)
+    .where(and(
+      eq(metricEvents.merchantId, args.merchantId),
+      eq(metricEvents.metricName, 'agent.tool.invoked'),
+      sql`${metricEvents.tags}->>'sessionId' = ${args.sessionId}`,
+    ))
+    .orderBy(metricEvents.ts)
+    .limit(300);
+  return rows.map((r) => {
+    const t = (r.tags ?? {}) as Record<string, unknown>;
+    return {
+      toolName: String(t.toolName ?? ''),
+      ok: t.ok === true || t.ok === 'true',
+      ts: r.ts,
+      failReason: t.failReason != null ? String(t.failReason) : null,
+    };
+  });
+}
 
 export async function getConversation(args: { merchantId: string; sessionId: string }): Promise<ConversationDetail | null> {
   const rows = await db
