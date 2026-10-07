@@ -6,13 +6,17 @@ import { brandTickets, ticketStatuses, type TicketStatus } from '@shoppingmate/d
 import { db } from '@/lib/db';
 import { clearAdminSession, getAdminSession, setAdminSession, verifyAdminCredentials } from '@/lib/admin-auth';
 
-export async function adminLogin(_prev: { error?: string } | undefined, form: FormData): Promise<{ error?: string }> {
+export async function adminLogin(
+  _prev: { error?: string; email?: string } | undefined,
+  form: FormData,
+): Promise<{ error?: string; email?: string }> {
   const email = String(form.get('email') ?? '');
   const password = String(form.get('password') ?? '');
   if (!verifyAdminCredentials(email, password)) {
     // Slow down guessing.
     await new Promise((r) => setTimeout(r, 800));
-    return { error: 'Wrong email or password.' };
+    // React resets the form after an action — hand the email back so it isn't wiped.
+    return { error: 'Wrong email or password.', email };
   }
   await setAdminSession(email.trim());
   redirect('/admin/tickets');

@@ -12,7 +12,7 @@ export function AdminLoginForm() {
     <form action={action} className="mt-6 flex flex-col gap-3">
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         Email
-        <input name="email" type="email" autoComplete="username" required className={field} />
+        <input name="email" type="email" autoComplete="username" required defaultValue={state?.email ?? ''} className={field} />
       </label>
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         Password
