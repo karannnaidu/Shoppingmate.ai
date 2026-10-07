@@ -42,6 +42,47 @@ describe('LLM fallback', () => {
     expect(r.toolCalls[0]).toMatchObject({ name: 'products.search' });
   });
 
+  it('moves to the next fallback model when the first is out of quota, and keeps Gemini 3 thought signatures', async () => {
+    const models: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: { body: string }) => {
+      if (url.includes('openrouter')) return new Response('{"error":{"code":402}}', { status: 402 });
+      const m = JSON.parse(init.body).model as string;
+      models.push(m);
+      if (m === 'gemini-2.5-flash') return new Response('{"error":{"code":429}}', { status: 429 });
+      return ok({
+        choices: [{
+          message: { content: null, tool_calls: [{ id: 'c1', type: 'function', extra_content: { google: { thought_signature: 'sig' } }, function: { name: 'products_search', arguments: '{}' } }] },
+          finish_reason: 'tool_calls',
+        }],
+      });
+    }));
+    const r = await chatTools({
+      model: 'x',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [{ type: 'function', function: { name: 'products.search', description: 'x', parameters: {} } }],
+    });
+    expect(models).toEqual(['gemini-2.5-flash', 'gemini-3.5-flash-lite']);
+    expect(r.toolCalls[0]?.extraContent).toEqual({ google: { thought_signature: 'sig' } });
+  });
+
+  it('strips Gemini extra_content from history sent to OpenRouter', async () => {
+    let sent = '';
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: { body: string }) => {
+      sent = init.body;
+      return ok({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] });
+    }));
+    await chatTools({
+      model: 'x',
+      messages: [
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', extra_content: { s: 1 }, function: { name: 'a', arguments: '{}' } }] },
+        { role: 'tool', tool_call_id: 'c1', content: '{}' },
+      ],
+      tools: [],
+    });
+    expect(sent).not.toContain('extra_content');
+  });
+
   it('does not fall back on a 400 (a real request bug) and surfaces the error', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('bad', { status: 400 })));
     await expect(chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })).rejects.toThrow(/openrouter http 400/);

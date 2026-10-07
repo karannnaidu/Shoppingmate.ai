@@ -87,7 +87,12 @@ export async function POST(req: Request) {
       messages.push({
         role: 'assistant',
         content: r.text || null,
-        tool_calls: r.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.argumentsJson } })),
+        tool_calls: r.toolCalls.map((c) => ({
+          id: c.id,
+          type: 'function',
+          function: { name: c.name, arguments: c.argumentsJson },
+          ...(c.extraContent !== undefined ? { extra_content: c.extraContent } : {}),
+        })),
       } as Wire);
       for (const call of r.toolCalls) {
         let result: unknown;

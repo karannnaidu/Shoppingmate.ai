@@ -8,7 +8,24 @@ const URL = 'https://openrouter.ai/api/v1/chat/completions';
 // credits (402, the 2026-10-07 outage), rate limited (429), 5xx, or network
 // failure — and GEMINI_API_KEY is set. Keeps every brand's bot answering.
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-const FALLBACK_MODEL = () => process.env.LLM_FALLBACK_MODEL || 'gemini-2.5-flash';
+// Tried in order; the next one is used on 429 (quota) / 404 / 5xx. Free-tier
+// keys allow only ~20 requests/day on 2.5-flash, so flash-lite (separate,
+// larger quota) keeps answering after that.
+const FALLBACK_MODELS = () =>
+  (process.env.LLM_FALLBACK_MODELS || process.env.LLM_FALLBACK_MODEL || 'gemini-2.5-flash,gemini-3.5-flash-lite')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+/** OpenRouter (Anthropic etc.) doesn't know Gemini's per-call extra_content
+ *  (thought signatures) — strip it from history sent there. */
+function withoutExtraContent(messages: unknown[]): unknown[] {
+  return messages.map((m) => {
+    const msg = m as { tool_calls?: Array<Record<string, unknown>> };
+    if (!Array.isArray(msg.tool_calls)) return m;
+    return { ...msg, tool_calls: msg.tool_calls.map(({ extra_content: _x, ...rest }) => rest) };
+  });
+}
 
 /** Should this OpenRouter failure be retried on the fallback provider? */
 export function shouldFallback(status: number | null): boolean {
@@ -46,7 +63,7 @@ async function completion(
           'http-referer': 'https://shoppingmate.ai',
           'x-title': opts.title,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, messages: withoutExtraContent(body.messages as unknown[]) }),
         signal: opts.signal,
       });
       if (res.ok) return { json: await res.json(), provider: 'openrouter' };
@@ -63,19 +80,20 @@ async function completion(
     if (!apiKey) throw new Error('OPENROUTER_API_KEY missing');
     throw new Error(`openrouter http ${status ?? 'network'}: ${detail.slice(0, 200)}`);
   }
-  const model = FALLBACK_MODEL();
-  log.warn({ openrouterStatus: status, fallbackModel: model }, 'llm fallback → gemini');
-  const res = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${geminiKey}` },
-    body: JSON.stringify({ ...body, model, messages: toGeminiMessages(body.messages as unknown[]) }),
-    signal: opts.signal,
-  });
-  if (!res.ok) {
-    const t = (await res.text().catch(() => '')).slice(0, 300);
-    throw new Error(`openrouter http ${status ?? 'network'} and gemini fallback http ${res.status}: ${t}`);
+  let last = '';
+  for (const model of FALLBACK_MODELS()) {
+    log.warn({ openrouterStatus: status, fallbackModel: model }, 'llm fallback → gemini');
+    const res = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${geminiKey}` },
+      body: JSON.stringify({ ...body, model, messages: toGeminiMessages(body.messages as unknown[]) }),
+      signal: opts.signal,
+    });
+    if (res.ok) return { json: await res.json(), provider: 'gemini' };
+    last = `gemini fallback (${model}) http ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`;
+    if (!(res.status === 429 || res.status === 404 || res.status >= 500)) break;
   }
-  return { json: await res.json(), provider: 'gemini' };
+  throw new Error(`openrouter http ${status ?? 'network'} and ${last}`);
 }
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -144,12 +162,21 @@ export type AssistantToolCalls = {
     id: string;
     type: 'function';
     function: { name: string; arguments: string };
+    /** Gemini 3 thought signature — must be echoed back on the next turn. */
+    extra_content?: unknown;
   }>;
 };
 
 export type ToolsMessage = ChatMessage | AssistantToolCalls | ToolCallMessage;
 
-export type ToolCall = { id: string; name: string; argumentsJson: string };
+export type ToolCall = {
+  id: string;
+  name: string;
+  argumentsJson: string;
+  /** Provider-specific data to send back with this call next turn (Gemini 3
+   *  thought_signature); undefined for other providers. */
+  extraContent?: unknown;
+};
 
 export type ChatToolsResult = {
   text: string;
@@ -222,7 +249,12 @@ export async function chatTools(opts: {
     const toolCalls = (choice.message.tool_calls ?? []).map((tc) => {
       const wire = tc.function.name;
       const canonical = knownToolNames.has(wire) ? wire.replace(/_/g, '.') : wire;
-      return { id: tc.id, name: canonical, argumentsJson: tc.function.arguments };
+      return {
+        id: tc.id,
+        name: canonical,
+        argumentsJson: tc.function.arguments,
+        ...(tc.extra_content !== undefined ? { extraContent: tc.extra_content } : {}),
+      };
     });
     return {
       text: choice.message.content ?? '',

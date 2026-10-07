@@ -465,6 +465,8 @@ export async function* runTurn(
         id: tc.id,
         type: 'function' as const,
         function: { name: tc.name, arguments: tc.argumentsJson },
+        // Gemini 3 (fallback) rejects the next turn without its signature.
+        ...(tc.extraContent !== undefined ? { extra_content: tc.extraContent } : {}),
       })),
     });
     for (const call of response.toolCalls) {
