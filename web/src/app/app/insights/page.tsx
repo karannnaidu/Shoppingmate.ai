@@ -5,6 +5,7 @@ import { hasFeature } from '@shoppingmate/db/plans';
 import { Button } from '@/components/ui/button';
 import { getDashboardSession } from '@/lib/session';
 import { loadInsights } from '@/lib/insights-repo';
+import { loadJourneys } from '@/lib/insights-journeys';
 import { type FixCard, deterministicFixes } from '@/lib/insights-fixes';
 import {
   DEVICE_LABEL,
@@ -70,7 +71,10 @@ export default async function InsightsPage({
   const qa = sp.qa === '1';
   const pageType = typeof sp.page === 'string' ? sp.page : 'pdp';
   const device = sp.device === 'mobile' ? 'mobile' : 'desktop';
-  const { facts: f, report: anyReport, screenshots } = await loadInsights(m.id, { qa });
+  const [{ facts: f, report: anyReport, screenshots }, journeys] = await Promise.all([
+    loadInsights(m.id, { qa }),
+    hasFeature(m, 'insights_detail') ? loadJourneys(m.id, 14).catch(() => null) : Promise.resolve(null),
+  ]);
   // Only show a report built from the same kind of data as this view (real vs test).
   const report = anyReport && ((anyReport.facts as { qa?: boolean })?.qa === true) === qa ? anyReport : null;
 
@@ -393,10 +397,56 @@ export default async function InsightsPage({
         </p>
       </Card>
 
-      {/* 8. Details for analysts (Scale) */}
+      {/* 8. Scale: shopper journeys + export */}
+      {journeys && (
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-semibold text-text-primary">Shopper journeys</h2>
+              <p className="mt-0.5 text-sm text-text-secondary">
+                The paths shoppers take through your store, last 14 days — from {journeys.visits} visits we tracked in detail
+                (shoppers who chatted, got stuck, or bought).
+              </p>
+            </div>
+            {hasFeature(m, 'insights_export') && (
+              <div className="flex gap-2">
+                <a href="/api/insights/export?days=7" className="rounded-xl border border-border px-3 py-1.5 text-sm font-medium hover:border-border-strong">
+                  Export 7 days (CSV)
+                </a>
+                <a href="/api/insights/export?days=30" className="rounded-xl border border-border px-3 py-1.5 text-sm font-medium hover:border-border-strong">
+                  Export 30 days
+                </a>
+              </div>
+            )}
+          </div>
+          {journeys.journeys.length === 0 ? (
+            <p className="mt-4 text-sm text-text-secondary">Journeys appear once shoppers start moving through your store.</p>
+          ) : (
+            <ol className="mt-4 flex flex-col gap-2.5">
+              {journeys.journeys.map((j, i) => (
+                <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl bg-surface-muted/60 px-3.5 py-2.5 text-sm">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {j.steps.map((s, k) => (
+                      <span key={k} className="flex items-center gap-1.5">
+                        {k > 0 && <span className="text-text-muted">→</span>}
+                        <span className="rounded-md border border-border bg-surface-elevated px-2 py-0.5 text-text-primary">{s}</span>
+                      </span>
+                    ))}
+                  </span>
+                  <span className="ml-auto whitespace-nowrap text-text-secondary tabular-nums">
+                    {j.visits} visit{j.visits === 1 ? '' : 's'}
+                    {j.ordered > 0 && <span className="ml-2 font-medium text-signal">{j.ordered} ordered</span>}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+      )}
+
       {hasFeature(m, 'insights_detail') && (
         <details className="rounded-lg border border-border bg-surface p-5">
-          <summary className="cursor-pointer font-display text-lg font-semibold text-text-primary">Details</summary>
+          <summary className="cursor-pointer font-display text-lg font-semibold text-text-primary">Traffic sources and devices</summary>
           <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
             <div>
               <p className="font-medium text-text-primary">Where visitors came from</p>

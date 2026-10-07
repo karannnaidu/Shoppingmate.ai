@@ -162,7 +162,7 @@ export function Pricing({ hideHeading = false }: { hideHeading?: boolean }) {
               </ul>
 
               <Link
-                href="/signup"
+                href={t.key === "starter" ? "/signup" : `/signup?plan=${t.key}`}
                 className={`group mt-8 inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition-transform hover:scale-[1.02] active:scale-[0.98] ${
                   t.highlight ? "bg-background text-foreground" : "border border-border bg-surface text-text-primary hover:border-border-strong"
                 }`}

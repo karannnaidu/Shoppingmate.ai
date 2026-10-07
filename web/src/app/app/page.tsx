@@ -105,7 +105,7 @@ export default async function HomePage() {
       icon: CreditCard,
       tone: left === 0 ? 'rose' : 'amber',
       title: left === 0 ? 'Out of conversations' : `Only ${left} conversations left this month`,
-      body: left === 0 ? 'Your assistant is paused until you top up or your plan renews.' : 'Top up or move up a plan so your assistant keeps talking.',
+      body: left === 0 ? "You've used this month's conversations — top up or move up a plan." : 'Top up or move up a plan before you run out.',
       href: '/app/billing',
       cta: 'Top up',
     });

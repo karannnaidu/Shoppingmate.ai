@@ -103,6 +103,7 @@ export default async function BillingPage() {
             </form>
           ) : (
             <form action="/api/billing/checkout-session" method="post">
+              <input type="hidden" name="plan" value={session.merchant.plan} />
               <Button type="submit">Start my subscription</Button>
             </form>
           )}
@@ -123,7 +124,7 @@ export default async function BillingPage() {
                 {' '}(including <strong className="tabular-nums text-text-primary">{topupBalance}</strong> from top-ups)
               </>
             )}
-            .{remaining === 0 && ' Your assistant is paused until you top up or your plan renews.'}
+            .{remaining === 0 && ' You’ve used this month’s conversations — top up or move up a plan.'}
           </p>
         </div>
         <p className="relative mt-4 border-t border-border pt-4 text-xs text-text-muted">
@@ -157,6 +158,18 @@ export default async function BillingPage() {
                   <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-signal" />
                   {PLAN_PERKS[key]}
                 </p>
+                {!subscribed ? (
+                  <form action="/api/billing/checkout-session" method="post" className="mt-4">
+                    <input type="hidden" name="plan" value={key} />
+                    <Button type="submit" size="sm" variant={current ? 'primary' : 'outline'} className="w-full">
+                      Start {key}
+                    </Button>
+                  </form>
+                ) : (
+                  !current && (
+                    <p className="mt-4 text-[12px] text-text-muted">To switch, cancel your current plan above, then start this one.</p>
+                  )
+                )}
               </div>
             );
           })}

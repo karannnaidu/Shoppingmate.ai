@@ -14,7 +14,7 @@ vi.mock('@/lib/razorpay', () => ({
       create: vi.fn().mockResolvedValue({ id: 'sub_test', short_url: 'https://rzp.io/i/abc' }),
     },
   },
-  PLAN_IDS: { starter: 'plan_test_starter' },
+  PLAN_IDS: { starter: 'plan_test_starter', growth: 'plan_test_growth', scale: 'plan_test_scale' },
 }));
 
 vi.mock('next/headers', () => ({ headers: vi.fn().mockResolvedValue(new Headers()) }));
@@ -31,6 +31,37 @@ describe('POST /api/billing/checkout-session', () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.url).toContain('rzp.io');
+  });
+
+  it('subscribes to the plan the owner picked (was always Starter)', async () => {
+    const { razorpay } = await import('@/lib/razorpay');
+    const create = vi.mocked(razorpay.subscriptions.create);
+    for (const plan of ['growth', 'scale', 'starter'] as const) {
+      await POST(
+        new Request('http://localhost/api/billing/checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan }),
+        }),
+      );
+      expect(create).toHaveBeenLastCalledWith(
+        expect.objectContaining({ plan_id: `plan_test_${plan}`, notes: expect.objectContaining({ plan }) }),
+      );
+    }
+  });
+
+  it('falls back to Starter for an unknown plan', async () => {
+    const { razorpay } = await import('@/lib/razorpay');
+    await POST(
+      new Request('http://localhost/api/billing/checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: 'platinum' }),
+      }),
+    );
+    expect(vi.mocked(razorpay.subscriptions.create)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ plan_id: 'plan_test_starter' }),
+    );
   });
 
   it('returns 401 when no session', async () => {

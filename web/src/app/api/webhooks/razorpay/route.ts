@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { validateWebhookSignature, TOPUP_QTYS } from '@/lib/razorpay';
+import { validateWebhookSignature, TOPUP_QTYS, PLAN_IDS } from '@/lib/razorpay';
 import { merchants, merchantOwners, razorpayEvents } from '@shoppingmate/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { generateMerchantId } from '../../../../lib/merchant-id';
+import { planFromSubscription } from '../../../../lib/plan-from-subscription';
 
 export const runtime = 'nodejs';
 
@@ -44,10 +45,29 @@ export async function POST(req: Request) {
       const sub = event.payload.subscription?.entity as {
         id: string;
         customer_id: string;
-        notes?: { user_id?: string };
+        plan_id?: string;
+        notes?: { user_id?: string; plan?: string };
       };
       const userId = sub?.notes?.user_id;
       if (!userId) break;
+      const plan = planFromSubscription(sub, PLAN_IDS ?? {});
+      // An owner who already has a store (re-subscribing after a cancel, or
+      // switching plan) keeps THAT store. Previously every activation minted a
+      // brand-new merchant, splitting their data across two stores.
+      const owned = await db.query.merchantOwners.findFirst({ where: eq(merchantOwners.userId, userId) });
+      if (owned) {
+        resolvedMerchantId = owned.merchantId;
+        await db
+          .update(merchants)
+          .set({
+            plan,
+            billingStatus: 'active',
+            razorpayCustomerId: sub.customer_id,
+            razorpaySubscriptionId: sub.id,
+          })
+          .where(eq(merchants.id, owned.merchantId));
+        break;
+      }
       const merchantId = generateMerchantId();
       resolvedMerchantId = merchantId;
       await db
@@ -56,7 +76,7 @@ export async function POST(req: Request) {
           id: merchantId,
           domain: `${merchantId.toLowerCase()}.pending`,
           status: 'pending',
-          plan: 'starter',
+          plan,
           billingStatus: 'active',
           razorpayCustomerId: sub.customer_id,
           razorpaySubscriptionId: sub.id,
@@ -76,7 +96,12 @@ export async function POST(req: Request) {
       if (topupKey && merchantId) {
         const qty = TOPUP_QTYS[topupKey as keyof typeof TOPUP_QTYS];
         if (qty !== undefined) {
-          await db.update(merchants).set({ topupBalance: qty }).where(eq(merchants.id, merchantId));
+          // ADD to the balance — this used to overwrite it, so a second pack
+          // wiped the first ("top-ups carry over" was false).
+          await db
+            .update(merchants)
+            .set({ topupBalance: sql`${merchants.topupBalance} + ${qty}` })
+            .where(eq(merchants.id, merchantId));
         }
       }
       break;

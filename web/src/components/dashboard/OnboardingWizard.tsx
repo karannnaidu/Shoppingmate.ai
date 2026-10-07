@@ -18,11 +18,28 @@ type Merchant = {
 
 const STEPS = ['Account', 'Plan', 'Your store', 'Go live'];
 
-export function OnboardingWizard({ step, merchant }: { step: number; merchant: Merchant | null }) {
+type PlanKey = 'starter' | 'growth' | 'scale';
+
+// Mirrors lib/plan-credits.ts and the pricing page.
+const PLANS: Record<PlanKey, { name: string; price: number; convos: string; perk: string }> = {
+  starter: { name: 'Starter', price: 30, convos: '100', perk: 'Voice + chat, customer requests, full dashboard' },
+  growth: { name: 'Growth', price: 99, convos: '350', perk: 'Everything in Starter + Store Insights and weekly fixes' },
+  scale: { name: 'Scale', price: 299, convos: '1,000', perk: 'Everything in Growth + shopper journeys and exports' },
+};
+
+export function OnboardingWizard({
+  step,
+  merchant,
+  initialPlan = 'starter',
+}: {
+  step: number;
+  merchant: Merchant | null;
+  initialPlan?: PlanKey;
+}) {
   return (
     <div className="mx-auto max-w-2xl py-4 md:py-8">
       <Progress current={step} />
-      {step === 2 && <PayStep />}
+      {step === 2 && <PayStep initialPlan={initialPlan} />}
       {step === 3 && merchant && <ConnectStep merchantId={merchant.id} status={merchant.status} />}
       {step === 4 && merchant && <InstallStep merchantId={merchant.id} />}
     </div>
@@ -67,13 +84,25 @@ function StepHeader({ title, body }: { title: React.ReactNode; body: string }) {
   );
 }
 
-function PayStep() {
+function PayStep({ initialPlan }: { initialPlan: PlanKey }) {
+  const [plan, setPlan] = useState<PlanKey>(initialPlan);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const p = PLANS[plan];
   async function go() {
     setLoading(true);
-    const res = await fetch('/api/billing/checkout-session', { method: 'POST' });
-    const json = await res.json();
-    if (json.url) window.location.href = json.url;
+    setError(null);
+    const res = await fetch('/api/billing/checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (json.url) {
+      window.location.href = json.url;
+      return;
+    }
+    setError(json.error ?? 'Could not start checkout — please try again.');
     setLoading(false);
   }
   return (
@@ -81,29 +110,48 @@ function PayStep() {
       <StepHeader
         title={
           <>
-            Start your <span className="serif-em">Starter</span> plan
+            Pick your <span className="serif-em">plan</span>
           </>
         }
-        body="$30 a month for 100 shopper conversations — voice or chat. Cancel anytime, and move up a plan whenever you need more."
+        body="Every plan includes the full assistant — voice and chat. Choose by how many shopper conversations you expect a month. Cancel anytime."
       />
       <Card>
         <CardContent className="flex flex-col gap-5 pt-6">
-          <ul className="grid gap-2.5 text-[15px] text-text-secondary">
-            {[
-              '100 conversations a month — top up anytime at $0.30 each',
-              'Works on Shopify, WooCommerce or any website',
-              'Trained on your products, pages and documents',
-              'Customer requests sent straight to your inbox',
-            ].map((t) => (
-              <li key={t} className="flex items-start gap-2.5">
-                <span className="mt-0.5 grid h-4 w-4 flex-none place-items-center rounded-full bg-signal text-[10px] font-bold text-background">✓</span>
-                {t}
-              </li>
-            ))}
-          </ul>
+          <div role="radiogroup" aria-label="Plan" className="grid gap-2.5 sm:grid-cols-3">
+            {(Object.keys(PLANS) as PlanKey[]).map((key) => {
+              const it = PLANS[key];
+              const on = key === plan;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setPlan(key)}
+                  className={cn(
+                    'flex flex-col items-start rounded-xl border p-3.5 text-left transition-colors',
+                    on ? 'border-violet bg-violet/5 ring-2 ring-violet/40' : 'border-border hover:border-border-strong',
+                  )}
+                >
+                  <span className="text-sm font-medium">{it.name}</span>
+                  <span className="mt-1 font-display text-2xl font-semibold tabular-nums">${it.price}</span>
+                  <span className="text-xs text-text-muted">{it.convos} conversations / mo</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="flex items-start gap-2.5 text-[15px] text-text-secondary">
+            <span className="mt-0.5 grid h-4 w-4 flex-none place-items-center rounded-full bg-signal text-[10px] font-bold text-background">✓</span>
+            {p.perk}. Extra conversations $0.30 each, anytime.
+          </p>
           <Button size="lg" onClick={go} disabled={loading}>
-            {loading ? 'Taking you to payment…' : 'Start Starter plan — $30/mo'}
+            {loading ? 'Taking you to payment…' : `Start ${p.name} plan — $${p.price}/mo`}
           </Button>
+          {error && (
+            <p className="text-sm text-rose-500" role="alert">
+              {error}
+            </p>
+          )}
           <p className="text-center text-xs text-text-muted">Secure payment by Razorpay. We never see your card details.</p>
         </CardContent>
       </Card>
