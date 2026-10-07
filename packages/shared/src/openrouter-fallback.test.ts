@@ -94,6 +94,17 @@ describe('LLM fallback', () => {
     await expect(chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })).rejects.toThrow(/openrouter http 402/);
   });
 
+  it('strips a BOM / whitespace from keys (Windows paste) so headers stay valid', async () => {
+    process.env.OPENROUTER_API_KEY = '﻿or-key ';
+    let auth = '';
+    vi.stubGlobal('fetch', vi.fn(async (_u: string, init: { headers: Record<string, string> }) => {
+      auth = init.headers.authorization;
+      return ok({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] });
+    }));
+    await chat({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+    expect(auth).toBe('Bearer or-key');
+  });
+
   it('classifies fallback-worthy failures', () => {
     expect([402, 429, 500, 503, null].every((s) => shouldFallback(s))).toBe(true);
     expect([400, 401, 404].some((s) => shouldFallback(s))).toBe(false);

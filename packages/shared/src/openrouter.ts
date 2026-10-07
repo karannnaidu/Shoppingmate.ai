@@ -27,6 +27,14 @@ function withoutExtraContent(messages: unknown[]): unknown[] {
   });
 }
 
+/** API keys from env, minus a stray BOM / whitespace (a key pasted through a
+ *  Windows shell got a U+FEFF prefix and every request threw "Cannot convert
+ *  argument to a ByteString"). */
+export function cleanKey(v: string | undefined): string | undefined {
+  const k = v?.replace(/^﻿/, '').trim();
+  return k ? k : undefined;
+}
+
 /** Should this OpenRouter failure be retried on the fallback provider? */
 export function shouldFallback(status: number | null): boolean {
   return status === null || status === 402 || status === 429 || status >= 500;
@@ -50,7 +58,7 @@ async function completion(
   body: Record<string, unknown>,
   opts: { title: string; signal: AbortSignal },
 ): Promise<{ json: unknown; provider: 'openrouter' | 'gemini' }> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = cleanKey(process.env.OPENROUTER_API_KEY);
   let status: number | null = null;
   let detail = '';
   if (apiKey) {
@@ -75,7 +83,7 @@ async function completion(
       detail = (err as Error).message;
     }
   }
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const geminiKey = cleanKey(process.env.GEMINI_API_KEY);
   if (!geminiKey || !shouldFallback(status)) {
     if (!apiKey) throw new Error('OPENROUTER_API_KEY missing');
     throw new Error(`openrouter http ${status ?? 'network'}: ${detail.slice(0, 200)}`);
@@ -114,7 +122,7 @@ export async function chat(opts: {
    *  even for a tiny reply. Set a small bound for short structured replies. */
   maxTokens?: number;
 }): Promise<ChatResult> {
-  if (!process.env.OPENROUTER_API_KEY && !process.env.GEMINI_API_KEY) throw new Error('OPENROUTER_API_KEY missing');
+  if (!cleanKey(process.env.OPENROUTER_API_KEY) && !cleanKey(process.env.GEMINI_API_KEY)) throw new Error('OPENROUTER_API_KEY missing');
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
@@ -198,7 +206,7 @@ export async function chatTools(opts: {
    *  plus tool calls fits comfortably under this. */
   maxTokens?: number;
 }): Promise<ChatToolsResult> {
-  if (!process.env.OPENROUTER_API_KEY && !process.env.GEMINI_API_KEY) throw new Error('OPENROUTER_API_KEY missing');
+  if (!cleanKey(process.env.OPENROUTER_API_KEY) && !cleanKey(process.env.GEMINI_API_KEY)) throw new Error('OPENROUTER_API_KEY missing');
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
