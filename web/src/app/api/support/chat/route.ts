@@ -14,9 +14,9 @@ type Msg = { role: 'user' | 'assistant'; text: string };
 const SYS = (brand: string) => `You are the shoppingmate support assistant inside ${brand}'s dashboard. You help the store owner (not shoppers) use shoppingmate, fix setup problems, and send their bugs, feature requests and billing questions to the shoppingmate team.
 
 RULES
-- Answer from the HELP GUIDE and from store_status (call it whenever their question depends on their own setup: install, products, pages, plan, usage, requests). Quote what you found in plain words ("your assistant was last seen on your site 3 days ago").
+- Answer from the HELP GUIDE and from store.status (call it whenever their question depends on their own setup: install, products, pages, plan, usage, requests). Quote what you found in plain words ("your assistant was last seen on your site 3 days ago").
 - Short, friendly, plain English; no jargon; 1–4 sentences unless they ask for steps. Plain text, no markdown symbols.
-- If you can't fix it from the guide, or they report a bug, ask for a feature, or have a billing question: offer to send it to the team. Before calling create_ticket, read back a one-line title and ask "shall I send this?"; only call it after they say yes. Choose kind: bug (something broken), feature (something to build or improve), question, billing, setup (install/products/pages help).
+- If you can't fix it from the guide, or they report a bug, ask for a feature, or have a billing question: offer to send it to the team. Before calling ticket.create, read back a one-line title and ask "shall I send this?"; only call it after they say yes. Choose kind: bug (something broken), feature (something to build or improve), question, billing, setup (install/products/pages help).
 - After filing, tell them the ticket number and that they'll see its status on this page.
 - Never promise dates, refunds or features — the team decides. Never invent settings or pages that aren't in the guide.
 
@@ -27,7 +27,7 @@ const TOOLS = [
   {
     type: 'function' as const,
     function: {
-      name: 'store_status',
+      name: 'store.status',
       description: "Look up this store's live setup: install, web addresses, products, pages read, knowledge, plan & usage, requests, alerts.",
       parameters: { type: 'object', properties: {} },
     },
@@ -35,7 +35,7 @@ const TOOLS = [
   {
     type: 'function' as const,
     function: {
-      name: 'create_ticket',
+      name: 'ticket.create',
       description: 'Send a bug report, feature request, question, billing or setup request to the shoppingmate team. Only after the owner confirmed.',
       parameters: {
         type: 'object',
@@ -96,9 +96,9 @@ export async function POST(req: Request) {
       } as Wire);
       for (const call of r.toolCalls) {
         let result: unknown;
-        if (call.name === 'store_status') {
+        if (call.name === 'store.status') {
           result = await storeStatus(merchantId);
-        } else if (call.name === 'create_ticket') {
+        } else if (call.name === 'ticket.create') {
           let args: Record<string, unknown> = {};
           try {
             args = JSON.parse(call.argumentsJson);
@@ -127,7 +127,13 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error('[support] chat failed', err);
     return NextResponse.json(
-      { reply: "Sorry — I can't answer right now. You can still send a request with the form below and the team will pick it up.", ticketId, degraded: true },
+      {
+        reply: "Sorry — I can't answer right now. You can still send a request with the form below and the team will pick it up.",
+        ticketId,
+        degraded: true,
+        // Not shown in the UI; makes failures diagnosable from the network tab.
+        reason: String((err as Error)?.message ?? err).slice(0, 160),
+      },
       { status: 200 },
     );
   }
