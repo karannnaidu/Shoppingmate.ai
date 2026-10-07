@@ -260,7 +260,7 @@ function InstallStep({ merchantId }: { merchantId: string }) {
             Paste one line. <span className="serif-em">You&apos;re live.</span>
           </>
         }
-        body="Copy this line into your site's header (on Shopify: Online Store → Themes → Edit code → theme.liquid, just before </head>). Or send it to whoever manages your site."
+        body="Copy this line into your site's header. Shopify: Online Store → Themes → Edit code → theme.liquid, just before </head>. WordPress: a header-scripts plugin (e.g. WPCode) → Header. Wix: Settings → Custom code → Head, all pages. Squarespace: Settings → Advanced → Code injection → Header. Or send it to whoever manages your site."
       />
       <Card>
         <CardContent className="flex flex-col gap-4 pt-6">
