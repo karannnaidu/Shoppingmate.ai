@@ -14,6 +14,7 @@ const SessionBody = z.object({
 });
 
 const SESSION_TTL_SECONDS = 24 * 60 * 60;
+const PING_EVERY_MS = 10 * 60 * 1000;
 
 function newSessionId(): string {
   const rand = Math.random().toString(36).slice(2, 12);
@@ -61,6 +62,18 @@ sessionRoute.post('/', async (c) => {
   if (!merchant.allowedDomains.includes(body.domain)) {
     log.warn({ merchantId: body.merchantId, domain: body.domain }, 'session rejected_domain');
     return c.json({ error: 'domain_not_allowed', message: 'domain not in allowlist' }, 403);
+  }
+
+  // The widget opens a session on every page load, so this is our "seen live
+  // on the brand's site" heartbeat. Before, last_widget_ping was only set by
+  // the manual "Check my site" button, so working installs looked broken in
+  // the dashboard and the support assistant. Throttled; never blocks.
+  if (!merchant.lastWidgetPing || Date.now() - merchant.lastWidgetPing.getTime() > PING_EVERY_MS) {
+    void db
+      .update(schema.merchants)
+      .set({ lastWidgetPing: new Date() })
+      .where(eq(schema.merchants.id, merchant.id))
+      .catch((err) => log.warn({ err: (err as Error).message, merchantId: merchant.id }, 'widget ping update failed'));
   }
 
   const sessionId = newSessionId();

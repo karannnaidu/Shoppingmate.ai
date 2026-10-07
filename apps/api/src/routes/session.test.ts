@@ -2,16 +2,26 @@ import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 import { sessionRoute } from './session.js';
 
+const pings = vi.hoisted(() => [] as Array<{ id: string; set: Record<string, unknown> }>);
+
 vi.mock('@shoppingmate/db', async () => {
   const merchants = [
     {
       id: 'SM-TST001',
       allowedDomains: ['merchant.example.com'],
       status: 'live',
+      lastWidgetPing: null,
     },
   ];
   return {
     db: {
+      update: () => ({
+        set: (set: Record<string, unknown>) => ({
+          where: async (predicate: { merchantId: string }) => {
+            pings.push({ id: predicate.merchantId, set });
+          },
+        }),
+      }),
       select: () => ({
         from: () => ({
           where: (predicate: { merchantId: string }) => ({
@@ -51,6 +61,9 @@ describe('POST /v1/session', () => {
     expect(body.wsToken).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
     expect(body.wsUrl).toContain('/v1/widget/');
     expect(body.wsUrl).toContain('token=');
+    // Heartbeat: a live session marks the install as seen on the brand's site.
+    expect(pings.at(-1)).toMatchObject({ id: 'SM-TST001' });
+    expect(pings.at(-1)?.set.lastWidgetPing).toBeInstanceOf(Date);
   });
 
   it('rejects when origin does not match domain', async () => {
