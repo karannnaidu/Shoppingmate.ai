@@ -39,7 +39,7 @@ describe('buildJourneys (Scale: shopper journeys)', () => {
 describe('insightsCsv (Scale: export)', () => {
   it('produces a CSV with every section and escapes commas/quotes', () => {
     const f = {
-      merchantId: 'm', currency: 'INR', aov: 150000, aovSource: 'catalog', days: 7, sessions: 357, sessionsPrev: 0,
+      merchantId: 'm', currency: 'INR', aov: 150000, aovSource: 'catalog', days: 7, from: '2026-10-01', to: '2026-10-07', trackingSince: '2026-09-01', sessions: 357, sessionsPrev: 0,
       steps: { visit: 357, product: 102 } as InsightFacts['steps'], conversionRate: 0.014, conversionRatePrev: 0,
       leaks: [{ from: 'product', to: 'cart', reached: 102, continued: 10, lost: 92, valueAtRisk: 15547100 }],
       byDevice: [{ device: 'mobile', sessions: 300, purchases: 4 }], bySource: [{ source: 'google', sessions: 200, purchases: 3 }],

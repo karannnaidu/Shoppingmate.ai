@@ -31,7 +31,7 @@ describe('owner language (PRD 8.13a)', () => {
       abandonedFields: [{ pageType: 'checkout', field: 'pincode', count: 5 }],
     } as unknown as InsightFacts;
     const cards = deterministicFixes(facts);
-    expect(cards[0]?.impact).toBe('about ₹48,000 a week');
+    expect(cards[0]?.impact).toBe('about ₹48,000 a week if 1 in 10 of them carry on');
     for (const c of cards) for (const t of [c.title, c.impact, c.proof, c.action]) expect(jargon(t), t).toEqual([]);
   });
 

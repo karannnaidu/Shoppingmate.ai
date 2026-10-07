@@ -28,7 +28,10 @@ export function deterministicFixes(f: InsightFacts): FixCard[] {
     out.push({
       id: `leak-${leak.from}-${leak.to}`,
       title: `${leak.lost} of ${leak.reached} people stopped between “${STEP_LABEL[leak.from]}” and “${STEP_LABEL[leak.to]}”`,
-      impact: leak.valueAtRisk > 0 ? `about ${money(leak.valueAtRisk, f.currency)} a week` : `${leak.lost} shoppers a week`,
+      impact:
+        leak.valueAtRisk > 0
+          ? `about ${money(leak.valueAtRisk, f.currency)} a week if 1 in 10 of them carry on`
+          : `${leak.lost} shoppers a week`,
       impactValue: leak.valueAtRisk,
       proof: `${leak.continued} of ${leak.reached} moved on to the next step this week.`,
       action: ACTION_FOR_LEAK[`${leak.from}→${leak.to}`] ?? 'Look at this step on your phone and remove whatever slows a shopper down.',

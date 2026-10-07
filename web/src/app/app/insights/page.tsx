@@ -29,9 +29,16 @@ import { FixButton } from './fix-button';
 
 const MIN_VISITS = 20;
 
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <section className={`card-v2 p-5 md:p-6 ${className}`}>{children}</section>;
+function Card({ children, className = '', id }: { children: React.ReactNode; className?: string; id?: string }) {
+  return (
+    <section id={id} className={`card-v2 scroll-mt-6 p-5 md:p-6 ${className}`}>
+      {children}
+    </section>
+  );
 }
+
+// "1 Oct" from a YYYY-MM-DD (UTC) day.
+const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
 function Locked() {
   return (
@@ -99,6 +106,11 @@ export default async function InsightsPage({
   const pageTypes = [...new Set(['home', 'pdp', 'plp', ...f.pages.map((p) => p.pageType)])].filter((t) => t !== 'other');
   const qs = (o: Record<string, string>) => `?${new URLSearchParams({ ...(qa ? { qa: '1' } : {}), page: pageType, device, ...o }).toString()}`;
   const steps = ['visit', 'product', 'add_to_cart', 'checkout', 'purchase'] as const;
+  // Owners asked "from when to when?" — say the window, and when it's shorter
+  // because we only started measuring partway through.
+  const measuringFrom = f.trackingSince && f.trackingSince > f.from ? f.trackingSince : f.from;
+  const windowLabel = `${day(measuringFrom)} – ${day(f.to)}`;
+  const partial = measuringFrom !== f.from;
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,10 +120,11 @@ export default async function InsightsPage({
 
       {/* 1. Answer first */}
       <div>
-        <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">This week</p>
+        <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">This week · {windowLabel}</p>
         <h1 className="font-display text-[1.75rem] font-semibold tracking-[-0.03em] text-text-primary md:text-[2rem]">Store Insights</h1>
         <p className="mt-2 max-w-3xl text-lg leading-snug text-text-primary">{summary}</p>
         <p className="mt-1 text-sm text-text-secondary">
+          {`All numbers on this page cover ${windowLabel}${partial ? ` (we started measuring your store on ${day(measuringFrom)})` : ''} · `}
           {enough ? `Based on ${f.sessions} visits · ` : 'Too early to be sure — check back in a few days · '}
           <span className={trend.tone === 'bad' ? 'text-rose-500' : trend.tone === 'good' ? 'text-signal' : ''}>
             {f.sessionsPrev > 0 ? `Visits ${trend.text}` : "Next week we can compare with this one"}
@@ -121,10 +134,11 @@ export default async function InsightsPage({
 
       {atRisk > 0 && (
         <Card className="border-amber-500/40">
-          <p className="text-sm text-text-secondary">Left on the table this week</p>
+          <p className="text-sm text-text-secondary">What fixing these could add each week</p>
           <p className="font-display text-3xl font-semibold tabular-nums text-amber-500">{money(atRisk, f.currency)}</p>
           <p className="mt-1 text-sm text-text-secondary">
-            Shoppers who were on their way to buying and stopped. {f.aovSource === 'catalog' ? 'Valued at your typical product price.' : ''}
+            If 1 in 10 of the shoppers who stopped carried on and bought like the ones who did.{' '}
+            {f.aovSource === 'catalog' ? 'Valued at your typical product price.' : 'Valued at your average order.'}
           </p>
         </Card>
       )}
@@ -171,7 +185,9 @@ export default async function InsightsPage({
                     )}
                     {x.status === 'done' && <span className="text-sm text-signal">Done — we’ll show next week whether it worked.</span>}
                     {x.pageType && (
-                      <Link href={qs({ page: x.pageType })} className="text-sm text-violet hover:underline">
+                      // Was a plain ?page= link that left the owner at the top of
+                      // the page, so it looked like it did nothing — jump to the view.
+                      <Link href={`${qs({ page: x.pageType })}#your-pages`} className="text-sm text-violet hover:underline">
                         Show me on the page
                       </Link>
                     )}
@@ -216,7 +232,7 @@ export default async function InsightsPage({
       </Card>
 
       {/* 4. Your pages */}
-      <Card>
+      <Card id="your-pages">
         <h2 className="font-display text-lg font-semibold text-text-primary">Your pages</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           {pageTypes.map((t) => (
@@ -308,6 +324,7 @@ export default async function InsightsPage({
       {/* 5. Products */}
       <Card>
         <h2 className="font-display text-lg font-semibold text-text-primary">Your products</h2>
+        <p className="mt-0.5 text-xs text-text-muted">{windowLabel} · each product page counted once</p>
         {f.products.length === 0 ? (
           <p className="mt-2 text-sm text-text-secondary">Fills in as people look at products.</p>
         ) : (

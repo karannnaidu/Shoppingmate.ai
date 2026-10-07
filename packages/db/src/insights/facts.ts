@@ -39,6 +39,12 @@ export type InsightFacts = {
   aov: number;
   aovSource: 'orders' | 'catalog' | 'none';
   days: number;
+  /** Window shown to the owner: first and last day included (YYYY-MM-DD, UTC). */
+  from: string;
+  to: string;
+  /** First day we have any data for this store — later than `from` while
+   *  tracking is newer than the window (so "this week" is really fewer days). */
+  trackingSince: string | null;
   sessions: number;
   sessionsPrev: number; // average for the same length over the 4 prior periods
   steps: Record<FunnelStep, number>;
@@ -83,6 +89,16 @@ const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 type CounterRow = { metric: string; dimKey: string; count: number; total: number };
+
+/** Share of the people who stopped at a step that a fix could realistically win back. */
+export const RECOVERY_SHARE = 0.1;
+
+/** One key per product page: "/shop/green-mantra/", "/Shop/Green-Mantra?ref=x"
+ *  and "/shop/green-mantra" are the same product (Calmosis showed each twice). */
+export function productPathKey(path: string): string {
+  const p = path.split(/[?#]/)[0]!.toLowerCase().replace(/\/+$/, '');
+  return p === '' ? '/' : p;
+}
 
 async function counters(
   db: Db,
@@ -242,7 +258,11 @@ export async function buildInsightFacts(
       reached,
       continued,
       lost,
-      valueAtRisk: Math.round(lost * downstream * aov),
+      // Realistic, not best-case: what 1 in 10 of the people who stopped would
+      // be worth if they carried on and bought like those who did. The old
+      // best case (everyone carries on) showed Calmosis ₹2.6 lakh/week "left on
+      // the table" against ~6 real orders — not credible to an owner.
+      valueAtRisk: Math.round(lost * RECOVERY_SHARE * downstream * aov),
     });
   }
   leaks.sort((x, y) => y.valueAtRisk - x.valueAtRisk || y.lost - x.lost);
@@ -303,7 +323,7 @@ export async function buildInsightFacts(
   const productsMap = new Map<string, { views: number; atc: number }>();
   for (const r of byMetric(cur, 'product')) {
     const idx = r.dimKey.lastIndexOf('|');
-    const path = r.dimKey.slice(0, idx);
+    const path = productPathKey(r.dimKey.slice(0, idx));
     const kind = r.dimKey.slice(idx + 1);
     const v = productsMap.get(path) ?? { views: 0, atc: 0 };
     if (kind === 'view') v.views += r.count;
@@ -345,6 +365,10 @@ export async function buildInsightFacts(
     .select({ type: supportCases.type, summary: supportCases.summary })
     .from(supportCases)
     .where(and(eq(supportCases.merchantId, merchantId), gte(supportCases.createdAt, from)));
+  const [first] = await db
+    .select({ day: sql<string | null>`min(${insightCounters.day})` })
+    .from(insightCounters)
+    .where(and(eq(insightCounters.merchantId, merchantId), inArray(insightCounters.metric, [M('funnel'), M('pv')])));
   const caseCounts = new Map<string, number>();
   for (const r of caseRows) caseCounts.set(r.type, (caseCounts.get(r.type) ?? 0) + 1);
 
@@ -354,6 +378,9 @@ export async function buildInsightFacts(
     aov: Math.round(aov),
     aovSource,
     days,
+    from: iso(from),
+    to: iso(new Date(to.getTime() - DAY)),
+    trackingSince: first?.day ? String(first.day).slice(0, 10) : null,
     sessions: steps.visit,
     sessionsPrev: Math.round(prevSteps.visit / 4),
     steps,

@@ -122,7 +122,7 @@ function digestHtml(
   return `<div style="font-family:system-ui,sans-serif;max-width:560px">
 <h2 style="margin:0 0 4px">${brand} — your week</h2>
 <p style="font-size:16px">${summary}</p>
-${atRisk ? `<p style="color:#b45309"><strong>${atRisk}</strong> was left on the table this week.</p>` : ''}
+${atRisk ? `<p style="color:#b45309">Fixing these could add about <strong>${atRisk}</strong> a week (if 1 in 10 of the shoppers who stopped carried on).</p>` : ''}
 ${cards}
 <p><a href="${DASHBOARD_URL}/app/insights" style="background:#111;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">See all fixes</a></p>
 </div>`;
