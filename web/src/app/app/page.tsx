@@ -129,6 +129,15 @@ export default async function HomePage() {
       href: '/app/settings',
       cta: 'Refresh',
     });
+  if (merchantRow?.lastError?.startsWith('site_blocks_reader'))
+    needs.push({
+      icon: Wifi,
+      tone: 'amber',
+      title: "Your website is blocking our page reader",
+      body: 'Your assistant works, but can’t learn your pages. Ask your host (or Cloudflare → Security → Bots) to allow “ShoppingmateBot”, or upload your FAQs and price lists in Knowledge.',
+      href: '/app/knowledge',
+      cta: 'Upload',
+    });
   const ping = m.lastWidgetPing ? new Date(m.lastWidgetPing) : null;
   if (!ping || Date.now() - ping.getTime() > 2 * 86400_000)
     needs.push({

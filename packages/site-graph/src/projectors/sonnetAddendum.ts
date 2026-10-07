@@ -69,7 +69,16 @@ function renderSiteMap(graph: SiteGraph, limit?: number): string {
   const pages = limit ? graph.pages.slice(0, limit) : graph.pages;
   for (const p of pages) {
     const label = p.title || p.h1 || p.url;
-    lines.push(`  ${p.url.padEnd(28).slice(0, 28)} ${p.pageType} — ${label}`);
+    // The full PATH (not a URL cut at 28 chars — "https://wildone.com/pages/sm"
+    // was useless for site.navigate on stores with absolute URLs).
+    let path = p.url;
+    try {
+      const u = new URL(p.url);
+      path = u.pathname + u.search;
+    } catch {
+      /* already a path */
+    }
+    lines.push(`  ${path} — ${p.pageType}${label && label !== p.url ? ` — ${label}` : ''}`);
   }
   if (limit && graph.pages.length > limit) {
     lines.push(`  ... ${graph.pages.length - limit} more pages`);

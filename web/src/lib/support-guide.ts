@@ -18,6 +18,9 @@ PRODUCTS / "IT DOESN'T KNOW MY PRODUCTS OR PRICES"
 - Products are read automatically from the store (Shopify and WooCommerce catalogs; other sites from their product pages). The chip on Home shows how many products are loaded.
 - If prices/stock look out of date, ask the support assistant to file a "setup" request; the team can re-sync.
 
+"YOUR WEBSITE IS BLOCKING OUR PAGE READER" (setupProblem starts with site_blocks_reader)
+- The site's bot protection (often Cloudflare) refused our reader. The assistant still works on the site, but can't learn its pages. Fix: in Cloudflare → Security → Bots (or your host's firewall), allow the user agent "ShoppingmateBot", then press "Re-read my pages" on Your website. Or upload FAQs, menus and price lists in Knowledge.
+
 PAGES, POLICIES AND FAQ
 - "Your website" shows the pages the assistant has read (shipping, returns, FAQ, contact, menu, services…). Press "Re-read my pages" after changing the site.
 - For anything not on the site (detailed FAQs, size guides, ingredient sheets, menus, price lists), upload documents in Knowledge (PDF, Word, Markdown or text, up to 4 MB). The assistant uses them within minutes.

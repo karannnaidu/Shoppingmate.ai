@@ -4,6 +4,10 @@ import { eq } from 'drizzle-orm';
 import { uploadObject as defaultUpload, siteGraphKey } from '../r2-upload.js';
 import { fetchSitemap, priorityPages, sameSiteLinks } from '../steps/siteGraph/sitemap.js';
 
+// Identify ourselves honestly (same as onboarding). Requests with no UA at all
+// are blocked by many hosts — Shake Shack's crawl returned 0 pages.
+const CRAWLER_UA = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.ai/bot)';
+
 export type CrawlSiteArgs = {
   merchantId: string;
   db?: typeof defaultDb;
@@ -46,13 +50,15 @@ export async function runCrawlSite(args: CrawlSiteArgs): Promise<CrawlSiteResult
     pageCount: 0,
   });
 
+  const uaFetch = ((u: string, init?: RequestInit) =>
+    fetchFn(u, { ...init, headers: { 'user-agent': CRAWLER_UA, ...(init?.headers ?? {}) } })) as typeof fetch;
   try {
-    let urls = await fetchSitemap(rootUrl, fetchFn);
+    let urls = await fetchSitemap(rootUrl, uaFetch);
     // No sitemap (common for small service businesses): follow the home
     // page's own links instead, so menu / services / contact are still read.
     if (urls.length === 0) {
       try {
-        const home = await fetchFn(rootUrl);
+        const home = await uaFetch(rootUrl);
         if (home.ok) urls = sameSiteLinks(await home.text(), rootUrl);
       } catch {
         /* keep the priority seeds only */
@@ -68,9 +74,17 @@ export async function runCrawlSite(args: CrawlSiteArgs): Promise<CrawlSiteResult
 
     let pageCount = 0;
     for (const url of toFetch) {
-      const res = await fetchFn(url);
-      if (!res.ok) continue;
-      const body = Buffer.from(await res.arrayBuffer());
+      // One unreachable page (DNS hiccup, reset) must not fail the whole
+      // crawl — it did for a 1,000-product beauty store.
+      let res: Response;
+      let body: Buffer;
+      try {
+        res = await fetchFn(url, { headers: { 'user-agent': CRAWLER_UA, accept: 'text/html,*/*' } });
+        if (!res.ok) continue;
+        body = Buffer.from(await res.arrayBuffer());
+      } catch {
+        continue;
+      }
       const urlHash = createHash('sha256').update(url).digest('hex').slice(0, 16);
       const contentType = res.headers.get('content-type') ?? 'text/html';
       const storageKey = siteGraphKey(args.merchantId, crawlId, `pages/${urlHash}.html`);

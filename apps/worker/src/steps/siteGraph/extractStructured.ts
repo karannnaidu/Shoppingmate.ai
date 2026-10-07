@@ -59,6 +59,42 @@ export function classifyByUrl(url: string): PageType | null {
   return null;
 }
 
+/** Readable text of a page: the Shopify policy body when present, else the
+ *  page minus scripts/styles/nav/header/footer, tags stripped, whitespace collapsed. */
+export function visibleText(html: string): string {
+  const body = /class="[^"]*shopify-policy__body[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i.exec(html)?.[1] ?? html;
+  return body
+    .replace(/<(script|style|noscript|svg|nav|header|footer)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<br\s*\/?>|<\/(p|li|h[1-6]|div)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;|&rsquo;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*\n\s*/g, '\n')
+    .trim();
+}
+
+/** Deterministic policy from a policy URL + its HTML (no LLM). */
+export function policyFromHtml(url: string, html: string): ExtractedPolicy {
+  const path = url.toLowerCase();
+  const policyType = /refund|return|exchange|cancel/.test(path)
+    ? 'returns'
+    : /shipping|delivery/.test(path)
+      ? 'shipping'
+      : /privacy/.test(path)
+        ? 'privacy'
+        : /terms|conditions|legal/.test(path)
+          ? 'terms'
+          : null;
+  if (!policyType) return null;
+  const text = visibleText(html);
+  if (text.length < 80) return null;
+  const summary = text.replace(/\n+/g, ' ').slice(0, 700).replace(/\s\S*$/, '') + (text.length > 700 ? '…' : '');
+  return { policyType, summary, fullText: text.slice(0, 20_000) };
+}
+
 export async function extractStructured(args: ExtractArgs): Promise<ExtractedPage> {
   const jsonLd = harvestJsonLd(args.html, args.url);
   const isPdp = jsonLd.product !== null || looksLikePdpUrl(args.url);
@@ -83,7 +119,9 @@ export async function extractStructured(args: ExtractArgs): Promise<ExtractedPag
     intents: Array.isArray(llm.intents) ? llm.intents : [],
     navLinks: Array.isArray(llm.navLinks) ? llm.navLinks : [],
     faq: mergedFaqs,
-    policy: llm.policy ?? null,
+    // Policies answer "returns? shipping?" — never lose them to an LLM hiccup
+    // (2026-10-07: the LLM outage left every store with zero policies).
+    policy: llm.policy ?? (urlType === 'policy' ? policyFromHtml(args.url, args.html) : null),
     media: Array.isArray(llm.media) ? llm.media : [],
     product: jsonLd.product,
   };

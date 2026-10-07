@@ -121,6 +121,25 @@ export async function onboardingHandler(
     fp = await fingerprint(domain);
   } catch (err) {
     await emitMetric(merchantId, schema.metricNames.onboardingFingerprintFetchFailed);
+    // The site's bot protection refused our reader (Cloudflare etc.). The
+    // assistant itself runs in shoppers' browsers and still works, so go live
+    // and tell the owner how to let us read their pages — instead of marking
+    // the whole store failed (segment audit: a dental clinic chain).
+    const blocked = /\b(401|403|429|503)\b/.exec((err as Error).message);
+    if (blocked) {
+      await db
+        .update(schema.merchants)
+        .set({
+          platform: 'custom',
+          adapterType: 'dom',
+          adapterConfig: { catalog: 'none', transactionalDisabled: true },
+          status: 'live',
+          lastError: `site_blocks_reader: ${blocked[1]}`,
+        })
+        .where(eq(schema.merchants.id, merchantId));
+      log.warn({ merchantId, domain, status: blocked[1] }, 'onboarding: site blocks our reader — live without page reading');
+      return;
+    }
     if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
       await fail(merchantId, 'fingerprint', err as Error);
     }

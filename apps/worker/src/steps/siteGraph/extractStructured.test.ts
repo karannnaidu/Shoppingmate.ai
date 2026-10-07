@@ -1,5 +1,33 @@
 import { describe, expect, it, vi } from 'vitest';
-import { extractStructured, classifyByUrl } from './extractStructured.js';
+import { extractStructured, classifyByUrl, policyFromHtml } from './extractStructured.js';
+
+// Segment audit 2026-10-07: during the LLM outage every store ended up with
+// zero policies even though /policies/* pages were crawled.
+describe('policy fallback without the LLM', () => {
+  const html = `<html><head><script>var x=1</script></head><body><header>Menu</header>
+    <div class="shopify-policy__container"><div class="shopify-policy__body"><div class="rte">
+    <p>We accept returns of unworn shoes within 30 days of delivery.</p><p>Refunds go back to the original payment method within 5&ndash;7 business days. Final-sale items can't be returned.</p>
+    </div></div></div><footer>© store</footer></body></html>`;
+
+  it('builds a returns policy from the page text', () => {
+    const p = policyFromHtml('https://allbirds.com/policies/refund-policy', html);
+    expect(p?.policyType).toBe('returns');
+    expect(p?.summary).toMatch(/within 30 days/);
+    expect(p?.summary).not.toMatch(/var x|Menu|© store/);
+  });
+
+  it('is used when the LLM call fails', async () => {
+    const r = await extractStructured({
+      url: 'https://allbirds.com/policies/refund-policy',
+      html,
+      llmCall: async () => {
+        throw new Error('openrouter http 402');
+      },
+    } as Parameters<typeof extractStructured>[0]);
+    expect(r.pageType).toBe('policy');
+    expect(r.policy?.policyType).toBe('returns');
+  });
+});
 
 describe('classifyByUrl', () => {
   it('types the root as home', () => {
