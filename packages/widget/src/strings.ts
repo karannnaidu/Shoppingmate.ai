@@ -20,6 +20,7 @@ export const STRINGS = {
   endCallAria: 'End call',
   closeAria: 'Close',
   openAria: 'Open shoppingmate',
+  chatAria: 'Chat instead',
   callFailedTitle: 'Could not start the call. Please try again.',
   callHelpHeading: 'How can I help you?',
   callBullets: [

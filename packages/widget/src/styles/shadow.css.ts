@@ -277,6 +277,9 @@ export const SHADOW_CSS = `
 .tray-btn.end:hover { background: #dc2626; }
 .tray-btn :where(svg) { width: 14px; height: 14px; }
 .tray-btn.hidden { display: none; }
+/* Chat shortcut beside Call — deliberately smaller so Call stays the hero. */
+.tray-btn.tray-chat { width: 28px; height: 28px; }
+.tray-btn.tray-chat :where(svg) { width: 13px; height: 13px; }
 
 /* Green Call / Accept button — the ONLY control that starts a call. */
 .tray-call {

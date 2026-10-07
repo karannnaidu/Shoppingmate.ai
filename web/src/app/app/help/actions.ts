@@ -5,7 +5,8 @@ import { eq } from 'drizzle-orm';
 import { brandTickets, ticketStatuses, type TicketStatus } from '@shoppingmate/db/schema';
 import { db } from '@/lib/db';
 import { getDashboardSession } from '@/lib/session';
-import { createTicket, isOpsAdmin, validateTicket } from '@/lib/support-tools';
+import { createTicket, validateTicket } from '@/lib/support-tools';
+import { getAdminSession } from '@/lib/admin-auth';
 
 /** Manual request form (works even if the assistant is unavailable). */
 export async function submitTicket(form: FormData): Promise<void> {
@@ -23,8 +24,8 @@ export async function submitTicket(form: FormData): Promise<void> {
 
 /** Our team: change status / leave a note the brand sees. */
 export async function updateTicket(form: FormData): Promise<void> {
-  const session = await getDashboardSession({ headers: await headers() });
-  if (!isOpsAdmin(session?.user.email)) return;
+  // Team-only: requires the separate /admin login, not a brand session.
+  if (!(await getAdminSession())) return;
   const id = Number(form.get('id'));
   const status = String(form.get('status')) as TicketStatus;
   if (!Number.isFinite(id) || !(ticketStatuses as readonly string[]).includes(status)) return;

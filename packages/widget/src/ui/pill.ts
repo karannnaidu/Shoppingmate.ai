@@ -81,6 +81,9 @@ function chromeFor(props: TrayProps, phase: CallPhase): PhaseChrome {
     </button>`;
   const chatBtn = `
     <button class="tray-btn ghost" data-action="chat" aria-label="${STRINGS.openAria}">${ICON_MESSAGE}</button>`;
+  // Small "type instead" shortcut that sits next to Call on the resting pill.
+  const chatMini = `
+    <button class="tray-btn tray-chat" data-action="chat" aria-label="${STRINGS.chatAria}" title="${STRINGS.chatAria}">${ICON_MESSAGE}</button>`;
   const micBtn = (disabled: boolean) => `
     <button class="tray-btn ${muted ? 'muted' : ''}" data-action="mic" ${disabled ? 'disabled' : ''}
       aria-pressed="${muted}" aria-label="${muted ? STRINGS.micUnmute : STRINGS.micMute}">${muted ? ICON_MIC_OFF : ICON_MIC}</button>`;
@@ -138,7 +141,7 @@ function chromeFor(props: TrayProps, phase: CallPhase): PhaseChrome {
         captionClass: wsOffline ? 'retry' : 'resting',
         presenceClass: presence,
         nameText: label || `${STRINGS.talkToPrefix} ${props.personaName}`,
-        controls: props.callable ? callBtn(STRINGS.callCta, STRINGS.callAria) : chatBtn,
+        controls: props.callable ? `${callBtn(STRINGS.callCta, STRINGS.callAria)}${chatMini}` : chatBtn,
       };
     }
   }

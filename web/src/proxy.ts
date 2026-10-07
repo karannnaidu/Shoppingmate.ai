@@ -29,6 +29,7 @@ export async function proxy(req: NextRequest) {
     isAppHost &&
     !url.pathname.startsWith('/app') &&
     !url.pathname.startsWith('/api') &&
+    !url.pathname.startsWith('/admin') &&
     !url.pathname.startsWith('/login') &&
     !url.pathname.startsWith('/signup') &&
     !url.pathname.startsWith('/verify')

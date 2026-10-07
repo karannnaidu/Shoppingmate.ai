@@ -17,7 +17,6 @@ import {
   Settings,
   Stethoscope,
   Target,
-  Ticket,
   Users,
   X,
 } from 'lucide-react';
@@ -31,7 +30,7 @@ const CALMOSIS_MERCHANT_ID = 'SM-2SCCLZ';
 type Item = { href: string; label: string; icon: LucideIcon; badge?: number };
 type Group = { label?: string; items: Item[] };
 
-function navGroups(merchantId?: string, openRequests = 0, opsAdmin = false, service = false): Group[] {
+function navGroups(merchantId?: string, openRequests = 0, service = false): Group[] {
   const selling: Item[] = [
     { href: '/app/conversations', label: 'Conversations', icon: MessageCircle },
     { href: '/app/cases', label: service ? 'Bookings & requests' : 'Customer requests', icon: Inbox, badge: openRequests },
@@ -68,8 +67,8 @@ function navGroups(merchantId?: string, openRequests = 0, opsAdmin = false, serv
         { href: '/app/help', label: 'Help & requests', icon: LifeBuoy },
       ],
     },
-    // Internal: our team's view of every brand's tickets.
-    ...(opsAdmin ? [{ label: 'shoppingmate team', items: [{ href: '/app/ops/tickets', label: 'Brand tickets', icon: Ticket }] }] : []),
+    // Our team's ticket view lives at /admin (separate login), never in a
+    // brand's dashboard.
   ];
 }
 
@@ -161,7 +160,7 @@ export function Sidebar({
   service?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const groups = navGroups(merchantId, openRequests, opsAdmin, service);
+  const groups = navGroups(merchantId, openRequests, service);
 
   return (
     <>

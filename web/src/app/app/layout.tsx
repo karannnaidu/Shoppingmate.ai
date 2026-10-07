@@ -7,7 +7,6 @@ import { getActiveAlert } from '@/lib/alerts-repo';
 import { caseCounts } from '@/lib/cases-repo';
 import { conversationsSince } from '@/lib/kpi-repo';
 import { planCredits } from '@/lib/plan-credits';
-import { isOpsAdmin } from '@/lib/support-tools';
 import { isServiceBusiness } from '@/lib/business-type';
 import { db } from '@/lib/db';
 import { merchants } from '@shoppingmate/db/schema';
@@ -69,7 +68,6 @@ export default async function AppLayout({
         merchantId={m?.id}
         store={store}
         openRequests={counts.open}
-        opsAdmin={isOpsAdmin(session.user.email)}
         service={isServiceBusiness(brand)}
       />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
