@@ -6,6 +6,14 @@ export { encryptSecret, decryptSecret } from './crypto.js';
 export { INTENTS } from './intent.js';
 export type { Intent, IntentRecord, ConversationFacts } from './intent.js';
 export { chat, chatTools } from './openrouter.js';
+export {
+  type Segment,
+  SEGMENT_PLAYBOOK,
+  SERVICE_SEGMENTS,
+  detectSegment,
+  segmentBlock,
+  segmentVoiceRule,
+} from './segments.js';
 export type { ChatMessage, ChatResult } from './openrouter.js';
 export type {
   ToolDef,

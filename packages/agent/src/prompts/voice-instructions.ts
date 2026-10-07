@@ -48,6 +48,8 @@ export type VoiceBrand = {
   /** Merchant platform — 'shopify' gets the generic storefront selling + native
    *  checkout voice rules; Calmosis (custom hooks) is detected by domain. */
   platform?: string | null;
+  /** Owner-chosen business type (Settings); overrides segment detection. */
+  businessType?: string | null;
 };
 
 export type VoiceInstructionOpts = {
@@ -86,6 +88,7 @@ export function buildVoiceSystemInstruction(
     brandCategories: opts.brandCategories,
     name: brand?.name,
     domain: brand?.domain,
+    businessType: brand?.businessType,
   };
   // Clinics, restaurants, salons and service firms take bookings/enquiries,
   // not carts — a "shopping assistant… check out" role contradicts that.

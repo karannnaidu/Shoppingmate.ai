@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { merchants } from '@shoppingmate/db/schema';
 import { eq } from 'drizzle-orm';
 import { getDashboardSession } from '@/lib/session';
+import { SEGMENT_PLAYBOOK } from '@shoppingmate/shared';
 
 const PersonaSchema = z.object({
   voiceDescriptorId: z.string().min(1),
@@ -25,6 +26,18 @@ export async function savePersona(formData: FormData) {
   });
 
   await db.update(merchants).set({ persona: parsed }).where(eq(merchants.id, session.merchant.id));
+  revalidatePath('/app/settings');
+}
+
+export async function saveBusinessType(formData: FormData) {
+  const hdrs = await headers();
+  const session = await getDashboardSession({ headers: hdrs });
+  if (!session?.merchant) throw new Error('unauthorized');
+  const raw = String(formData.get('businessType') ?? '');
+  // '' = automatic (detected from the brand profile).
+  const value = raw === '' ? null : raw;
+  if (value !== null && !(value in SEGMENT_PLAYBOOK)) throw new Error('invalid business type');
+  await db.update(merchants).set({ businessType: value }).where(eq(merchants.id, session.merchant.id));
   revalidatePath('/app/settings');
 }
 

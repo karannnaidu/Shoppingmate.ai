@@ -8,15 +8,37 @@ import { InstallSnippet } from '@/components/dashboard/InstallSnippet';
 import { DangerZone } from '@/components/dashboard/DangerZone';
 import { DashHeader } from '@/components/dashboard/v2';
 import { DomainsManager } from '@/components/dashboard/OnboardingWizard';
+import { BusinessTypeForm } from '@/components/dashboard/BusinessTypeForm';
+import { db } from '@/lib/db';
+import { merchants } from '@shoppingmate/db/schema';
+import { eq } from 'drizzle-orm';
+import { SEGMENT_PLAYBOOK, SERVICE_SEGMENTS, detectSegment, type Segment } from '@shoppingmate/shared';
 
 export default async function SettingsPage() {
   const hdrs = await headers();
   const session = await getDashboardSession({ headers: hdrs });
   if (!session?.merchant) redirect('/app/onboarding?step=2');
 
+  const [profile] = await db
+    .select({
+      name: merchants.name,
+      domain: merchants.domain,
+      brandSummary: merchants.brandSummary,
+      brandCategories: merchants.brandCategories,
+      businessType: merchants.businessType,
+    })
+    .from(merchants)
+    .where(eq(merchants.id, session.merchant.id))
+    .limit(1);
+  const option = (id: Segment) => ({ id, label: SEGMENT_PLAYBOOK[id].label, service: SERVICE_SEGMENTS.has(id) });
+  const typeOptions = (Object.keys(SEGMENT_PLAYBOOK) as Segment[]).filter((s) => s !== 'general').map(option);
+  // What we'd pick on our own (ignoring the owner's saved choice).
+  const detectedType = option(detectSegment({ ...profile, businessType: null }));
+
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       <DashHeader title="Settings" description="How your assistant sounds and looks on your site, where new leads go, and the line that puts it on your store." />
+      <BusinessTypeForm options={typeOptions} current={profile?.businessType ?? ''} detected={detectedType} />
       <PersonaForm initial={session.merchant.persona} />
       <WidgetPlacementForm
         initialPosition={session.merchant.widgetPosition}

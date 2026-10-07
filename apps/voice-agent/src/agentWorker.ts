@@ -442,7 +442,7 @@ const agentDefinition = defineAgent({
 
     const voice = resolveVoiceContext(
       merchant.personaId,
-      { name: merchant.name, domain: merchant.domain, platform: merchant.platform },
+      { name: merchant.name, domain: merchant.domain, platform: merchant.platform, businessType: merchant.businessType },
       {
         kbText,
         demoMode,

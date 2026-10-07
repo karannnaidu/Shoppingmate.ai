@@ -82,6 +82,10 @@ export const merchants = pgTable('merchants', {
   leadWebhookUrl: text('lead_webhook_url'),
   knowledgeBaseStatus: text('knowledge_base_status').notNull().default('empty'),
   lastWidgetPing: timestamp('last_widget_ping', { withTimezone: true }),
+  /** Owner-chosen business type (clinic, restaurant, salon, services, fashion,
+   *  beauty …) — overrides the segment auto-detected from the brand profile.
+   *  Null = auto. */
+  businessType: text('business_type'),
   topupBalance: integer('topup_balance').notNull().default(0),
   autoRechargeEnabled: boolean('auto_recharge_enabled').notNull().default(false),
   autoRechargeThreshold: integer('auto_recharge_threshold'),
