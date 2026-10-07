@@ -452,6 +452,11 @@ class WidgetElement extends HTMLElement {
     if (result.widgetAccent) this.applyAccent(result.widgetAccent);
     this.launcherLabel = result.widgetLabel?.trim() || null;
     this.launcherCaption = result.widgetGreeting?.trim() || null;
+    // The first render happened before the persona was known (store.subscribe
+    // above), and nothing re-rendered until the next store dispatch — so the
+    // resting launcher said "Talk to Assistant" until e.g. the incoming-call
+    // invite. Paint the real name now.
+    this.render();
 
     const stack = resolveVoiceStack();
     const stt = createSTT();
