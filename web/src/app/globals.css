@@ -2,43 +2,54 @@
 /* `dark:` follows the site's theme toggle (.dark on <html>), not the OS setting. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* V2.0 palette — warm paper (light) / ink + ivory (dark). Violet stays the brand
+   accent; signal green means live / done / money (matches the widget's ticks
+   and the Call button). */
 :root {
-  --background: #ffffff;
-  --foreground: #0a0a0f;
-  --surface: #ffffff;
-  --surface-muted: #f5f5f1;
+  --background: #faf8f4;
+  --foreground: #121216;
+  --surface: #fffefb;
+  --surface-muted: #f2efe8;
   --surface-elevated: #ffffff;
-  --border: #e8e8e3;
-  --border-strong: #d4d4cf;
-  --text-primary: #0a0a0f;
-  --text-secondary: #4a4a52;
-  --text-muted: #8a8a93;
-  --accent-violet: #8b5cf6;
-  --accent-cyan: #06b6d4;
-  --accent-fuchsia: #d946ef;
-  --shadow-sm: 0 1px 2px rgba(10, 10, 15, 0.04);
-  --shadow-md: 0 4px 24px rgba(10, 10, 15, 0.06);
-  --shadow-lg: 0 24px 48px -12px rgba(10, 10, 15, 0.18);
-  --shadow-glow: 0 0 0 1px rgba(139, 92, 246, 0.2), 0 8px 32px rgba(139, 92, 246, 0.18);
+  --border: #e6e2d9;
+  --border-strong: #d3cec2;
+  --text-primary: #121216;
+  --text-secondary: #4b4a52;
+  --text-muted: #77757f;
+  --accent-violet: #7c4dff;
+  --accent-cyan: #0891b2;
+  --accent-fuchsia: #c026d3;
+  --signal: #0f9f6e;
+  --signal-soft: rgba(15, 159, 110, 0.1);
+  --highlight: rgba(255, 255, 255, 0.9);
+  --shadow-sm: 0 1px 2px rgba(18, 18, 22, 0.05);
+  --shadow-md: 0 1px 2px rgba(18, 18, 22, 0.04), 0 8px 28px -6px rgba(18, 18, 22, 0.08);
+  --shadow-lg: 0 2px 4px rgba(18, 18, 22, 0.04), 0 28px 56px -16px rgba(18, 18, 22, 0.2);
+  --shadow-glow: 0 0 0 1px rgba(124, 77, 255, 0.2), 0 8px 32px rgba(124, 77, 255, 0.18);
 }
 
 .dark {
-  --background: #06060a;
-  --foreground: #f1f5f9;
-  --surface: #0a0a0f;
-  --surface-muted: #0f0f15;
-  --surface-elevated: #131320;
-  --border: #1f1f2c;
-  --border-strong: #2a2a3a;
-  --text-primary: #f1f5f9;
-  --text-secondary: #b4b4c0;
-  --text-muted: #9191a0;
+  --background: #08080c;
+  --foreground: #f3f1ea;
+  --surface: #0c0c11;
+  --surface-muted: #121218;
+  --surface-elevated: #14141b;
+  --border: #22222c;
+  --border-strong: #32323f;
+  --text-primary: #f3f1ea;
+  --text-secondary: #bcbac4;
+  --text-muted: #94929f;
   /* Lighter violet in dark mode so text-violet links meet WCAG AA (~6:1). */
-  --accent-violet: #a78bfa;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 0 1px rgba(139, 92, 246, 0.4), 0 8px 32px rgba(139, 92, 246, 0.3);
+  --accent-violet: #a990ff;
+  --accent-cyan: #22d3ee;
+  --accent-fuchsia: #e879f9;
+  --signal: #3ddc97;
+  --signal-soft: rgba(61, 220, 151, 0.12);
+  --highlight: rgba(255, 255, 255, 0.06);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -8px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.4), 0 30px 60px -18px rgba(0, 0, 0, 0.75);
+  --shadow-glow: 0 0 0 1px rgba(169, 144, 255, 0.35), 0 8px 32px rgba(124, 77, 255, 0.28);
 }
 
 @theme inline {
@@ -55,9 +66,12 @@
   --color-violet: var(--accent-violet);
   --color-cyan: var(--accent-cyan);
   --color-fuchsia: var(--accent-fuchsia);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 * {
@@ -75,9 +89,59 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "cv11", "tnum";
   overflow-x: hidden;
 }
+
+/* ---- V2 primitives ------------------------------------------------------ */
+
+/* Serif italic emphasis inside a headline: "Your store, <em>finally</em> …" */
+.serif-em {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Card with a hairline inner top highlight — reads as a lit, physical surface. */
+.card-v2 {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+}
+.card-v2-hover {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), border-color 220ms, box-shadow 220ms;
+}
+.card-v2-hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-md);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-v2-hover:hover { transform: none; }
+}
+
+/* Film grain for hero atmosphere (SVG noise, very low opacity). */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Signal tick pop (receipts, checklists). */
+@keyframes tick-pop {
+  0% { transform: scale(0.2) rotate(-25deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+.tick-pop { animation: tick-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Meter fill grows in on load. */
+@keyframes meter-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.meter-in { transform-origin: left center; animation: meter-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 ::selection {
   background: var(--accent-violet);
@@ -157,7 +221,7 @@ body {
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, var(--accent-violet) 0%, var(--accent-cyan) 100%);
+  background: linear-gradient(120deg, var(--text-primary) 0%, var(--accent-violet) 85%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

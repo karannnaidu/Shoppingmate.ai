@@ -23,23 +23,23 @@ export function Cta() {
         >
           {/* Mesh gradient backdrop */}
           <div className="pointer-events-none absolute inset-0" aria-hidden>
-            <div className="absolute -top-32 -left-24 h-96 w-96 rounded-full bg-violet/40 blur-3xl" />
-            <div className="absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-cyan/30 blur-3xl" />
+            <div className="absolute -top-32 -left-24 h-96 w-96 rounded-full bg-violet/35 blur-3xl" />
+            <div className="absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-signal/25 blur-3xl" />
             <div className="absolute inset-0 grid-bg opacity-30" />
           </div>
 
           <div className="relative grid gap-10 md:grid-cols-[1.1fr_1fr] md:items-center">
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-background/20 bg-background/5 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-background/70">
-                <span className="h-1 w-1 rounded-full bg-cyan" />
-                Install in 60 seconds
+                <span className="h-1.5 w-1.5 rounded-full bg-signal" />
+                Live in 60 seconds
               </span>
-              <h2 className="mt-5 font-display text-3xl font-semibold tracking-tight text-balance md:text-5xl">
-                Paste this. Olivia is live before your coffee&rsquo;s cold.
+              <h2 className="mt-5 font-display text-[2rem] font-semibold leading-[1.06] tracking-[-0.035em] text-balance md:text-[3.5rem]">
+                Paste one line. <span className="serif-em">Start selling</span> while you sleep.
               </h2>
               <p className="mt-5 max-w-md text-background/70 text-pretty md:text-lg">
-                Five paying beta merchants already have Olivia on their storefront. We
-                provision your merchantId in under an hour.
+                Sign up, copy your line, paste it into your site. Olivia learns your store on her own —
+                and you can cancel from your dashboard anytime.
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -49,7 +49,7 @@ export function Cta() {
                   data-tour-stop="signup"
                   className="group inline-flex items-center gap-2 rounded-full bg-background px-6 py-3.5 text-[15px] font-medium text-foreground transition-transform hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  Get Olivia — $30/mo
+                  Get started — from $30/mo
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
                 <Link
@@ -80,7 +80,7 @@ export function Cta() {
                   >
                     {copied ? (
                       <>
-                        <Check className="h-3.5 w-3.5 text-cyan" /> Copied
+                        <Check className="h-3.5 w-3.5 text-signal" /> Copied
                       </>
                     ) : (
                       <>

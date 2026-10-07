@@ -29,15 +29,19 @@ import { FixButton } from './fix-button';
 const MIN_VISITS = 20;
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-lg border border-border bg-surface p-5 ${className}`}>{children}</section>;
+  return <section className={`card-v2 p-5 md:p-6 ${className}`}>{children}</section>;
 }
 
 function Locked() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Store Insights</h1>
-      <Card>
-        <p className="text-lg font-medium text-text-primary">See exactly why shoppers leave — and what to fix first.</p>
+      <div>
+        <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">Growth plan</p>
+        <h1 className="font-display text-[1.75rem] font-semibold tracking-[-0.03em] text-text-primary md:text-[2rem]">Store Insights</h1>
+      </div>
+      <Card className="relative overflow-hidden">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet/15 blur-3xl" aria-hidden />
+        <p className="relative font-display text-xl font-semibold tracking-tight text-text-primary">See exactly why shoppers leave — and what to fix first.</p>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-text-secondary">
           <li>Where people stop between your home page and checkout, in money lost each week</li>
           <li>Your own pages with pins on what people tap, ignore, or get stuck on</li>
@@ -95,16 +99,17 @@ export default async function InsightsPage({
   return (
     <div className="flex flex-col gap-6">
       {qa && (
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">Showing test data from our automated check — not real shoppers.</p>
+        <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-600 dark:text-amber-300">Showing test data from our automated check — not real shoppers.</p>
       )}
 
       {/* 1. Answer first */}
       <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Your store this week</h1>
-        <p className="mt-2 text-lg text-text-primary">{summary}</p>
+        <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">This week</p>
+        <h1 className="font-display text-[1.75rem] font-semibold tracking-[-0.03em] text-text-primary md:text-[2rem]">Store Insights</h1>
+        <p className="mt-2 max-w-3xl text-lg leading-snug text-text-primary">{summary}</p>
         <p className="mt-1 text-sm text-text-secondary">
           {enough ? `Based on ${f.sessions} visits · ` : 'Too early to be sure — check back in a few days · '}
-          <span className={trend.tone === 'bad' ? 'text-rose-400' : trend.tone === 'good' ? 'text-emerald-400' : ''}>
+          <span className={trend.tone === 'bad' ? 'text-rose-500' : trend.tone === 'good' ? 'text-signal' : ''}>
             {f.sessionsPrev > 0 ? `Visits ${trend.text}` : "Next week we can compare with this one"}
           </span>
         </p>
@@ -113,7 +118,7 @@ export default async function InsightsPage({
       {atRisk > 0 && (
         <Card className="border-amber-500/40">
           <p className="text-sm text-text-secondary">Left on the table this week</p>
-          <p className="font-display text-3xl font-semibold text-amber-400">{money(atRisk, f.currency)}</p>
+          <p className="font-display text-3xl font-semibold tabular-nums text-amber-500">{money(atRisk, f.currency)}</p>
           <p className="mt-1 text-sm text-text-secondary">
             Shoppers who were on their way to buying and stopped. {f.aovSource === 'catalog' ? 'Valued at your typical product price.' : ''}
           </p>
@@ -160,7 +165,7 @@ export default async function InsightsPage({
                         <FixButton done={x.status === 'done'} />
                       </form>
                     )}
-                    {x.status === 'done' && <span className="text-sm text-emerald-400">Done — we’ll show next week whether it worked.</span>}
+                    {x.status === 'done' && <span className="text-sm text-signal">Done — we’ll show next week whether it worked.</span>}
                     {x.pageType && (
                       <Link href={qs({ page: x.pageType })} className="text-sm text-violet hover:underline">
                         Show me on the page

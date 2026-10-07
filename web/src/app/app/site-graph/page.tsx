@@ -6,6 +6,7 @@ import { siteCrawls, sitePages, merchants, siteTemplates } from '@shoppingmate/d
 import { eq, desc, asc } from 'drizzle-orm';
 import { SiteTemplatesCard } from '@/components/site-templates-card';
 import { Button } from '@/components/ui/button';
+import { DashHeader } from '@/components/dashboard/v2';
 
 export default async function SiteGraphPage({
   searchParams,
@@ -54,18 +55,16 @@ export default async function SiteGraphPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">
-        Your website
-      </h1>
+      <DashHeader
+        title="Your website"
+        description="Your assistant reads your website so it can answer questions and take shoppers to the right page. Changed your site? Ask it to read again."
+      />
 
-      <div className="rounded-lg border border-border bg-surface p-6">
-        <p className="text-sm text-text-secondary">
-          Your assistant reads your website so it can answer questions and guide shoppers to the right page.
-        </p>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="card-v2 p-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <p className="text-sm text-text-secondary">Pages your assistant has read</p>
-            <p className="text-lg font-medium text-text-primary">{pageCount}</p>
+            <p className="font-display text-2xl font-semibold tabular-nums text-text-primary">{pageCount}</p>
           </div>
           <div>
             <p className="text-sm text-text-secondary">Last read</p>
@@ -92,7 +91,7 @@ export default async function SiteGraphPage({
 
         <form action="/api/site-graph/refresh" method="post" className="mt-6">
           <Button type="submit" variant="outline">
-            Read my website again
+            Re-read my pages
           </Button>
         </form>
       </div>

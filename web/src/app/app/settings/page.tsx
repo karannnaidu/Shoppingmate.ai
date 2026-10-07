@@ -6,6 +6,7 @@ import { WebhookForm } from '@/components/dashboard/WebhookForm';
 import { WidgetPlacementForm } from '@/components/dashboard/WidgetPlacementForm';
 import { InstallSnippet } from '@/components/dashboard/InstallSnippet';
 import { DangerZone } from '@/components/dashboard/DangerZone';
+import { DashHeader } from '@/components/dashboard/v2';
 
 export default async function SettingsPage() {
   const hdrs = await headers();
@@ -14,7 +15,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Settings</h1>
+      <DashHeader title="Settings" description="How your assistant sounds and looks on your site, where new leads go, and the line that puts it on your store." />
       <PersonaForm initial={session.merchant.persona} />
       <WidgetPlacementForm
         initialPosition={session.merchant.widgetPosition}

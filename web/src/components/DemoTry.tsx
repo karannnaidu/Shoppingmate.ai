@@ -7,25 +7,25 @@ const prompts = [
   "Show me your pricing",
   "How fast is install?",
   "What platforms do you support?",
-  "Walk me through a dog food store demo",
+  "I need a gift for my sister — under $50",
   "How is privacy handled?",
 ];
 
 const capabilities = [
   {
     icon: Mic,
-    title: "Voice mode",
-    body: "Tap the orb in the bottom-right. Sage listens, answers, and drives the page with you.",
+    title: "Talk out loud",
+    body: "Tap Call in the bottom corner. Olivia listens, answers and moves around the site with you.",
   },
   {
     icon: MessageCircle,
-    title: "Text mode",
-    body: "Prefer typing? Same agent, same memory — pick whatever's quieter.",
+    title: "Or just type",
+    body: "Prefer typing? Same Olivia, same memory — switch whenever you like.",
   },
   {
     icon: ShoppingBag,
-    title: "Real catalogs",
-    body: "Ask for a vertical tour and Sage pulls live products from a real demo store.",
+    title: "Real products",
+    body: "Ask for a shopping tour and Olivia pulls real products from a demo store.",
   },
 ];
 
@@ -42,12 +42,11 @@ export function DemoTry() {
             className="grid gap-5"
           >
             <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
-              Try saying one of these.
+              Try asking one of these.
             </h2>
             <p className="text-text-secondary md:text-lg">
-              Tap the chat orb in the bottom-right of this page. Sage answers, opens the
-              right route, and highlights what you're asking about — all without a sales
-              call.
+              Tap the button in the bottom corner of this page. Olivia answers, opens the
+              right page and points out what you asked about — no sales call needed.
             </p>
 
             <ul className="mt-2 grid gap-2.5">
@@ -58,7 +57,7 @@ export function DemoTry() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.35, delay: i * 0.04 }}
-                  className="flex items-center gap-3 rounded-2xl border border-border bg-surface-elevated px-4 py-3 text-sm text-text-primary"
+                  className="card-v2 card-v2-hover flex items-center gap-3 px-4 py-3 text-sm text-text-primary"
                 >
                   <Sparkles className="h-4 w-4 text-violet" aria-hidden />
                   &ldquo;{p}&rdquo;
@@ -75,10 +74,10 @@ export function DemoTry() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.45, delay: i * 0.05 }}
-                className="flex gap-4 rounded-3xl border border-border bg-surface-elevated p-6"
+                className="card-v2 flex gap-4 p-6"
               >
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-violet/20 to-cyan/20">
-                  <c.icon className="h-5 w-5 text-violet" />
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-signal-soft">
+                  <c.icon className="h-5 w-5 text-signal" />
                 </div>
                 <div>
                   <h3 className="font-display text-base font-semibold tracking-tight">

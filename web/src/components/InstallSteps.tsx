@@ -12,20 +12,20 @@ const steps = [
     n: "01",
     icon: UserPlus,
     title: "Create your account",
-    body: "Sign up with email. We provision a merchantId for you within the hour — no sales call, no contract.",
+    body: "Sign up with your email. Your personal line is ready straight away — no sales call, no contract.",
     cta: { label: "Sign up", href: "/signup" },
   },
   {
     n: "02",
     icon: Code2,
-    title: "Paste one script tag",
-    body: "Drop a single line into the <head> of your storefront. No SDK, no OAuth, no platform-specific plugin.",
+    title: "Paste one line",
+    body: "Paste it into your site's header — or send it to whoever runs your site. No app, no plugin, no developer needed.",
   },
   {
     n: "03",
     icon: Sparkles,
-    title: "We onboard automatically",
-    body: "We fingerprint your platform, sync your catalog, lock cart + checkout selectors, and run a smoke test. From paste to live in 5–8 minutes.",
+    title: "Olivia learns your store",
+    body: "She reads your products, prices and policies, maps your cart and checkout, and checks everything works. Usually live within minutes.",
   },
 ];
 
@@ -47,8 +47,8 @@ export function InstallSteps() {
                 transition={{ duration: 0.45, delay: i * 0.05 }}
                 className="flex gap-4"
               >
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-border bg-surface-elevated">
-                  <s.icon className="h-5 w-5 text-violet" />
+                <div className="card-v2 grid h-11 w-11 shrink-0 place-items-center">
+                  <s.icon className="h-5 w-5 text-signal" />
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ export function InstallSteps() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="relative"
           >
-            <div className="absolute -inset-3 rounded-[28px] bg-gradient-to-br from-violet/25 via-fuchsia/10 to-cyan/25 blur-2xl opacity-70" aria-hidden />
+            <div className="absolute -inset-3 rounded-[28px] bg-gradient-to-br from-violet/20 via-transparent to-signal/20 blur-2xl opacity-70" aria-hidden />
             <div className="relative rounded-[22px] border border-border bg-surface-elevated/95 backdrop-blur-xl shadow-[var(--shadow-lg)]">
               <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                 <span className="font-mono text-[11px] uppercase tracking-wider text-text-muted">
@@ -95,7 +95,7 @@ export function InstallSteps() {
                 >
                   {copied ? (
                     <>
-                      <Check className="h-3.5 w-3.5 text-cyan" /> Copied
+                      <Check className="h-3.5 w-3.5 text-signal" /> Copied
                     </>
                   ) : (
                     <>
@@ -108,16 +108,16 @@ export function InstallSteps() {
                 {snippet}
               </pre>
               <div className="border-t border-border px-5 py-3 text-[11px] font-mono text-text-muted">
-                Replace SM-XXXX with the merchantId we send after signup.
+                Your dashboard shows this line with your own ID filled in.
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2 rounded-2xl border border-border bg-surface px-4 py-4 font-mono text-[12px] text-text-secondary">
-              <div className="flex items-center gap-2"><span className="text-emerald-400">✓</span> platform fingerprint → shopify</div>
-              <div className="flex items-center gap-2"><span className="text-emerald-400">✓</span> catalog synced → 482 SKUs</div>
-              <div className="flex items-center gap-2"><span className="text-emerald-400">✓</span> selectors locked → cart, checkout, coupon</div>
-              <div className="flex items-center gap-2"><span className="text-emerald-400">✓</span> smoke test passed</div>
-              <div className="flex items-center gap-2"><span className="text-cyan">●</span> status: live · 6m 14s total</div>
+            <div className="card-v2 mt-4 grid gap-2 px-4 py-4 text-[13px] text-text-secondary">
+              <div className="flex items-center gap-2"><span className="text-signal">✓</span> Recognised your store (Shopify)</div>
+              <div className="flex items-center gap-2"><span className="text-signal">✓</span> Learned 482 products</div>
+              <div className="flex items-center gap-2"><span className="text-signal">✓</span> Mapped cart, checkout and discount codes</div>
+              <div className="flex items-center gap-2"><span className="text-signal">✓</span> Test conversation passed</div>
+              <div className="flex items-center gap-2"><span className="text-signal">●</span> Live — Olivia is greeting shoppers</div>
             </div>
           </motion.div>
         </div>

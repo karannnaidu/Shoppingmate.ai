@@ -8,6 +8,8 @@ export type DashboardSession = {
   session: { id: string; expiresAt: Date };
   merchant: {
     id: string;
+    name: string | null;
+    topupBalance: number;
     plan: string;
     billingStatus: string;
     status: string;
@@ -40,6 +42,8 @@ export async function getDashboardSession({ headers }: { headers: Headers }): Pr
     if (m && !m.deletedAt) {
       merchant = {
         id: m.id,
+        name: m.name ?? null,
+        topupBalance: m.topupBalance ?? 0,
         plan: m.plan,
         billingStatus: m.billingStatus,
         status: m.status,

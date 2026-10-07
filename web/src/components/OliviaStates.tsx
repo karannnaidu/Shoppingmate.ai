@@ -1,19 +1,20 @@
 "use client";
 
-import { SectionHead } from "./HowItWorks";
+import { SectionHead, SerifEm } from "./v2/primitives";
 import { OliviaCallStates } from "./olivia/OliviaCallStates";
 
 export function OliviaStates() {
   return (
-    <section
-      id="states"
-      className="relative border-y border-border bg-surface-muted/40 py-24 md:py-32"
-    >
+    <section id="states" className="relative py-24 md:py-32">
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <SectionHead
-          eyebrow="The call, end to end"
-          title="Every moment of the call, designed."
-          subtitle="From a quiet launcher to a live conversation — here is exactly what your visitors see. The Call button starts the call; the mic only mutes."
+          eyebrow="What shoppers see"
+          title={
+            <>
+              Every moment of the call, <SerifEm>designed.</SerifEm>
+            </>
+          }
+          subtitle="From a quiet button in the corner to a live conversation — exactly what your shoppers see. One tap starts the call; the mic button only mutes."
         />
         <div className="mt-14">
           <OliviaCallStates />

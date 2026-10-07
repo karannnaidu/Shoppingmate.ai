@@ -1,22 +1,17 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { Check } from 'lucide-react';
 import { getDashboardSession } from '@/lib/session';
 import { db } from '@/lib/db';
 import { merchants, razorpayEvents } from '@shoppingmate/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { computeKpis } from '@/lib/kpi-repo';
 import { razorpay } from '@/lib/razorpay';
+import { PLAN_CREDITS } from '@/lib/plan-credits';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-
-// Monthly credit allowance per plan. 1 conversation = 1 credit (text or voice).
-// Sized at ~$0.10/convo cost → ~65-67% margin. See
-// docs/superpowers/specs/2026-10-05-dashboard-billing-credit-model-design.md
-const PLAN_CREDITS: Record<string, { credits: number; price: number }> = {
-  starter: { credits: 100, price: 30 },
-  growth: { credits: 350, price: 99 },
-  scale: { credits: 1000, price: 299 },
-};
+import { Badge, DashHeader, Meter } from '@/components/dashboard/v2';
+import { cn } from '@/lib/cn';
 
 // One-time credit packs at $0.30/credit.
 const TOPUPS = [
@@ -24,6 +19,12 @@ const TOPUPS = [
   { key: 'topup_500', label: '500', price: 150 },
   { key: 'topup_1000', label: '1,000', price: 300 },
 ];
+
+const PLAN_PERKS: Record<string, string> = {
+  starter: 'Voice + chat, customer requests, full dashboard',
+  growth: 'Everything in Starter + Store Insights and weekly fixes',
+  scale: 'Everything in Growth + shopper journeys and exports',
+};
 
 // Map a Razorpay event type → a human label + outcome for the transactions list.
 const TXN_META: Record<string, { label: string; ok: boolean | null }> = {
@@ -51,7 +52,7 @@ export default async function BillingPage() {
 
   const m = await db.query.merchants.findFirst({ where: eq(merchants.id, session.merchant.id) });
   const kpis = await computeKpis({ merchantId: session.merchant.id, days: 30 });
-  const plan = PLAN_CREDITS[session.merchant.plan] ?? PLAN_CREDITS.starter;
+  const plan = PLAN_CREDITS[session.merchant.plan] ?? PLAN_CREDITS.starter!;
 
   const allowance = plan.credits;
   const used = kpis.conversations;
@@ -76,65 +77,118 @@ export default async function BillingPage() {
     .limit(50);
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Billing</h1>
+    <div className="flex max-w-4xl flex-col gap-6">
+      <DashHeader
+        title="Billing"
+        description="Your plan, how many conversations you've used, and top-ups. One conversation is one shopper's visit — voice or chat, same price."
+      />
 
-      {/* Plan + credit usage */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <span className="capitalize">{session.merchant.plan}</span> — ${plan.price}/mo · {allowance} credits/mo
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+      {/* Plan + usage */}
+      <section className="card-v2 relative overflow-hidden p-6">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet/10 blur-3xl" aria-hidden />
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="flex justify-between text-sm text-text-secondary mb-1">
-              <span>{used} / {allowance} credits used this cycle</span>
-              <span className="tabular-nums text-text-primary">{pct}%</span>
-            </div>
-            <div className="h-2 bg-surface-muted rounded-full overflow-hidden">
-              <div className={`h-full ${pct >= 100 ? 'bg-rose-500' : 'bg-foreground'}`} style={{ width: `${pct}%` }} />
-            </div>
-            <p className="mt-2 text-xs text-text-secondary">
-              1 conversation = 1 credit (text or voice). Top-up balance:{' '}
-              <strong className="text-text-primary tabular-nums">{topupBalance}</strong> ·{' '}
-              <strong className="text-text-primary tabular-nums">{remaining}</strong> credits remaining.
-              {remaining === 0 && ' — assistant paused until you top up or your cycle renews.'}
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">Your plan</p>
+            <p className="mt-1.5 flex items-center gap-2.5 font-display text-2xl font-semibold tracking-[-0.02em]">
+              <span className="capitalize">{session.merchant.plan}</span>
+              <Badge tone={subscribed ? 'signal' : 'amber'}>{subscribed ? 'Active' : 'Not started'}</Badge>
+            </p>
+            <p className="mt-1 text-sm text-text-secondary">
+              ${plan.price}/month · {allowance} conversations a month
             </p>
           </div>
           {subscribed ? (
             <form action="/api/billing/cancel" method="post">
-              <Button type="submit" variant="outline">Cancel subscription</Button>
+              <Button type="submit" variant="outline" size="sm">Cancel subscription</Button>
             </form>
           ) : (
             <form action="/api/billing/checkout-session" method="post">
-              <Button type="submit">Subscribe</Button>
+              <Button type="submit">Start my subscription</Button>
             </form>
           )}
-          <p className="text-xs text-text-secondary">
-            {subscribed
-              ? 'Cancels at the end of the current billing period. To change plans, cancel and re-subscribe.'
-              : 'Start your subscription to activate the assistant.'}
-          </p>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Buy credits */}
-      <Card>
-        <CardHeader><CardTitle>Buy credits</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {TOPUPS.map((t) => (
+        <div className="relative mt-6">
+          <div className="mb-2 flex items-baseline justify-between text-sm">
+            <span className="text-text-secondary">
+              <strong className="font-display text-xl font-semibold tabular-nums text-text-primary">{used}</strong> of {allowance} used this month
+            </span>
+            <span className="tabular-nums text-text-muted">{pct}%</span>
+          </div>
+          <Meter value={used} max={allowance} />
+          <p className="mt-2.5 text-[13px] text-text-secondary">
+            <strong className="tabular-nums text-text-primary">{remaining}</strong> left
+            {topupBalance > 0 && (
+              <>
+                {' '}(including <strong className="tabular-nums text-text-primary">{topupBalance}</strong> from top-ups)
+              </>
+            )}
+            .{remaining === 0 && ' Your assistant is paused until you top up or your plan renews.'}
+          </p>
+        </div>
+        <p className="relative mt-4 border-t border-border pt-4 text-xs text-text-muted">
+          {subscribed
+            ? 'Cancelling takes effect at the end of this billing period. To switch plans, cancel and start the new plan.'
+            : 'Start your subscription to switch your assistant on.'}
+        </p>
+      </section>
+
+      {/* Plans */}
+      <section>
+        <h2 className="mb-3 font-display text-[17px] font-semibold tracking-[-0.015em]">Plans</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          {Object.entries(PLAN_CREDITS).map(([key, p]) => {
+            const current = key === session.merchant!.plan;
+            return (
+              <div
+                key={key}
+                className={cn('card-v2 p-5', current && 'ring-2 ring-violet/60')}
+              >
+                <div className="flex items-center justify-between">
+                  <p className="font-medium capitalize">{key}</p>
+                  {current && <Badge tone="violet">Current</Badge>}
+                </div>
+                <p className="mt-3 font-display text-3xl font-semibold tabular-nums tracking-tight">
+                  ${p.price}
+                  <span className="text-sm font-normal text-text-muted"> /mo</span>
+                </p>
+                <p className="mt-1 text-sm text-text-secondary">{p.credits.toLocaleString()} conversations</p>
+                <p className="mt-3 flex items-start gap-2 text-[13px] text-text-secondary">
+                  <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-signal" />
+                  {PLAN_PERKS[key]}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Top up */}
+      <section className="card-v2 p-6">
+        <h2 className="font-display text-[17px] font-semibold tracking-[-0.015em]">Top up conversations</h2>
+        <p className="mt-0.5 text-[13px] text-text-muted">One-time purchase at $0.30 per conversation. Top-ups never expire.</p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {TOPUPS.map((t, i) => (
             <form key={t.key} action="/api/billing/topup" method="post">
               <input type="hidden" name="topup_key" value={t.key} />
-              <Button type="submit" variant="outline" className="w-full flex flex-col h-auto py-3">
-                <span className="font-semibold">{t.label} credits</span>
-                <span className="text-xs text-text-secondary">${t.price}</span>
-              </Button>
+              <button
+                type="submit"
+                className={cn(
+                  'card-v2 card-v2-hover flex w-full flex-col items-start p-4 text-left',
+                  i === 1 && 'ring-1 ring-signal/40',
+                )}
+              >
+                <span className="flex w-full items-center justify-between">
+                  <span className="font-display text-xl font-semibold tabular-nums">+{t.label}</span>
+                  {i === 1 && <Badge tone="signal">Popular</Badge>}
+                </span>
+                <span className="mt-0.5 text-sm text-text-secondary">conversations</span>
+                <span className="mt-3 text-sm font-semibold tabular-nums">${t.price}</span>
+              </button>
             </form>
           ))}
-          <p className="col-span-full text-xs text-text-secondary">One-time purchase. Credits are added to your balance and carry over.</p>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Invoices */}
       <Card>

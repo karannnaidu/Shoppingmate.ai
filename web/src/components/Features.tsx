@@ -10,7 +10,7 @@ import {
   ChartLine,
   CheckCheck,
 } from "lucide-react";
-import { SectionHead } from "./HowItWorks";
+import { SectionHead, SerifEm } from "./v2/primitives";
 
 type Feature = {
   icon: typeof Mic;
@@ -115,7 +115,7 @@ function ReceiptDemo() {
           whileInView={{ opacity: 1, x: 0, scale: 1 }}
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.38, delay: reduce ? 0 : 0.25 + i * 0.42, ease: [0.22, 1, 0.36, 1] }}
-          className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 py-1 pl-1.5 pr-3 text-[12px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-500/25 dark:text-emerald-300"
+          className="inline-flex items-center gap-2 rounded-full bg-signal-soft py-1 pl-1.5 pr-3 text-[12px] font-medium text-signal ring-1 ring-inset ring-signal/25"
         >
           <motion.span
             aria-hidden
@@ -123,7 +123,7 @@ function ReceiptDemo() {
             whileInView={{ scale: 1, rotate: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ type: "spring", stiffness: 520, damping: 16, delay: reduce ? 0 : 0.35 + i * 0.42 }}
-            className="grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-[10px] font-bold text-white"
+            className="grid h-4 w-4 place-items-center rounded-full bg-signal text-[10px] font-bold text-background"
           >
             ✓
           </motion.span>
@@ -140,8 +140,8 @@ export function Features() {
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <SectionHead
           eyebrow="What it does"
-          title="Built like a sales floor — runs like a system."
-          subtitle="Not a chatbot. Not a coupon banner. It talks to shoppers, works your real storefront, and shows its work."
+          title={<>A sales floor that <SerifEm>shows its work.</SerifEm></>}
+          subtitle="Not a chatbot that only answers questions. Olivia takes real actions on your store — and proves every one."
         />
 
         <div className="mt-16 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -154,7 +154,7 @@ export function Features() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ duration: 0.5, delay: i * 0.04 }}
-              className={`group relative overflow-hidden rounded-2xl border border-border bg-surface-elevated p-6 transition-all hover:-translate-y-0.5 hover:border-border-strong hover:shadow-[var(--shadow-md)] motion-reduce:hover:translate-y-0 ${
+              className={`card-v2 card-v2-hover group relative overflow-hidden p-6 ${
                 f.wide ? "md:col-span-2" : ""
               }`}
             >

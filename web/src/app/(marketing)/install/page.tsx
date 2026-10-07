@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Nav } from "@/components/Nav";
 import { PageHeader } from "@/components/PageHeader";
+import { SerifEm } from "@/components/v2/primitives";
 import { InstallSteps } from "@/components/InstallSteps";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Cta } from "@/components/Cta";
@@ -8,30 +9,27 @@ import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Install — shoppingmate",
-  description: "Paste one script tag. Sage is live on your storefront in 5–8 minutes — no SDK, no OAuth, no plugin.",
+  description: "Sign up, copy one line, paste it into your site. Olivia learns your store on her own and goes live in minutes — no app, no plugin, no developer.",
 };
+
 
 export default function InstallPage() {
   return (
     <>
       <Nav />
       <main className="relative">
-        <PageHeader
+                <PageHeader
           eyebrow="Install"
-          title={
-            <>
-              Live in <span className="gradient-text">60 seconds.</span>
-            </>
-          }
-          subtitle="Sign up. Paste one script tag. We auto-onboard your storefront and run a smoke test before Sage greets your first visitor."
+          title={<>Live in <SerifEm>60 seconds.</SerifEm></>}
+          subtitle="Sign up, copy your line, paste it into your site. Olivia reads your products and pages on her own, then greets your first shopper."
           primaryHref="/signup"
-          primaryLabel="Sign up — get my snippet"
+          primaryLabel="Create my account"
           secondaryHref="/platforms"
-          secondaryLabel="See supported platforms"
+          secondaryLabel="Supported platforms"
           stats={[
-            { value: "1 line", label: "of code" },
-            { value: "5–8 min", label: "auto-onboard" },
-            { value: "0", label: "PCI scope" },
+            { value: "1 line", label: "to paste" },
+            { value: "Minutes", label: "to learn your store" },
+            { value: "0", label: "developers needed" },
           ]}
         />
         <InstallSteps />

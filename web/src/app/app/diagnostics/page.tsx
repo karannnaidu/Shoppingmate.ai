@@ -6,6 +6,7 @@ import { alerts } from '@shoppingmate/db/schema';
 import { eq } from 'drizzle-orm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { DashHeader } from '@/components/dashboard/v2';
 
 export default async function DiagnosticsPage({ searchParams }: { searchParams: Promise<{ alert?: string }> }) {
   const sp = await searchParams;
@@ -18,8 +19,7 @@ export default async function DiagnosticsPage({ searchParams }: { searchParams: 
   if (!alertRow || alertRow.merchantId !== session.merchant.id) {
     return (
       <div className="max-w-2xl flex flex-col gap-4">
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Diagnostics</h1>
-        <p className="text-sm text-text-secondary">Open this page from a banner alert to see details.</p>
+        <DashHeader title="Diagnostics" description="Open this page from an alert at the top of your dashboard to see what needs fixing." />
       </div>
     );
   }
@@ -28,7 +28,7 @@ export default async function DiagnosticsPage({ searchParams }: { searchParams: 
 
   return (
     <div className="max-w-2xl flex flex-col gap-4">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Diagnostics</h1>
+      <DashHeader title="Diagnostics" description="Something on your site needs attention. Here is what we found and how to fix it." />
       <Card>
         <CardHeader><CardTitle>{alertRow.kind}</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3 text-text-primary">

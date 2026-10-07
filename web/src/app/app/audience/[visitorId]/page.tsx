@@ -40,8 +40,8 @@ export default async function AudienceDetailPage({
   if (!profile) {
     return (
       <div className="flex flex-col gap-6 max-w-3xl">
-        <Link href="/app/audience" className="text-sm text-violet hover:underline">
-          ← Back to audience
+        <Link href="/app/audience" className="text-sm font-medium text-text-secondary hover:text-text-primary">
+          ← Shoppers
         </Link>
         <Card>
           <CardHeader>
@@ -81,13 +81,13 @@ export default async function AudienceDetailPage({
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       <div>
-        <Link href="/app/audience" className="text-sm text-violet hover:underline">
-          ← Back to audience
+        <Link href="/app/audience" className="text-sm font-medium text-text-secondary hover:text-text-primary">
+          ← Shoppers
         </Link>
-        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight text-text-primary">
+        <h1 className="mt-3 font-display text-[1.75rem] font-semibold tracking-[-0.03em] text-text-primary md:text-[2rem]">
           {name}
         </h1>
-        <p className="text-sm text-text-secondary">Visitor profile</p>
+        <p className="mt-1 text-[15px] text-text-secondary">Shopper profile — everything they told your assistant across visits</p>
       </div>
 
       <Card>

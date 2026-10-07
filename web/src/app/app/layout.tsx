@@ -1,9 +1,12 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { Sidebar } from '@/components/dashboard/Sidebar';
+import { Sidebar, type SidebarStore } from '@/components/dashboard/Sidebar';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { getDashboardSession, resolveOnboardingStep } from '@/lib/session';
 import { getActiveAlert } from '@/lib/alerts-repo';
+import { caseCounts } from '@/lib/cases-repo';
+import { conversationsSince } from '@/lib/kpi-repo';
+import { planCredits } from '@/lib/plan-credits';
 
 export default async function AppLayout({
   children,
@@ -22,15 +25,31 @@ export default async function AppLayout({
     redirect(step);
   }
 
-  const alert = session.merchant ? await getActiveAlert(session.merchant.id) : null;
+  const m = session.merchant;
+  const [alert, used, counts] = m
+    ? await Promise.all([
+        getActiveAlert(m.id),
+        conversationsSince({ merchantId: m.id, days: 30 }).catch(() => 0),
+        caseCounts(m.id).catch(() => ({ open: 0, urgentOpen: 0 })),
+      ])
+    : [null, 0, { open: 0, urgentOpen: 0 }];
+
+  const store: SidebarStore | undefined = m
+    ? {
+        name: m.name || m.domain || 'Your store',
+        plan: m.plan,
+        used,
+        allowance: planCredits(m.plan).credits + (m.topupBalance ?? 0),
+      }
+    : undefined;
 
   return (
-    <div className="relative flex flex-col md:flex-row min-h-dvh bg-background text-text-primary">
-      <div className="aurora opacity-40" aria-hidden />
-      <Sidebar pathname={pathname} merchantId={session.merchant?.id} />
-      <div className="relative z-10 flex-1 flex flex-col">
+    <div className="relative flex min-h-dvh flex-col bg-background text-text-primary md:flex-row">
+      <div className="aurora opacity-30" aria-hidden />
+      <Sidebar pathname={pathname} merchantId={m?.id} store={store} openRequests={counts.open} />
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <AlertBanner alert={alert as Parameters<typeof AlertBanner>[0]['alert']} />
-        <main className="dash-enter flex-1 p-6 md:p-8">{children}</main>
+        <main className="dash-enter mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-10 md:py-10">{children}</main>
       </div>
     </div>
   );

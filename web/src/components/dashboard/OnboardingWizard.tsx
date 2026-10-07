@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/cn';
 
@@ -15,11 +16,11 @@ type Merchant = {
   lastWidgetPing: Date | null;
 };
 
-const STEPS = ['Account', 'Pay', 'Connect store', 'Install snippet'];
+const STEPS = ['Account', 'Plan', 'Your store', 'Go live'];
 
 export function OnboardingWizard({ step, merchant }: { step: number; merchant: Merchant | null }) {
   return (
-    <div className="max-w-2xl mx-auto py-8">
+    <div className="mx-auto max-w-2xl py-4 md:py-8">
       <Progress current={step} />
       {step === 2 && <PayStep />}
       {step === 3 && merchant && <ConnectStep merchantId={merchant.id} status={merchant.status} />}
@@ -30,19 +31,38 @@ export function OnboardingWizard({ step, merchant }: { step: number; merchant: M
 
 function Progress({ current }: { current: number }) {
   return (
-    <div className="flex items-center gap-2 mb-6">
-      <p className="text-sm text-text-secondary tabular-nums">{`Step ${current} of 4`}</p>
-      <div className="flex flex-1 gap-1 ml-4">
+    <div className="mb-8">
+      <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted tabular-nums">{`Step ${current} of 4`}</p>
+      <ol className="mt-3 grid grid-cols-4 gap-2">
         {STEPS.map((label, i) => {
           const idx = i + 1;
+          const done = idx < current;
+          const now = idx === current;
           return (
-            <div
-              key={label}
-              className={cn('h-1.5 flex-1 rounded-full transition-colors', idx <= current ? 'bg-foreground' : 'bg-border')}
-            />
+            <li key={label} className="flex flex-col gap-2">
+              <span
+                className={cn(
+                  'h-1.5 rounded-full transition-colors',
+                  done ? 'bg-signal' : now ? 'bg-foreground' : 'bg-border',
+                )}
+              />
+              <span className={cn('text-xs', now ? 'font-medium text-text-primary' : 'text-text-muted')}>
+                {done ? '✓ ' : ''}
+                {label}
+              </span>
+            </li>
           );
         })}
-      </div>
+      </ol>
+    </div>
+  );
+}
+
+function StepHeader({ title, body }: { title: React.ReactNode; body: string }) {
+  return (
+    <div className="mb-5">
+      <h1 className="font-display text-[1.75rem] font-semibold leading-tight tracking-[-0.03em] text-text-primary">{title}</h1>
+      <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">{body}</p>
     </div>
   );
 }
@@ -57,41 +77,56 @@ function PayStep() {
     setLoading(false);
   }
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Start your $30/mo Starter plan</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <ul className="text-sm text-text-secondary list-disc pl-5 space-y-1 marker:text-violet">
-          <li>100 credits / month included (1 conversation = 1 credit)</li>
-          <li>Cross-platform widget (Shopify, Woo, Magento, BC, Wix, Squarespace, custom)</li>
-          <li>Brand Knowledge base + persona settings</li>
-          <li>Lead webhook + one-click billing (Razorpay)</li>
-        </ul>
-        <Button size="lg" onClick={go} disabled={loading}>
-          {loading ? 'Redirecting…' : 'Start Starter plan'}
-        </Button>
-      </CardContent>
-    </Card>
+    <div>
+      <StepHeader
+        title={
+          <>
+            Start your <span className="serif-em">Starter</span> plan
+          </>
+        }
+        body="$30 a month for 100 shopper conversations — voice or chat. Cancel anytime, and move up a plan whenever you need more."
+      />
+      <Card>
+        <CardContent className="flex flex-col gap-5 pt-6">
+          <ul className="grid gap-2.5 text-[15px] text-text-secondary">
+            {[
+              '100 conversations a month — top up anytime at $0.30 each',
+              'Works on Shopify, WooCommerce or any website',
+              'Trained on your products, pages and documents',
+              'Customer requests sent straight to your inbox',
+            ].map((t) => (
+              <li key={t} className="flex items-start gap-2.5">
+                <span className="mt-0.5 grid h-4 w-4 flex-none place-items-center rounded-full bg-signal text-[10px] font-bold text-background">✓</span>
+                {t}
+              </li>
+            ))}
+          </ul>
+          <Button size="lg" onClick={go} disabled={loading}>
+            {loading ? 'Taking you to payment…' : 'Start Starter plan — $30/mo'}
+          </Button>
+          <p className="text-center text-xs text-text-muted">Secure payment by Razorpay. We never see your card details.</p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
 function ConnectStep({ merchantId, status }: { merchantId: string; status: string }) {
   return (
+    <div>
+      <StepHeader
+        title={
+          <>
+            Where&apos;s <span className="serif-em">your store?</span>
+          </>
+        }
+        body="Enter your store's address. Olivia will read your products and pages from there — Shopify, WooCommerce or any website."
+      />
     <Card>
-      <CardHeader>
-        <CardTitle>Connect your store</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <p className="text-sm text-text-secondary">
-          Works on <strong>Shopify</strong>, WooCommerce, Magento, BigCommerce, Wix, Squarespace, or
-          any website. Enter your store URL — we auto-detect the platform, sync your catalog, and
-          scope the assistant to your domain.
-        </p>
+      <CardContent className="flex flex-col gap-4 pt-6">
         <UrlForm merchantId={merchantId} />
         <p className="text-xs text-text-muted">
-          On Shopify you finish by pasting a one-line snippet into your theme (next step). No app
-          install or access token required.
+          Nothing to install from an app store and no passwords to share — next you&apos;ll paste one line into your site.
         </p>
         {!['pending', 'onboarding'].includes(status) && (
           <p className="text-xs text-text-secondary">
@@ -103,6 +138,7 @@ function ConnectStep({ merchantId, status }: { merchantId: string; status: strin
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }
 
@@ -130,15 +166,18 @@ function UrlForm({ merchantId }: { merchantId: string }) {
   }
   return (
     <form onSubmit={go} className="flex flex-col gap-2">
-      <input
-        className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30 transition-colors"
-        placeholder="https://yourstore.com"
+      <label htmlFor="store-url" className="text-sm font-medium text-text-secondary">
+        Store address
+      </label>
+      <Input
+        id="store-url"
+        placeholder="yourstore.com"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         required
       />
-      <Button type="submit" disabled={loading}>
-        {loading ? 'Working…' : 'Continue to install'}
+      <Button type="submit" size="lg" disabled={loading} className="mt-1">
+        {loading ? 'Saving…' : 'Continue'}
       </Button>
       {error && (
         <p className="text-sm text-rose-500" role="alert" aria-live="polite">
@@ -164,30 +203,46 @@ function InstallStep({ merchantId }: { merchantId: string }) {
     if (json.ok) window.location.href = '/app';
   }
 
+  const [copied, setCopied] = useState(false);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Install your widget</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <pre className="bg-foreground text-background text-xs font-mono rounded-md p-4 overflow-x-auto border border-border">{snippet}</pre>
-        <div className="flex gap-2 flex-wrap items-center">
-          <Button onClick={() => navigator.clipboard.writeText(snippet)}>Copy</Button>
-          <Button variant="outline" onClick={verify} disabled={verifying}>
-            {verifying ? 'Checking…' : "I've pasted it"}
-          </Button>
-          <a href="/app" className="ml-auto text-sm text-text-secondary underline-offset-4 hover:underline self-center">
-            I&apos;ll do this later
-          </a>
-        </div>
-        {result === 'fail' && (
-          <p className="text-sm text-rose-500" role="alert" aria-live="polite">
-            We couldn&apos;t find the script tag yet. Make sure it&apos;s deployed and try again.
-          </p>
-        )}
-        <DomainsManager />
-      </CardContent>
-    </Card>
+    <div>
+      <StepHeader
+        title={
+          <>
+            Paste one line. <span className="serif-em">You&apos;re live.</span>
+          </>
+        }
+        body="Copy this line into your site's header (on Shopify: Online Store → Themes → Edit code → theme.liquid, just before </head>). Or send it to whoever manages your site."
+      />
+      <Card>
+        <CardContent className="flex flex-col gap-4 pt-6">
+          <pre className="overflow-x-auto rounded-xl border border-white/10 bg-[#0d0d12] p-4 font-mono text-xs leading-relaxed text-white/85">{snippet}</pre>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(snippet);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1800);
+              }}
+            >
+              {copied ? '✓ Copied' : 'Copy line'}
+            </Button>
+            <Button variant="outline" onClick={verify} disabled={verifying}>
+              {verifying ? 'Checking your site…' : "I've pasted it"}
+            </Button>
+            <a href="/app" className="ml-auto self-center text-sm text-text-secondary underline-offset-4 hover:underline">
+              I&apos;ll do this later
+            </a>
+          </div>
+          {result === 'fail' && (
+            <p className="text-sm text-rose-500" role="alert" aria-live="polite">
+              We couldn&apos;t find the line on your site yet. Check it&apos;s saved and published, then try again.
+            </p>
+          )}
+          <DomainsManager />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -244,12 +299,12 @@ function DomainsManager() {
   }
 
   return (
-    <div className="rounded-md border border-border p-4 flex flex-col gap-3">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface-muted/40 p-4">
       <div>
-        <p className="text-sm font-medium text-text-primary">Allowed domains</p>
+        <p className="text-sm font-medium text-text-primary">Your web addresses</p>
         <p className="text-xs text-text-secondary">
-          Every domain your storefront runs on (add your custom domain AND your
-          .myshopify.com). The assistant only loads on these.
+          Add every address your store opens on — your own domain and, on Shopify, your
+          .myshopify.com address too. Olivia only appears on these.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -275,8 +330,9 @@ function DomainsManager() {
         ))}
       </div>
       <div className="flex gap-2">
-        <input
-          className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-violet focus:ring-2 focus:ring-violet/30 transition-colors"
+        <Input
+          className="flex-1"
+          aria-label="Add a web address"
           placeholder="yourstore.com"
           value={input}
           onChange={(e) => setInput(e.target.value)}

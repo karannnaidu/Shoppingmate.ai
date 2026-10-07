@@ -9,7 +9,7 @@ const platforms = [
   { name: "BigCommerce", glyph: "BC" },
   { name: "Wix", glyph: "Wx" },
   { name: "Squarespace", glyph: "Sq" },
-  { name: "Custom HTML", glyph: "</>" },
+  { name: "Any website", glyph: "</>" },
 ];
 
 export function Platforms() {
@@ -18,10 +18,10 @@ export function Platforms() {
       <div className="mx-auto max-w-7xl px-5 md:px-8 py-12 md:py-16">
         <div className="flex flex-col items-center text-center">
           <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-text-muted">
-            One script. Every storefront.
+            Works with the store you already have
           </span>
-          <h2 className="mt-3 max-w-2xl font-display text-2xl font-semibold tracking-tight md:text-3xl">
-            Detects your platform on first crawl.
+          <h2 className="mt-3 max-w-2xl font-display text-2xl font-semibold tracking-[-0.03em] md:text-3xl">
+            Shopify, WooCommerce — <span className="serif-em">or any website at all.</span>
           </h2>
         </div>
 
@@ -33,9 +33,9 @@ export function Platforms() {
               <motion.div
                 key={i}
                 whileHover={{ y: -2 }}
-                className="group flex min-w-[180px] items-center gap-3 rounded-2xl border border-border bg-surface px-5 py-4 transition-colors hover:border-border-strong"
+                className="card-v2 group flex min-w-[180px] items-center gap-3 px-5 py-4 transition-colors hover:border-border-strong"
               >
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-violet/15 to-cyan/15 font-mono text-sm font-semibold text-violet group-hover:from-violet/25 group-hover:to-cyan/25 transition-colors">
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-surface-muted font-mono text-sm font-semibold text-text-secondary transition-colors group-hover:bg-signal-soft group-hover:text-signal">
                   {p.glyph}
                 </span>
                 <span className="text-sm font-medium">{p.name}</span>

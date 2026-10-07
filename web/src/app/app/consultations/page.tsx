@@ -3,6 +3,8 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getDashboardSession } from '@/lib/session';
 import { listConsultations } from '@/lib/consultations-repo';
+import { Stethoscope } from 'lucide-react';
+import { DashHeader, EmptyState } from '@/components/dashboard/v2';
 
 // Consultations is a Calmosis-only feature — keep other tenants out of the page.
 const CALMOSIS_MERCHANT_ID = 'SM-2SCCLZ';
@@ -17,25 +19,23 @@ export default async function ConsultationsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">
-          Consultations
-        </h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Doctor-consultation requests the assistant captured in the last 30 days. Click a row to open
-          the conversation transcript.
-        </p>
-      </div>
+      <DashHeader
+        title="Consultations"
+        description="Doctor-consultation requests your assistant took in the last 30 days, with the shopper's details. Open one to read the conversation."
+      />
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface/60 p-8 text-center text-text-secondary">
-          No consultation requests yet. When a visitor asks to talk to a doctor, the assistant collects
-          their details and they appear here.
+        <div className="card-v2">
+          <EmptyState
+            icon={Stethoscope}
+            title="No consultation requests yet"
+            body="When a shopper asks to talk to a doctor, your assistant takes their details and the request appears here."
+          />
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="card-v2 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-surface-muted text-left text-text-secondary">
+            <thead className="border-b border-border bg-surface-muted/50 text-left text-[11.5px] uppercase tracking-wider text-text-muted">
               <tr>
                 <th className="px-4 py-2 font-medium">Date</th>
                 <th className="px-4 py-2 font-medium">Name</th>
@@ -48,9 +48,9 @@ export default async function ConsultationsPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t border-border hover:bg-surface-muted/50">
-                  <td className="px-4 py-2 text-text-secondary">
-                    {r.createdAt.toISOString().slice(0, 10)}
+                <tr key={r.id} className="border-t border-border transition-colors hover:bg-surface-muted/50">
+                  <td className="whitespace-nowrap px-4 py-3 text-text-secondary">
+                    {r.createdAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                   </td>
                   <td className="px-4 py-2">{r.name}</td>
                   <td className="px-4 py-2">{r.age}</td>

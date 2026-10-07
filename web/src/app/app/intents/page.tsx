@@ -4,6 +4,8 @@ import { getDashboardSession } from '@/lib/session';
 import { getIntentInsights } from '@/lib/intent-repo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CountedBars } from '@/components/dashboard/CountedBars';
+import { Target } from 'lucide-react';
+import { DashHeader, EmptyState } from '@/components/dashboard/v2';
 
 export default async function IntentsPage() {
   const hdrs = await headers();
@@ -14,54 +16,57 @@ export default async function IntentsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">
-          Customer intent · last 30 days
-        </h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          {insights.total} conversation{insights.total === 1 ? '' : 's'} analyzed.
-        </p>
-      </div>
+      <DashHeader
+        title="What shoppers want"
+        description={
+          insights.total === 0
+            ? 'What shoppers come looking for, what they need and what stops them — learned from their conversations.'
+            : `What shoppers came for and what held them back, from ${insights.total} conversation${insights.total === 1 ? '' : 's'} in the last 30 days.`
+        }
+      />
 
       {insights.total === 0 ? (
-        <div className="rounded-lg border border-border bg-surface/60 p-8 text-center text-text-secondary">
-          No conversations with captured intent yet.
+        <div className="card-v2">
+          <EmptyState
+            icon={Target}
+            title="Nothing to show yet"
+            body="As shoppers talk to your assistant, we note what they wanted and why some didn't buy. It fills in after a few conversations."
+          />
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Intent distribution</CardTitle>
+              <CardTitle>What they came for</CardTitle>
             </CardHeader>
             <CardContent>
-              <CountedBars title="What visitors came for" rows={insights.distribution} />
+              <CountedBars rows={insights.distribution} />
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Top needs</CardTitle>
+              <CardTitle>What they asked for most</CardTitle>
             </CardHeader>
             <CardContent>
-              <CountedBars title="Most-mentioned needs" rows={insights.topNeeds} />
+              <CountedBars rows={insights.topNeeds} />
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Top objections</CardTitle>
+              <CardTitle>What held them back</CardTitle>
             </CardHeader>
             <CardContent>
-              <CountedBars title="What held visitors back" rows={insights.topObjections} />
+              <CountedBars rows={insights.topObjections} />
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Drop-off stage</CardTitle>
+              <CardTitle>Where they stopped</CardTitle>
             </CardHeader>
             <CardContent>
               <CountedBars
-                title="Where abandoners left"
                 rows={insights.dropStages}
-                emptyLabel="No abandonment data"
+                emptyLabel="No one has dropped off yet"
               />
             </CardContent>
           </Card>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Nav } from "@/components/Nav";
 import { PageHeader } from "@/components/PageHeader";
+import { SerifEm } from "@/components/v2/primitives";
 import { Pricing } from "@/components/Pricing";
 import { Faq } from "@/components/Faq";
 import { Cta } from "@/components/Cta";
@@ -8,33 +9,30 @@ import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Pricing — shoppingmate",
-  description: "Flat monthly pricing. Unmetered conversations on every plan. No per-seat fees, no card surprises.",
+  description: "Starter $30, Growth $99, Scale $299 a month. Pay for conversations, not seats — voice and chat cost the same. Extra conversations $0.30 each.",
 };
+
 
 export default function PricingPage() {
   return (
     <>
       <Nav />
       <main className="relative">
-        <PageHeader
+                <PageHeader
           eyebrow="Pricing"
-          title={
-            <>
-              Flat monthly. <span className="gradient-text">Unmetered conversations.</span>
-            </>
-          }
-          subtitle="Pick the plan that fits your stage. Every plan ships with the full voice + chat agent, brand KB, and conversion attribution. Cancel anytime."
+          title={<>Simple plans. <SerifEm>No seat fees.</SerifEm></>}
+          subtitle="Every plan includes the full assistant — voice and chat. Choose by how many shopper conversations you expect each month. Top up anytime, cancel anytime."
           primaryHref="/signup"
-          primaryLabel="Get started — $30/mo"
+          primaryLabel="Get started — from $30/mo"
           secondaryHref="#pricing"
-          secondaryLabel="See plans"
+          secondaryLabel="Compare plans"
           stats={[
-            { value: "$30", label: "starter" },
-            { value: "Unlimited", label: "conversations" },
-            { value: "0", label: "per-seat fees" },
+            { value: "$30", label: "to start" },
+            { value: "100–1,000", label: "conversations / mo" },
+            { value: "$0.30", label: "per extra" },
           ]}
         />
-        <Pricing />
+        <Pricing hideHeading />
         <Faq />
         <Cta />
       </main>

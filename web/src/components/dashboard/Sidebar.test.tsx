@@ -11,7 +11,8 @@ describe('Sidebar', () => {
     render(<Sidebar pathname="/app" />);
     expect(screen.getByText('Home')).toBeTruthy();
     expect(screen.getByText('Conversations')).toBeTruthy();
-    expect(screen.getByText('Audit')).toBeTruthy();
+    expect(screen.getByText('Orders')).toBeTruthy();
+    expect(screen.getByText('Customer requests')).toBeTruthy();
     expect(screen.getByText('Knowledge')).toBeTruthy();
     expect(screen.getByText('Settings')).toBeTruthy();
     expect(screen.getByText('Billing')).toBeTruthy();

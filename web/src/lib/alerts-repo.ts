@@ -1,12 +1,14 @@
 import { db } from './db';
 import { alerts, type Alert } from '@shoppingmate/db/schema';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, notLike } from 'drizzle-orm';
 
 export async function getActiveAlert(merchantId: string): Promise<Alert | null> {
   const rows = await db
     .select()
     .from(alerts)
-    .where(and(eq(alerts.merchantId, merchantId), isNull(alerts.resolvedAt)))
+    // `qa.*` alerts are internal ops signals from the nightly site check, not
+    // something the owner can act on — keep them off the owner's banner.
+    .where(and(eq(alerts.merchantId, merchantId), isNull(alerts.resolvedAt), notLike(alerts.kind, 'qa.%')))
     .orderBy(desc(alerts.createdAt))
     .limit(1);
   return rows[0] ?? null;

@@ -1,29 +1,38 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+// V2 type system: Geist for UI + numbers, Instrument Serif italic for the 1–3
+// emphasis words in a headline, Geist Mono for labels and code.
+const geist = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
   display: "swap",
-  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
-const jetbrains = JetBrains_Mono({
-  variable: "--font-jetbrains",
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const serif = Instrument_Serif({
+  variable: "--font-instrument",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "shoppingmate.ai — Your AI salesmate for every storefront",
+  title: "shoppingmate.ai — Your store, finally talking back",
   description:
-    "Paste one script tag. A voice + text AI sales agent that builds carts, applies coupons, and hands off to checkout — on Shopify, WooCommerce, Magento, Wix, Squarespace, and custom sites.",
+    "Olivia greets every shopper on your store, answers by voice or text, builds the cart, fills checkout and shows you every step. One line of code. Shopify, WooCommerce or any website.",
   metadataBase: new URL("https://shoppingmate.ai"),
   openGraph: {
-    title: "shoppingmate.ai — Your store's 24/7 AI salesmate",
+    title: "shoppingmate.ai — Your store, finally talking back",
     description:
-      "One script tag. AI sales agent on voice + text. Works on every major commerce platform.",
+      "A voice + text shopping assistant that sells on your store and shows its work. Installs in 60 seconds.",
     type: "website",
   },
 };
@@ -36,7 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrains.variable} h-full antialiased`}
+      className={`${geist.variable} ${geistMono.variable} ${serif.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

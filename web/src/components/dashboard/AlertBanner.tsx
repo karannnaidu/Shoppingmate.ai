@@ -48,6 +48,10 @@ export function AlertBanner({ alert }: { alert: AlertProps | null }) {
       copy = <>Your last invoice failed. Update payment to keep your widget live.</>;
       action = <a href="/app/billing" className="text-sm font-medium underline-offset-4 hover:underline">Update payment</a>;
       break;
+    default:
+      // Unknown/internal kinds (e.g. our nightly `qa.*` checks) have no owner
+      // copy — render nothing rather than an empty coloured strip.
+      return null;
   }
 
   return (

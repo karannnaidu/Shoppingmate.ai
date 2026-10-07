@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { brandKbDocuments, brandKbChunks } from '@shoppingmate/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { KnowledgeUploader, type KbDoc } from '@/components/dashboard/KnowledgeUploader';
+import { DashHeader } from '@/components/dashboard/v2';
 
 // Always render fresh — token counts change as the KB is edited/re-ingested.
 export const dynamic = 'force-dynamic';
@@ -47,7 +48,7 @@ export default async function KnowledgePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Brand Knowledge</h1>
+      <DashHeader title="Knowledge" description="Documents your assistant answers from — FAQs, shipping and returns, ingredient sheets, size guides. Upload a file and it starts using it within minutes." />
       <KnowledgeUploader docs={docs} />
     </div>
   );

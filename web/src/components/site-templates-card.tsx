@@ -73,7 +73,7 @@ export function SiteTemplatesCard({ templates, rescanQueued }: { templates: Temp
 
       {templates.length === 0 ? (
         <p className="mt-4 text-sm text-text-secondary">
-          No pages learned yet. Press &ldquo;Re-scan my site&rdquo; and your assistant will study your home, shop and
+          No pages learned yet. Press &ldquo;Re-learn page layouts&rdquo; and your assistant will study your home, shop and
           product pages.
         </p>
       ) : (
@@ -98,7 +98,7 @@ export function SiteTemplatesCard({ templates, rescanQueued }: { templates: Temp
       )}
 
       <form action="/api/site-templates/rescan" method="post" className="mt-6">
-        <Button type="submit">Re-scan my site</Button>
+        <Button type="submit">Re-learn page layouts</Button>
       </form>
     </div>
   );

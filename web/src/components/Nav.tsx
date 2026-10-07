@@ -4,6 +4,7 @@ import { Logo } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X, ArrowUpRight } from "lucide-react";
 
@@ -18,6 +19,7 @@ const links = [
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -44,16 +46,29 @@ export function Nav() {
             <Link
               key={l.href}
               href={l.href}
-              className="relative rounded-full px-4 py-2 text-sm text-text-secondary transition-colors hover:text-text-primary group"
+              aria-current={pathname === l.href ? "page" : undefined}
+              className={`group relative rounded-full px-4 py-2 text-sm transition-colors hover:text-text-primary ${
+                pathname === l.href ? "text-text-primary" : "text-text-secondary"
+              }`}
             >
               <span className="relative z-10">{l.label}</span>
-              <span className="absolute inset-0 rounded-full bg-surface-muted opacity-0 transition-opacity group-hover:opacity-100" />
+              <span
+                className={`absolute inset-0 rounded-full bg-surface-muted transition-opacity ${
+                  pathname === l.href ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                }`}
+              />
             </Link>
           ))}
         </nav>
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          <Link
+            href="/login"
+            className="hidden rounded-full px-3 py-2 text-sm text-text-secondary transition-colors hover:text-text-primary md:inline-flex"
+          >
+            Log in
+          </Link>
           <Link
             href="/signup"
             aria-label="Sign up"
@@ -90,6 +105,13 @@ export function Nav() {
                 {l.label}
               </Link>
             ))}
+            <Link
+              href="/login"
+              onClick={() => setOpen(false)}
+              className="rounded-lg px-3 py-2.5 text-base text-text-secondary hover:bg-surface-muted hover:text-text-primary"
+            >
+              Log in
+            </Link>
             <Link
               href="/signup"
               onClick={() => setOpen(false)}

@@ -12,9 +12,9 @@ const rows = [
 describe('ConversationsTable', () => {
   it('renders header columns', () => {
     render(<ConversationsTable rows={rows} />);
-    expect(screen.getByText('Started')).toBeTruthy();
-    expect(screen.getByText('Duration')).toBeTruthy();
-    expect(screen.getByText('Outcome')).toBeTruthy();
+    expect(screen.getByText('When')).toBeTruthy();
+    expect(screen.getByText('Length')).toBeTruthy();
+    expect(screen.getByText('Result')).toBeTruthy();
   });
 
   it('renders empty state when rows empty', () => {
@@ -22,10 +22,16 @@ describe('ConversationsTable', () => {
     expect(screen.getByText(/no conversations yet/i)).toBeTruthy();
   });
 
-  it('renders mode + outcome cells', () => {
-    render(<ConversationsTable rows={rows} />);
+  it('renders mode + plain-English outcome, and the sale in the store currency', () => {
+    render(<ConversationsTable rows={rows} currency="INR" />);
     expect(screen.getByText('voice')).toBeTruthy();
-    expect(screen.getByText('purchased')).toBeTruthy();
-    expect(screen.getByText('abandoned')).toBeTruthy();
+    expect(screen.getByText('Ordered')).toBeTruthy();
+    expect(screen.getByText('Left without buying')).toBeTruthy();
+    expect(screen.getByText('₹89')).toBeTruthy();
+  });
+
+  it('links every row to its conversation', () => {
+    render(<ConversationsTable rows={rows} />);
+    expect(document.querySelector('a[href="/app/conversations/c1"]')).toBeTruthy();
   });
 });

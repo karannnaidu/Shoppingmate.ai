@@ -1,40 +1,48 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "framer-motion";
-import { Code2, Radar, Sparkles } from "lucide-react";
+import { Code2, ScanSearch, Sparkles } from "lucide-react";
 import { useRef } from "react";
+import { SectionHead, SerifEm } from "./v2/primitives";
 
-const CDN_BASE = process.env.NEXT_PUBLIC_WIDGET_CDN_BASE || 'https://shoppingmate-web.vercel.app';
+// Kept for existing imports (`import { SectionHead } from "./HowItWorks"`).
+export { SectionHead };
+
+const CDN_BASE = process.env.NEXT_PUBLIC_WIDGET_CDN_BASE || "https://shoppingmate-web.vercel.app";
+
 const steps = [
   {
     n: "01",
     icon: Code2,
-    title: "Paste one script tag",
-    body: "Drop a single line into your <head>. No SDK, no OAuth, no platform integration. Works on every supported storefront the same way.",
-    code: `<script async\n  src="${CDN_BASE}/widget/v1.js"\n  data-id="SM-XXXX"></script>`,
+    title: "Paste one line",
+    body: "Add a single line to your site — or ask whoever runs it. No app to install, no plugin, nothing to configure.",
+    panel: { kind: "code" as const, text: `<script async\n  src="${CDN_BASE}/widget/v1.js"\n  data-id="SM-XXXX"></script>` },
   },
   {
     n: "02",
-    icon: Radar,
-    title: "We auto-onboard your store",
-    body: "We fingerprint your platform, sync your catalog, and extract cart, checkout and coupon selectors. From paste to live in 5–8 minutes.",
-    code: `→ shopify · catalog 482 SKUs\n→ selectors locked\n→ smoke test passed\n→ status: live`,
+    icon: ScanSearch,
+    title: "Olivia learns your store",
+    body: "She reads your products, prices, FAQs, shipping and returns, and maps every page type. Usually done in a few minutes.",
+    panel: {
+      kind: "checks" as const,
+      items: ["Found 482 products", "Read shipping & returns", "Mapped product, cart and checkout pages", "Ready to talk"],
+    },
   },
   {
     n: "03",
     icon: Sparkles,
-    title: "Your storefront talks back",
-    body: "Voice + text shopping greets visitors, picks variants, applies coupons, and hands off to your native checkout. You never touch a card.",
-    code: `cart.add(sku, qty)\ncoupons.try("WINTER15")\ncheckout.handoff()`,
+    title: "She sells — and shows her work",
+    body: "Shoppers talk or type; Olivia helps them choose and checks them out. You see every conversation, sale and request in your dashboard.",
+    panel: {
+      kind: "checks" as const,
+      items: ["Added Hydra Soothe to cart", "Applied WINTER15", "Filled in checkout details", "Order placed on your checkout"],
+    },
   },
 ];
 
 export function HowItWorks() {
   const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start 80%", "end 30%"],
-  });
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start 80%", "end 30%"] });
   const lineHeight = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
 
   return (
@@ -42,17 +50,17 @@ export function HowItWorks() {
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <SectionHead
           eyebrow="How it works"
-          title="From paste to live in three steps."
-          subtitle="No engineering team required. No platform-specific apps to maintain."
+          title={
+            <>
+              Live on your store <SerifEm>before lunch.</SerifEm>
+            </>
+          }
+          subtitle="No developers, no integrations to maintain. If you can paste a line of text, you can do this."
         />
 
-        <div ref={ref} className="relative mt-16 grid gap-8">
-          {/* Vertical progress line (desktop) */}
-          <div className="pointer-events-none absolute left-[42px] top-2 bottom-2 hidden w-px bg-border md:block">
-            <motion.div
-              style={{ height: lineHeight }}
-              className="absolute left-0 top-0 w-px bg-gradient-to-b from-violet via-fuchsia to-cyan"
-            />
+        <div ref={ref} className="relative mt-16 grid gap-10">
+          <div className="pointer-events-none absolute bottom-2 left-[42px] top-2 hidden w-px bg-border md:block">
+            <motion.div style={{ height: lineHeight }} className="absolute left-0 top-0 w-px bg-gradient-to-b from-violet to-signal" />
           </div>
 
           {steps.map((s, i) => (
@@ -61,42 +69,51 @@ export function HowItWorks() {
               initial={{ opacity: 0, y: 28 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.6, delay: i * 0.05 }}
+              transition={{ duration: 0.6, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] }}
               className="grid grid-cols-1 gap-5 md:grid-cols-[88px_1fr_1fr] md:items-center md:gap-10"
             >
-              <div className="hidden md:flex h-22 w-22 items-center justify-center">
-                <div className="relative grid h-14 w-14 place-items-center rounded-2xl border border-border bg-surface-elevated text-text-secondary shadow-[var(--shadow-sm)]">
+              <div className="hidden h-22 w-22 items-center justify-center md:flex">
+                <div className="card-v2 relative grid h-14 w-14 place-items-center text-text-secondary">
                   <s.icon className="h-5 w-5" />
-                  <span className="absolute -bottom-2 -right-2 grid h-7 w-7 place-items-center rounded-full bg-foreground text-[11px] font-semibold text-background tabular-nums">
+                  <span className="absolute -bottom-2 -right-2 grid h-7 w-7 place-items-center rounded-full bg-foreground text-[11px] font-semibold tabular-nums text-background">
                     {s.n}
                   </span>
                 </div>
               </div>
 
               <div>
-                <span className="md:hidden font-mono text-xs uppercase tracking-wider text-text-muted">
-                  Step {s.n}
-                </span>
-                <h3 className="mt-1 font-display text-2xl font-semibold tracking-tight md:text-3xl">
-                  {s.title}
-                </h3>
-                <p className="mt-3 max-w-md text-text-secondary text-pretty">
-                  {s.body}
-                </p>
+                <span className="font-mono text-xs uppercase tracking-wider text-text-muted md:hidden">Step {s.n}</span>
+                <h3 className="mt-1 font-display text-2xl font-semibold tracking-[-0.02em] md:text-3xl">{s.title}</h3>
+                <p className="mt-3 max-w-md text-[16px] leading-relaxed text-text-secondary text-pretty">{s.body}</p>
               </div>
 
               <div className="relative">
-                <div className="absolute -inset-2 rounded-2xl bg-gradient-to-br from-violet/10 to-cyan/10 blur-xl opacity-70" aria-hidden />
-                <div className="relative rounded-2xl border border-border bg-foreground/95 dark:bg-surface-elevated p-4 font-mono text-[12.5px] leading-relaxed text-background dark:text-text-primary shadow-[var(--shadow-md)]">
-                  <div className="mb-2.5 flex items-center justify-between text-[10px] uppercase tracking-wider opacity-60">
-                    <span>example</span>
-                    <span className="flex gap-1">
-                      <i className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />
-                      <i className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />
-                      <i className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />
-                    </span>
+                <div className="absolute -inset-2 rounded-2xl bg-gradient-to-br from-violet/10 to-signal/10 opacity-70 blur-xl" aria-hidden />
+                <div className="relative rounded-2xl border border-white/10 bg-[#0d0d12] p-4 text-white shadow-[var(--shadow-md)]">
+                  <div className="mb-3 flex items-center gap-1.5">
+                    <i className="h-2 w-2 rounded-full bg-white/15" />
+                    <i className="h-2 w-2 rounded-full bg-white/15" />
+                    <i className="h-2 w-2 rounded-full bg-white/15" />
                   </div>
-                  <pre className="whitespace-pre-wrap break-words">{s.code}</pre>
+                  {s.panel.kind === "code" ? (
+                    <pre className="whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed text-white/85">{s.panel.text}</pre>
+                  ) : (
+                    <ul className="grid gap-2">
+                      {s.panel.items.map((it, j) => (
+                        <motion.li
+                          key={it}
+                          initial={{ opacity: 0, x: -6 }}
+                          whileInView={{ opacity: 1, x: 0 }}
+                          viewport={{ once: true, margin: "-60px" }}
+                          transition={{ delay: 0.15 + j * 0.25, duration: 0.35 }}
+                          className="flex items-center gap-2.5 text-[13.5px] text-white/85"
+                        >
+                          <span className="grid h-4 w-4 place-items-center rounded-full bg-[#3ddc97] text-[10px] font-bold text-black">✓</span>
+                          {it}
+                        </motion.li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -104,38 +121,5 @@ export function HowItWorks() {
         </div>
       </div>
     </section>
-  );
-}
-
-export function SectionHead({
-  eyebrow,
-  title,
-  subtitle,
-  align = "center",
-}: {
-  eyebrow: string;
-  title: string;
-  subtitle?: string;
-  align?: "center" | "left";
-}) {
-  return (
-    <div
-      className={`flex flex-col ${
-        align === "center" ? "items-center text-center" : "items-start text-left"
-      } gap-3`}
-    >
-      <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-elevated px-3 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-text-muted">
-        <span className="h-1 w-1 rounded-full bg-violet" />
-        {eyebrow}
-      </span>
-      <h2 className="max-w-3xl font-display text-3xl font-semibold tracking-tight text-balance md:text-5xl">
-        {title}
-      </h2>
-      {subtitle && (
-        <p className="max-w-2xl text-text-secondary md:text-lg text-pretty">
-          {subtitle}
-        </p>
-      )}
-    </div>
   );
 }

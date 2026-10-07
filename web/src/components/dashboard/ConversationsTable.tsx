@@ -1,54 +1,106 @@
 import Link from 'next/link';
+import { ChevronRight, MessageCircle, MessagesSquare, Mic } from 'lucide-react';
 import type { ConversationRow } from '@/lib/conversations-repo';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatMoney } from '@/lib/format-money';
+import { Badge, EmptyState } from './v2';
 
 function formatDuration(sec: number): string {
+  if (sec < 60) return `${sec}s`;
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  return `${m}m ${s}s`;
-}
-function relTime(d: Date): string {
-  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`;
-  return d.toLocaleDateString();
+  return s ? `${m}m ${s}s` : `${m}m`;
 }
 
-export function ConversationsTable({ rows }: { rows: ConversationRow[] }) {
+function relTime(d: Date): string {
+  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 7 * 86400) return `${Math.floor(diff / 86400)}d ago`;
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+const OUTCOME = {
+  purchased: { label: 'Ordered', tone: 'signal' as const },
+  abandoned: { label: 'Left without buying', tone: 'neutral' as const },
+  in_progress: { label: 'Still browsing', tone: 'violet' as const },
+};
+
+export function ConversationsTable({
+  rows,
+  currency = 'USD',
+  title = 'Recent conversations',
+  action,
+}: {
+  rows: ConversationRow[];
+  currency?: string;
+  title?: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <Card>
-      <CardHeader><CardTitle>Recent conversations</CardTitle></CardHeader>
-      <CardContent className="px-0">
-        {rows.length === 0 ? (
-          <p className="text-sm text-text-secondary px-6 py-8 text-center">No conversations yet — install your widget and traffic will show up here.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="text-text-muted text-xs uppercase tracking-wide">
-              <tr className="border-b border-border">
-                <th className="px-6 py-3 text-left font-medium">Started</th>
-                <th className="text-left font-medium">Duration</th>
-                <th className="text-left font-medium">Turns</th>
-                <th className="text-left font-medium">Mode</th>
-                <th className="text-left font-medium">Outcome</th>
-              </tr>
-            </thead>
-            <tbody className="text-text-primary">
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
-                  <td className="px-6 py-3 tabular-nums">
-                    <Link href={`/app/conversations/${r.id}`} className="text-violet hover:underline">{relTime(r.startedAt)}</Link>
-                  </td>
-                  <td className="tabular-nums">{formatDuration(r.durationSec)}</td>
-                  <td className="tabular-nums">{r.turns}</td>
-                  <td className="text-text-secondary">{r.mode}</td>
-                  <td className="text-text-secondary">{r.outcome}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </CardContent>
-    </Card>
+    <section className="card-v2 overflow-hidden">
+      <div className="flex items-center justify-between gap-4 px-5 pb-3 pt-5 md:px-6">
+        <h2 className="font-display text-[17px] font-semibold tracking-[-0.015em]">{title}</h2>
+        {action}
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={MessagesSquare}
+          title="No conversations yet"
+          body="Once your line is on your site and shoppers start talking to your assistant, every conversation shows up here."
+        />
+      ) : (
+        <div role="table" aria-label={title}>
+          <div
+            role="row"
+            className="hidden grid-cols-[1.1fr_0.9fr_0.8fr_1.4fr_0.9fr_24px] gap-4 border-y border-border bg-surface-muted/50 px-6 py-2.5 text-[11.5px] font-medium uppercase tracking-wider text-text-muted md:grid"
+          >
+            <span role="columnheader">When</span>
+            <span role="columnheader">How</span>
+            <span role="columnheader">Length</span>
+            <span role="columnheader">Result</span>
+            <span role="columnheader" className="text-right">
+              Sale
+            </span>
+            <span aria-hidden />
+          </div>
+          <ul className="divide-y divide-border">
+            {rows.map((r, i) => {
+              const o = OUTCOME[r.outcome] ?? OUTCOME.in_progress;
+              return (
+                // A session can be recorded twice (reconnects), so key by position too.
+                <li key={`${r.id}-${i}`}>
+                  <Link
+                    href={`/app/conversations/${r.id}`}
+                    className="group grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 px-5 py-3.5 transition-colors hover:bg-surface-muted/60 md:grid-cols-[1.1fr_0.9fr_0.8fr_1.4fr_0.9fr_24px] md:px-6"
+                  >
+                    <span className="text-sm font-medium tabular-nums text-text-primary">{relTime(r.startedAt)}</span>
+                    <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary max-md:order-3">
+                      {r.mode === 'voice' ? <Mic className="h-3.5 w-3.5" /> : <MessageCircle className="h-3.5 w-3.5" />}
+                      <span className="capitalize">{r.mode === 'voice' ? 'voice' : 'chat'}</span>
+                      <span className="text-text-muted md:hidden">· {formatDuration(r.durationSec)}</span>
+                    </span>
+                    <span className="hidden text-sm tabular-nums text-text-secondary md:block">
+                      {formatDuration(r.durationSec)}
+                    </span>
+                    <span className="max-md:order-2 max-md:justify-self-end">
+                      <Badge tone={o.tone}>{o.label}</Badge>
+                    </span>
+                    <span className="hidden text-right text-sm font-medium tabular-nums md:block">
+                      {r.attributedCents ? (
+                        <span className="text-signal">{formatMoney(r.attributedCents, currency)}</span>
+                      ) : (
+                        <span className="text-text-muted">—</span>
+                      )}
+                    </span>
+                    <ChevronRight className="hidden h-4 w-4 text-text-muted transition-transform group-hover:translate-x-0.5 md:block" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }

@@ -51,6 +51,22 @@ export async function voiceRecordedToday(args: { merchantId: string }): Promise<
   };
 }
 
+/** Conversations in the last N days — the billing "credits used" figure. */
+export async function conversationsSince(args: { merchantId: string; days: number }): Promise<number> {
+  const since = new Date(Date.now() - args.days * 24 * 3600 * 1000);
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(metricEvents)
+    .where(
+      and(
+        eq(metricEvents.merchantId, args.merchantId),
+        eq(metricEvents.metricName, 'conversationCompleted'),
+        gte(metricEvents.ts, since),
+      ),
+    );
+  return rows[0]?.count ?? 0;
+}
+
 export async function computeKpis(args: { merchantId: string; days: number }): Promise<Kpis> {
   const since = new Date(Date.now() - args.days * 24 * 3600 * 1000);
 

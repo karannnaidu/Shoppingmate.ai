@@ -3,36 +3,40 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { SectionHead } from "./HowItWorks";
+import { SectionHead, SerifEm } from "./v2/primitives";
 
 const items = [
   {
-    q: "Does it work without a Shopify app or Woo plugin?",
-    a: "Yes. The widget loads from a single <script> tag and runs entirely client-side in a Shadow DOM. We talk to your platform via its public storefront APIs — no app install, no plugin, no permissions to approve.",
+    q: "Do I need an app, a plugin or a developer?",
+    a: "No. You paste one line into your site (or ask whoever manages it to). It works on Shopify, WooCommerce and any other website — there's nothing to install or maintain.",
   },
   {
-    q: "What happens on a custom-built website?",
-    a: "If we can't fingerprint a known platform, we fall back to DOM mode — the widget literally drives the visitor's browser: clicks the add-to-cart, applies the coupon, taps checkout. Visitor experience is identical.",
+    q: "My site is custom-built. Will it still work?",
+    a: "Yes. Olivia works your page the way a shopper would — she reads it, taps the right buttons and fills in forms — so she doesn't need a special integration.",
   },
   {
-    q: "Will the AI hallucinate prices or product details?",
-    a: "No. Cards display prices from your DB-trusted catalog. The voice never speaks a numeric price — it always paraphrases and defers to what's on screen. Brand KB content is quoted verbatim from your uploaded docs.",
+    q: "Can it make things up, like prices or offers?",
+    a: "Olivia answers from your own products, pages and documents. And every action she takes — adding to cart, applying a code, filling checkout — only shows a tick once your page confirms it. If something doesn't go through, she says so instead of pretending.",
   },
   {
-    q: "How does coupon discovery work?",
-    a: "We scrape your coupon page, watch observed codes from real visitors, and accept merchant-entered codes from your dashboard. coupons.suggest(cart) ranks the best applicable code per the live cart and either confirms with the visitor or auto-applies — your call.",
+    q: "What happens when a customer has a problem?",
+    a: "Late delivery, a damaged parcel, a complaint or a callback request: Olivia takes their name and number, logs it as a customer request and emails your team. You'll see every request in your dashboard.",
   },
   {
-    q: "Where does payment data live?",
-    a: "Nowhere on our servers. The widget never collects card data. When a visitor taps Pay, we redirect to your native checkout. We are out of PCI scope by design.",
+    q: "Does it handle payments?",
+    a: "Never. Olivia fills in the details, then the shopper pays on your own checkout. Card details never touch us.",
   },
   {
-    q: "Can I override what the widget does?",
-    a: "Yes. Open the recipe-card editor, point at the broken element, save the override — it's locked permanently. Auto-recrawl and LLM healing skip every locked selector. If a locked override starts failing, we email you a one-click suggested fix.",
+    q: "How many conversations will I need?",
+    a: "A conversation is one shopper's visit with Olivia, however long, by voice or chat. Most stores start on Starter, watch usage in the dashboard, and top up ($0.30 each) or move up a plan when they're busy.",
   },
   {
-    q: "How long does install take?",
-    a: "Under 60 seconds for the script paste. Auto-onboarding (platform fingerprint, catalog sync, selector extraction, smoke test) completes in 5–8 minutes. From paste to live shopping: under 10 minutes total, zero merchant action.",
+    q: "Can I choose her voice and how she talks?",
+    a: "Yes. Pick from eight voices and personalities in Settings and describe your brand's tone. Shoppers can talk in their own language — she replies in the same one.",
+  },
+  {
+    q: "How long does setup take?",
+    a: "About a minute to paste the line. Olivia then learns your store on her own — usually within a few minutes — and you're live.",
   },
 ];
 
@@ -44,7 +48,11 @@ export function Faq() {
       <div className="mx-auto max-w-4xl px-5 md:px-8">
         <SectionHead
           eyebrow="FAQ"
-          title="The questions every merchant asks."
+          title={
+            <>
+              Questions owners <SerifEm>always ask.</SerifEm>
+            </>
+          }
         />
 
         <div className="mt-14 grid gap-2.5">
@@ -58,7 +66,9 @@ export function Faq() {
                 viewport={{ once: true, margin: "-80px" }}
                 transition={{ duration: 0.4, delay: i * 0.03 }}
                 className={`overflow-hidden rounded-2xl border transition-colors ${
-                  expanded ? "border-border-strong bg-surface-elevated" : "border-border bg-surface-elevated/60"
+                  expanded
+                    ? "border-border-strong bg-surface-elevated shadow-[inset_0_1px_0_var(--highlight)]"
+                    : "border-border bg-surface-elevated/60 hover:border-border-strong"
                 }`}
               >
                 <button
@@ -71,7 +81,7 @@ export function Faq() {
                   </span>
                   <span
                     className={`grid h-8 w-8 flex-none place-items-center rounded-full border border-border bg-surface text-text-secondary transition-transform ${
-                      expanded ? "rotate-45 border-violet text-violet" : ""
+                      expanded ? "rotate-45 border-signal bg-signal-soft text-signal" : "group-hover:border-border-strong"
                     }`}
                   >
                     <Plus className="h-4 w-4" />

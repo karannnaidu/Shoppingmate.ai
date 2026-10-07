@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Nav } from "@/components/Nav";
 import { PageHeader } from "@/components/PageHeader";
+import { SerifEm } from "@/components/v2/primitives";
 import { Features } from "@/components/Features";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Privacy } from "@/components/Privacy";
@@ -9,30 +10,27 @@ import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Features — shoppingmate",
-  description: "Voice + chat, cart actions, coupon discovery, brand KB, personas, and conversion attribution — out of the box.",
+  description: "Voice and chat that sells: adds to cart, finds the best code, fills checkout and shows a tick for every real step. Plus customer requests, Store Insights and an owner dashboard.",
 };
+
 
 export default function FeaturesPage() {
   return (
     <>
       <Nav />
       <main className="relative">
-        <PageHeader
+                <PageHeader
           eyebrow="Features"
-          title={
-            <>
-              Everything Sage does, <span className="gradient-text">out of the box.</span>
-            </>
-          }
-          subtitle="Voice and chat in one widget. Cart actions, coupon discovery, brand-aware answers, and attribution — no integrations, no plugins, no PCI scope."
+          title={<>Everything Olivia does, <SerifEm>out of the box.</SerifEm></>}
+          subtitle="Voice and chat in one. She finds the right product, adds it to the cart, applies the best code and fills in checkout — and you see every step in your dashboard."
           primaryHref="/signup"
-          primaryLabel="Get started — $30/mo"
+          primaryLabel="Get started — from $30/mo"
           secondaryHref="/demo"
-          secondaryLabel="Hear it talk"
+          secondaryLabel="Talk to Olivia"
           stats={[
-            { value: "8", label: "personas" },
-            { value: "Voice + chat", label: "in one widget" },
-            { value: "0", label: "card data stored" },
+            { value: "Voice + chat", label: "in one" },
+            { value: "8", label: "voices" },
+            { value: "0", label: "card details seen" },
           ]}
         />
         <Features />

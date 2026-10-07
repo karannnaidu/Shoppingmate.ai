@@ -62,7 +62,7 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <CardHeader><CardTitle>Brand Knowledge Files</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Your documents</CardTitle></CardHeader>
         <CardContent>
           <label
             onDragOver={(e) => {
@@ -98,9 +98,9 @@ export function KnowledgeUploader({ docs }: { docs: KbDoc[] }) {
       </Card>
       <div className={cn('text-sm rounded-md border p-3 tabular-nums', overBudget ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' : 'bg-surface-muted border-border text-text-secondary')}>
         <span>
-          <span className={cn('font-semibold', overBudget ? 'text-amber-500' : 'text-text-primary')}>{`Total: ${totalTokens.toLocaleString()} / 8,000 tokens`}</span>
+          <span className={cn('font-semibold', overBudget ? 'text-amber-500' : 'text-text-primary')}>{`Knowledge size: ${totalTokens.toLocaleString()} of 8,000`}</span>
           {' — '}
-          {overBudget ? 'exceeds 8K budget; switching to top-K embedding retrieval.' : 'full KB injected at session start.'}
+          {overBudget ? 'over the limit — your assistant will look up the most relevant parts for each question instead of reading everything.' : 'your assistant reads all of it at the start of every conversation.'}
         </span>
       </div>
       {docs.length > 0 && (

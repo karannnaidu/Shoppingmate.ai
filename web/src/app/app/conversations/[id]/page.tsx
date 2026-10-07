@@ -4,7 +4,11 @@ import { getDashboardSession } from '@/lib/session';
 import type * as React from 'react';
 import { getConversation, getConversationActions, type ConversationDetail } from '@/lib/conversations-repo';
 import { buildTimeline, type TimelineStep } from '@/lib/action-timeline';
+import Link from 'next/link';
+import { ChevronLeft, MessageCircle, Mic } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge, DashHeader } from '@/components/dashboard/v2';
+import { LocalTime } from '@/components/dashboard/LocalTime';
 
 export default async function ConversationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,67 +24,102 @@ export default async function ConversationDetailPage({ params }: { params: Promi
   // Degrade gracefully instead of a hard 404: many older sessions predate
   // transcript recording (or weren't captured), and links to them shouldn't
   // dead-end. New conversations record automatically.
+  const back = (
+    <Link href="/app/conversations" className="inline-flex items-center gap-1 text-sm font-medium text-text-secondary hover:text-text-primary">
+      <ChevronLeft className="h-4 w-4" /> All conversations
+    </Link>
+  );
+
   if (!convo) {
     return (
-      <div className="flex flex-col gap-6 max-w-3xl">
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Conversation</h1>
-        <Card>
-          <CardHeader><CardTitle>Transcript unavailable</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-sm text-text-secondary">
-              This conversation isn&apos;t available — it predates transcript recording or wasn&apos;t captured.
-              New conversations are recorded and appear here automatically.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex max-w-3xl flex-col gap-6">
+        {back}
+        <DashHeader title="Conversation" description="The transcript for this conversation wasn't recorded — older sessions predate recording. New conversations appear here automatically." />
         {steps.length > 0 && <WebsiteActionsCard steps={steps} />}
       </div>
     );
   }
 
   const expiresAt = new Date(convo.startedAt.getTime() + 24 * 3600 * 1000);
+  const outcome = OUTCOME[convo.outcome] ?? OUTCOME.in_progress;
+  const mins = Math.floor(convo.durationSec / 60);
+  const length = mins > 0 ? `${mins}m ${convo.durationSec % 60}s` : `${convo.durationSec}s`;
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-text-primary">Conversation</h1>
-        <p className="text-sm text-text-secondary">
-          {convo.startedAt.toLocaleString()} · {convo.durationSec}s · {convo.turns} turns · {convo.mode} · {convo.outcome}
-        </p>
-        <p className="text-xs text-amber-500 mt-1">
-          This conversation will be deleted at {expiresAt.toLocaleString()} (24h retention).
-        </p>
-      </div>
-      <Card>
-        <CardHeader><CardTitle>Transcript</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-3">
+    <div className="flex flex-col gap-6">
+      {back}
+      <DashHeader
+        title={<LocalTime iso={convo.startedAt.toISOString()} options={TITLE_FMT} />}
+        description={
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <Badge tone={outcome.tone}>{outcome.label}</Badge>
+            <Badge>
+              {convo.mode === 'voice' ? <Mic className="h-3 w-3" /> : <MessageCircle className="h-3 w-3" />}
+              {convo.mode === 'voice' ? 'Voice call' : 'Chat'}
+            </Badge>
+            <Badge>{length}</Badge>
+          </span>
+        }
+      />
+
+      <div className="grid items-start gap-5 lg:grid-cols-[1.5fr_1fr]">
+        <section className="card-v2 p-5 md:p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display text-[17px] font-semibold tracking-[-0.015em]">What was said</h2>
+            <span className="text-[11.5px] text-text-muted">
+              Auto-deletes <LocalTime iso={expiresAt.toISOString()} options={SHORT_FMT} />
+            </span>
+          </div>
           {convo.transcript.length === 0 ? (
-            <p className="text-sm text-text-secondary">Transcript not retained.</p>
-          ) : convo.transcript.map((t, i) => (
-            <div key={i} className={
-              t.role === 'agent' ? 'self-start max-w-md bg-surface-muted text-text-primary rounded-2xl px-4 py-2 text-sm' :
-              t.role === 'user' ? 'self-end max-w-md bg-foreground text-background rounded-2xl px-4 py-2 text-sm' :
-              t.role === 'card' ? 'self-start text-xs italic text-text-secondary' :
-              'self-start text-xs font-mono text-text-muted'
-            }>
-              {t.content}
+            <p className="text-sm text-text-secondary">This transcript wasn&apos;t kept.</p>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {convo.transcript.map((t, i) =>
+                t.role === 'agent' || t.role === 'user' ? (
+                  <div key={i} className={t.role === 'user' ? 'flex flex-col items-end' : 'flex flex-col items-start'}>
+                    {(i === 0 || convo.transcript[i - 1]?.role !== t.role) && (
+                      <span className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
+                        {t.role === 'user' ? 'Shopper' : 'Your assistant'}
+                      </span>
+                    )}
+                    <div
+                      className={
+                        t.role === 'user'
+                          ? 'max-w-[85%] rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-[14px] leading-relaxed text-background'
+                          : 'max-w-[85%] rounded-2xl rounded-bl-md border border-border bg-surface-muted px-4 py-2.5 text-[14px] leading-relaxed text-text-primary'
+                      }
+                    >
+                      {t.content}
+                    </div>
+                  </div>
+                ) : (
+                  <p key={i} className="self-center rounded-full bg-surface-muted px-3 py-1 text-[11.5px] text-text-muted">
+                    {t.role === 'card' ? `Showed: ${t.content}` : t.content}
+                  </p>
+                ),
+              )}
             </div>
-          ))}
-        </CardContent>
-      </Card>
-      {steps.length > 0 && <WebsiteActionsCard steps={steps} />}
-      <Card>
-        <CardHeader><CardTitle>Cost</CardTitle></CardHeader>
-        <CardContent>
-          <p className="text-sm text-text-secondary tabular-nums">
-            <span className="text-text-primary">${(convo.llmCostCents / 100).toFixed(2)}</span> LLM + <span className="text-text-primary">${(convo.voiceCostCents / 100).toFixed(2)}</span> voice = <span className="text-text-primary font-semibold">${((convo.llmCostCents + convo.voiceCostCents) / 100).toFixed(2)}</span> total
-          </p>
-        </CardContent>
-      </Card>
-      {convo.intent && <IntentCard intent={convo.intent} />}
+          )}
+        </section>
+
+        <div className="flex flex-col gap-5">
+          {steps.length > 0 && <WebsiteActionsCard steps={steps} />}
+          {convo.intent && <IntentCard intent={convo.intent} />}
+          <p className="px-1 text-[12px] text-text-muted">This conversation used 1 of your monthly conversations.</p>
+        </div>
+      </div>
     </div>
   );
 }
+
+const TITLE_FMT: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' };
+const SHORT_FMT: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' };
+
+const OUTCOME = {
+  purchased: { label: 'Ordered', tone: 'signal' as const },
+  abandoned: { label: 'Left without buying', tone: 'neutral' as const },
+  in_progress: { label: 'Still browsing', tone: 'violet' as const },
+};
 
 /** What really happened on the storefront — from action results, not from the
  *  assistant's words — so an owner can tell "said it" from "did it". */
@@ -144,18 +183,16 @@ function IntentCard({ intent }: { intent: NonNullable<ConversationDetail['intent
 
   return (
     <Card>
-      <CardHeader><CardTitle>Intent &amp; signals</CardTitle></CardHeader>
+      <CardHeader><CardTitle>What they wanted</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium text-text-primary">{intent.intent}</span>
-          <span className="text-text-secondary">
-            {Math.round(intent.intentConfidence * 100)}% confidence
-          </span>
+        <div className="text-sm">
+          <span className="font-medium capitalize text-text-primary">{intent.intent.replace(/_/g, ' ')}</span>
+          {intent.intentConfidence < 0.6 && <span className="ml-2 text-text-muted">(best guess)</span>}
         </div>
 
         {intent.needs.length > 0 && (
           <div>
-            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">Needs</p>
+            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">Looking for</p>
             <div className="flex flex-wrap gap-2">
               {intent.needs.map((n) => <Chip key={n}>{n}</Chip>)}
             </div>
@@ -164,7 +201,7 @@ function IntentCard({ intent }: { intent: NonNullable<ConversationDetail['intent
 
         {intent.objections.length > 0 && (
           <div>
-            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">Objections</p>
+            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">What held them back</p>
             <div className="flex flex-wrap gap-2">
               {intent.objections.map((o) => <Chip key={o}>{o}</Chip>)}
             </div>
@@ -173,7 +210,7 @@ function IntentCard({ intent }: { intent: NonNullable<ConversationDetail['intent
 
         {identityFields.length > 0 && (
           <div>
-            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">Captured identity</p>
+            <p className="mb-2 text-xs uppercase tracking-wide text-text-muted">Details they shared</p>
             <dl className="flex flex-col gap-1 text-sm">
               {identityFields.map((f) => (
                 <div key={f.label} className="flex gap-2">
@@ -187,8 +224,8 @@ function IntentCard({ intent }: { intent: NonNullable<ConversationDetail['intent
 
         {intent.dropStage && (
           <div className="text-sm">
-            <span className="text-text-secondary">Drop-off stage: </span>
-            <span className="text-text-primary">{intent.dropStage}</span>
+            <span className="text-text-secondary">Where they stopped: </span>
+            <span className="capitalize text-text-primary">{intent.dropStage.replace(/_/g, ' ')}</span>
           </div>
         )}
       </CardContent>

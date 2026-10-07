@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { formatMoney } from '@/lib/format-money';
 
 type Snapshot = {
   activeConversations: number;
@@ -7,7 +8,7 @@ type Snapshot = {
   revenueTodayCents: number;
 };
 
-export function LivePanel() {
+export function LivePanel({ currency = 'USD' }: { currency?: string }) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
 
   useEffect(() => {
@@ -27,28 +28,30 @@ export function LivePanel() {
     };
   }, []);
 
-  const money = (c: number) => `$${(c / 100).toFixed(0)}`;
   const cell = (value: string, label: string) => (
-    <div>
-      <div className="text-2xl font-semibold text-text-primary">{value}</div>
-      <div className="text-xs text-text-secondary">{label}</div>
+    <div className="min-w-0">
+      <div className="font-display text-2xl font-semibold tabular-nums tracking-tight text-text-primary">{value}</div>
+      <div className="mt-0.5 truncate text-xs text-text-muted">{label}</div>
     </div>
   );
+  const active = snap?.activeConversations ?? 0;
 
   return (
-    <div className="rounded-lg border border-border bg-surface/60 p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+    <section className="card-v2 relative overflow-hidden p-5 md:p-6">
+      <div className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-signal/10 blur-2xl" aria-hidden />
+      <div className="relative mb-4 flex items-center gap-2">
+        <span className="relative flex h-2.5 w-2.5">
+          {active > 0 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal opacity-60" />}
+          <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${active > 0 ? 'bg-signal' : 'bg-text-muted/50'}`} />
         </span>
-        <h2 className="font-display text-lg font-semibold text-text-primary">Live now</h2>
+        <h2 className="font-display text-[17px] font-semibold tracking-[-0.015em]">Live now</h2>
+        <span className="ml-auto text-[11px] text-text-muted">updates every 10s</span>
       </div>
-      <div className="grid grid-cols-3 gap-4 text-center">
-        {cell(snap ? String(snap.activeConversations) : '—', 'Active chats')}
-        {cell(snap ? String(snap.conversionsToday) : '—', 'Orders today')}
-        {cell(snap ? money(snap.revenueTodayCents) : '—', 'Revenue today')}
+      <div className="relative grid grid-cols-3 gap-4">
+        {cell(snap ? String(snap.activeConversations) : '—', 'chatting now')}
+        {cell(snap ? String(snap.conversionsToday) : '—', 'orders today')}
+        {cell(snap ? formatMoney(snap.revenueTodayCents, currency) : '—', 'sales today')}
       </div>
-    </div>
+    </section>
   );
 }
