@@ -106,7 +106,7 @@ function chromeFor(props: TrayProps, phase: CallPhase): PhaseChrome {
         captionClass: 'incoming',
         presenceClass: presence,
         nameText: props.personaName,
-        controls: `${callBtn(STRINGS.acceptCta, STRINGS.acceptAria)}${chatBtn}`,
+        controls: `${callBtn(STRINGS.acceptCta, STRINGS.acceptAria)}${chatMini}`,
       };
     case 'connecting':
       return {
