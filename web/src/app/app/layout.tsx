@@ -7,6 +7,7 @@ import { getActiveAlert } from '@/lib/alerts-repo';
 import { caseCounts } from '@/lib/cases-repo';
 import { conversationsSince } from '@/lib/kpi-repo';
 import { planCredits } from '@/lib/plan-credits';
+import { isOpsAdmin } from '@/lib/support-tools';
 
 export default async function AppLayout({
   children,
@@ -46,7 +47,13 @@ export default async function AppLayout({
   return (
     <div className="relative flex min-h-dvh flex-col bg-background text-text-primary md:flex-row">
       <div className="aurora opacity-30" aria-hidden />
-      <Sidebar pathname={pathname} merchantId={m?.id} store={store} openRequests={counts.open} />
+      <Sidebar
+        pathname={pathname}
+        merchantId={m?.id}
+        store={store}
+        openRequests={counts.open}
+        opsAdmin={isOpsAdmin(session.user.email)}
+      />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <AlertBanner alert={alert as Parameters<typeof AlertBanner>[0]['alert']} />
         <main className="dash-enter mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-10 md:py-10">{children}</main>

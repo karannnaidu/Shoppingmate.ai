@@ -16,6 +16,7 @@
     "@composio/core": "^0.1.0",
     "@shoppingmate/db": "workspace:^",
     "@shoppingmate/jobs": "workspace:^",
+    "@shoppingmate/shared": "workspace:^",
     "better-auth": "^1.2.7",
     "bullmq": "^5.27.0",
     "clsx": "^2.1.1",

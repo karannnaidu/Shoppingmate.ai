@@ -101,6 +101,24 @@ export async function submitSupportCase(
   return { ok: true, id };
 }
 
+/** Email OUR team (brand support tickets). Recipients: OPS_TICKET_EMAILS
+ *  (comma-separated). Returns how many it was sent to (0 when unconfigured). */
+export async function emailTeam(subject: string, html: string): Promise<number> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const to = (process.env.OPS_TICKET_EMAILS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!apiKey || to.length === 0) return 0;
+  await new Resend(apiKey).emails.send({
+    from: process.env.RESEND_FROM ?? 'shoppingmate <onboarding@resend.dev>',
+    to,
+    subject,
+    html,
+  });
+  return to.length;
+}
+
 /** Nav Phase 8: email a merchant's owners (insights digest, anomaly alerts). */
 export async function emailOwners(merchantId: string, subject: string, html: string): Promise<number> {
   const apiKey = process.env.RESEND_API_KEY;

@@ -452,6 +452,9 @@ importers:
       '@shoppingmate/jobs':
         specifier: workspace:^
         version: link:../packages/jobs
+      '@shoppingmate/shared':
+        specifier: workspace:^
+        version: link:../packages/shared
       better-auth:
         specifier: ^1.2.7
         version: 1.2.7

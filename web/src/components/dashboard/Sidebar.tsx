@@ -8,6 +8,7 @@ import {
   Globe,
   Home,
   Inbox,
+  LifeBuoy,
   Lightbulb,
   type LucideIcon,
   Menu,
@@ -16,6 +17,7 @@ import {
   Settings,
   Stethoscope,
   Target,
+  Ticket,
   Users,
   X,
 } from 'lucide-react';
@@ -29,7 +31,7 @@ const CALMOSIS_MERCHANT_ID = 'SM-2SCCLZ';
 type Item = { href: string; label: string; icon: LucideIcon; badge?: number };
 type Group = { label?: string; items: Item[] };
 
-function navGroups(merchantId?: string, openRequests = 0): Group[] {
+function navGroups(merchantId?: string, openRequests = 0, opsAdmin = false): Group[] {
   const selling: Item[] = [
     { href: '/app/conversations', label: 'Conversations', icon: MessageCircle },
     { href: '/app/cases', label: 'Customer requests', icon: Inbox, badge: openRequests },
@@ -58,8 +60,11 @@ function navGroups(merchantId?: string, openRequests = 0): Group[] {
         { href: '/app/knowledge', label: 'Knowledge', icon: BookOpen },
         { href: '/app/settings', label: 'Settings', icon: Settings },
         { href: '/app/billing', label: 'Billing', icon: CreditCard },
+        { href: '/app/help', label: 'Help & requests', icon: LifeBuoy },
       ],
     },
+    // Internal: our team's view of every brand's tickets.
+    ...(opsAdmin ? [{ label: 'shoppingmate team', items: [{ href: '/app/ops/tickets', label: 'Brand tickets', icon: Ticket }] }] : []),
   ];
 }
 
@@ -139,14 +144,16 @@ export function Sidebar({
   merchantId,
   store,
   openRequests = 0,
+  opsAdmin = false,
 }: {
   pathname: string;
   merchantId?: string;
   store?: SidebarStore;
   openRequests?: number;
+  opsAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const groups = navGroups(merchantId, openRequests);
+  const groups = navGroups(merchantId, openRequests, opsAdmin);
 
   return (
     <>

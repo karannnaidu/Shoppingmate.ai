@@ -298,7 +298,7 @@ function InstallStep({ merchantId }: { merchantId: string }) {
 // because the widget reports window.location.host and the API rejects any host
 // not listed — a store on a custom domain (e.g. entered myshopify.com but serves
 // on yourbrand.com) would otherwise be blocked.
-function DomainsManager() {
+export function DomainsManager() {
   const [domains, setDomains] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
