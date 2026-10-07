@@ -23,6 +23,7 @@ import {
 import { markFix } from './actions';
 import { AskBox } from './ask-box';
 import { FixButton } from './fix-button';
+import { ShowMeLink } from './show-me-link';
 
 // Nav PRD Phase 8.13 — Store Insights for SHOP OWNERS (not analysts): answer
 // first, money and people, their own pages with pins, one action per insight.
@@ -187,9 +188,7 @@ export default async function InsightsPage({
                     {x.pageType && (
                       // Was a plain ?page= link that left the owner at the top of
                       // the page, so it looked like it did nothing — jump to the view.
-                      <Link href={`${qs({ page: x.pageType })}#your-pages`} className="text-sm text-violet hover:underline">
-                        Show me on the page
-                      </Link>
+                      <ShowMeLink href={`${qs({ page: x.pageType })}#your-pages`} />
                     )}
                   </div>
                 </Card>
