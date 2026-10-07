@@ -9,7 +9,14 @@ import { PAGE_LABEL } from './insights-copy';
 // chat, a friction moment, or a purchase), so it's a representative sample,
 // not every visit — the UI says so.
 
-export type PageviewRow = { sessionId: string; pageType: string; reason: string; createdAt: Date };
+export type PageviewRow = {
+  sessionId: string;
+  pageType: string;
+  reason: string;
+  createdAt: Date;
+  /** Page types visited so far in this visit (recorded since 2026-10-07). */
+  journey?: string[] | null;
+};
 export type Journey = { steps: string[]; visits: number; ordered: number };
 
 export function buildJourneys(rows: PageviewRow[], limit = 8): Journey[] {
@@ -22,10 +29,17 @@ export function buildJourneys(rows: PageviewRow[], limit = 8): Journey[] {
   const paths = new Map<string, Journey>();
   for (const list of bySession.values()) {
     list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    // Prefer the full recorded path (longest `journey` on any row of the
+    // visit); older rows fall back to the stored pages themselves.
+    const recorded = list.reduce<string[]>(
+      (best, r) => (Array.isArray(r.journey) && r.journey.length > best.length ? r.journey : best),
+      [],
+    );
+    const raw = recorded.length > 0 ? recorded : list.map((r) => r.pageType);
     // Collapse repeats (product → product → product reads as one "Product").
     const steps: string[] = [];
-    for (const r of list) {
-      const label = PAGE_LABEL[r.pageType] ?? r.pageType;
+    for (const t of raw) {
+      const label = PAGE_LABEL[t] ?? t;
       if (steps[steps.length - 1] !== label) steps.push(label);
     }
     const capped = steps.length > 6 ? [...steps.slice(0, 5), '…'] : steps;
@@ -46,10 +60,15 @@ export async function loadJourneys(merchantId: string, days = 14): Promise<{ jou
       pageType: insightPageviews.pageType,
       reason: insightPageviews.reason,
       createdAt: insightPageviews.createdAt,
+      summary: insightPageviews.summary,
     })
     .from(insightPageviews)
     .where(and(eq(insightPageviews.merchantId, merchantId), gte(insightPageviews.createdAt, since)))
     .orderBy(asc(insightPageviews.createdAt))
     .limit(20000);
-  return { journeys: buildJourneys(rows), visits: new Set(rows.map((r) => r.sessionId)).size };
+  // Real shoppers only — rows from our automated QA run are tagged `qa:*`.
+  const real = rows
+    .filter((r) => !r.reason.startsWith('qa:'))
+    .map((r) => ({ ...r, journey: (r.summary as { journey?: string[] } | null)?.journey ?? null }));
+  return { journeys: buildJourneys(real), visits: new Set(real.map((r) => r.sessionId)).size };
 }

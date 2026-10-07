@@ -318,15 +318,26 @@ export function createInsightsRoute(redis: Redis): Hono {
           total: sql`${schema.insightCounters.total} + excluded.total`,
         },
       });
+    // The visit's page path so far (page types, repeats collapsed), so detailed
+    // rows carry the whole journey — not just the one flagged page. Powers the
+    // Scale "Shopper journeys" view. Tiny: ≤12 short strings per visit, 1 day.
+    const pathKey = `ins:path:${x.sessionId}`;
+    if ((await redis.lindex(pathKey, -1)) !== x.pageType) {
+      await redis.rpush(pathKey, x.pageType);
+      await redis.ltrim(pathKey, -12, -1);
+    }
+    await redis.expire(pathKey, 86400);
+
     const reason = detailReason(x);
     if (reason) {
+      const journey = await redis.lrange(pathKey, 0, -1);
       await db.insert(schema.insightPageviews).values({
         merchantId: m.id,
         sessionId: x.sessionId,
         pageType: x.pageType,
         path: x.path,
         device: x.device,
-        summary: { ...x, qa: x.qa } as unknown as Record<string, unknown>,
+        summary: { ...x, qa: x.qa, journey } as unknown as Record<string, unknown>,
         reason: x.qa ? `qa:${reason}` : reason,
       });
     }

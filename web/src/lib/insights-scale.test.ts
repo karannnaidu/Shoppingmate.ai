@@ -26,6 +26,14 @@ describe('buildJourneys (Scale: shopper journeys)', () => {
     expect(j[0]!.steps).toHaveLength(3); // product repeat collapsed
     expect(j).toHaveLength(2);
   });
+
+  it('uses the recorded full path when a visit only stored its last page', () => {
+    const j = buildJourneys([
+      { sessionId: 'z', pageType: 'purchase', reason: 'converted', createdAt: t(9), journey: ['home', 'pdp', 'pdp', 'checkout', 'purchase'] },
+    ]);
+    expect(j[0]!.steps).toHaveLength(4);
+    expect(j[0]!.ordered).toBe(1);
+  });
 });
 
 describe('insightsCsv (Scale: export)', () => {
