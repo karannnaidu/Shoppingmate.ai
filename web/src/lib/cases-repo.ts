@@ -36,3 +36,20 @@ export async function caseCounts(merchantId: string): Promise<{ open: number; ur
     .where(eq(supportCases.merchantId, merchantId));
   return { open: row?.open ?? 0, urgentOpen: row?.urgentOpen ?? 0 };
 }
+
+/** Service businesses (clinics, restaurants, salons, services): booking and
+ *  quote requests the assistant captured — their equivalent of orders. */
+export async function bookingCounts(
+  merchantId: string,
+  days = 7,
+): Promise<{ requests: number; requestsPrev: number; handled: number }> {
+  const [row] = await db
+    .select({
+      requests: sql<number>`count(*) FILTER (WHERE ${supportCases.createdAt} >= now() - make_interval(days => ${days}))`.mapWith(Number),
+      requestsPrev: sql<number>`count(*) FILTER (WHERE ${supportCases.createdAt} < now() - make_interval(days => ${days}) AND ${supportCases.createdAt} >= now() - make_interval(days => ${days * 2}))`.mapWith(Number),
+      handled: sql<number>`count(*) FILTER (WHERE ${supportCases.createdAt} >= now() - make_interval(days => ${days}) AND ${supportCases.status} = 'resolved')`.mapWith(Number),
+    })
+    .from(supportCases)
+    .where(and(eq(supportCases.merchantId, merchantId), inArray(supportCases.type, ['booking', 'quote'])));
+  return { requests: row?.requests ?? 0, requestsPrev: row?.requestsPrev ?? 0, handled: row?.handled ?? 0 };
+}

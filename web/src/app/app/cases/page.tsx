@@ -54,7 +54,7 @@ export default async function CasesPage({
         title="Customer requests"
         description={
           counts.open === 0
-            ? 'Nothing waiting. When a shopper needs your team — order tracking, a problem, a return, a question — it lands here and in your email.'
+            ? 'Nothing waiting. When a customer needs your team — a booking, a price quote, order tracking, a problem, a return, a question — it lands here and in your email.'
             : `${counts.open} ${counts.open === 1 ? 'customer is' : 'customers are'} waiting for your team${
                 counts.urgentOpen > 0 ? ` — ${counts.urgentOpen} unhappy or urgent, reply to them first` : ''
               }.`

@@ -12,7 +12,7 @@ import { BusinessTypeForm } from '@/components/dashboard/BusinessTypeForm';
 import { db } from '@/lib/db';
 import { merchants } from '@shoppingmate/db/schema';
 import { eq } from 'drizzle-orm';
-import { SEGMENT_PLAYBOOK, SERVICE_SEGMENTS, detectSegment, type Segment } from '@shoppingmate/shared';
+import { SEGMENT_PLAYBOOK, SERVICE_SEGMENTS, detectSegment, type Segment } from '@shoppingmate/shared/segments';
 
 export default async function SettingsPage() {
   const hdrs = await headers();

@@ -6,7 +6,7 @@ import { db } from '@/lib/db';
 import { merchants } from '@shoppingmate/db/schema';
 import { eq } from 'drizzle-orm';
 import { getDashboardSession } from '@/lib/session';
-import { SEGMENT_PLAYBOOK } from '@shoppingmate/shared';
+import { SEGMENT_PLAYBOOK } from '@shoppingmate/shared/segments';
 
 const PersonaSchema = z.object({
   voiceDescriptorId: z.string().min(1),

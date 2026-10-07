@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowRight,
+  CalendarCheck,
   CheckCircle2,
   CreditCard,
   Inbox,
@@ -22,7 +23,8 @@ import { getDashboardSession } from '@/lib/session';
 import { computeKpis, conversationsSince } from '@/lib/kpi-repo';
 import { computeFunnel } from '@/lib/funnel-repo';
 import { recentConversations } from '@/lib/conversations-repo';
-import { caseCounts } from '@/lib/cases-repo';
+import { bookingCounts, caseCounts } from '@/lib/cases-repo';
+import { isServiceBusiness } from '@/lib/business-type';
 import { formatMoney, merchantCurrency } from '@/lib/money';
 import { planCredits } from '@/lib/plan-credits';
 import { db } from '@/lib/db';
@@ -70,6 +72,9 @@ export default async function HomePage() {
     days: 7,
     purchases: k7.assistedOrderCount + k7.influencedOrderCount,
   });
+  // Clinics, restaurants, salons, services: bookings & enquiries, not orders.
+  const service = isServiceBusiness(merchantRow);
+  const bookings = service ? await bookingCounts(merchantId, 7).catch(() => ({ requests: 0, requestsPrev: 0, handled: 0 })) : null;
 
   // This week vs the 7 days before it.
   const sales = k7.assistedRevenueCents + k7.influencedRevenueCents;
@@ -82,7 +87,11 @@ export default async function HomePage() {
   const storeName = m.name || m.domain || 'your store';
   const answer =
     convos === 0
-      ? 'No conversations yet this week. As soon as shoppers start talking to your assistant, the results show up here.'
+      ? bookings
+        ? 'No conversations yet this week. As soon as visitors start talking to your assistant, their questions and booking requests show up here.'
+        : 'No conversations yet this week. As soon as shoppers start talking to your assistant, the results show up here.'
+      : bookings
+        ? `Your assistant talked to ${convos} visitor${convos === 1 ? '' : 's'} this week and took ${bookings.requests} booking or quote request${bookings.requests === 1 ? '' : 's'} for your team.`
       : orders > 0
         ? `Your assistant talked to ${convos} shopper${convos === 1 ? '' : 's'} this week and helped close ${orders} order${orders === 1 ? '' : 's'} worth ${formatMoney(sales, currency)}.`
         : `Your assistant talked to ${convos} shopper${convos === 1 ? '' : 's'} this week. No orders traced back to a chat yet.`;
@@ -94,7 +103,11 @@ export default async function HomePage() {
       icon: Inbox,
       tone: cases.urgentOpen > 0 ? 'rose' : 'amber',
       title: `${cases.open} customer request${cases.open === 1 ? '' : 's'} waiting`,
-      body: cases.urgentOpen > 0 ? `${cases.urgentOpen} marked urgent — they're expecting a reply.` : 'Shoppers left their details and are waiting to hear back.',
+      body: cases.urgentOpen > 0
+        ? `${cases.urgentOpen} marked urgent — they're expecting a reply.`
+        : service
+          ? 'Customers asked to book or for a quote — call them back to confirm.'
+          : 'Shoppers left their details and are waiting to hear back.',
       href: '/app/cases',
       cta: 'Reply',
     });
@@ -120,7 +133,8 @@ export default async function HomePage() {
     });
   const syncedAt = merchantRow?.catalogSyncedAt ? new Date(merchantRow.catalogSyncedAt) : null;
   const productCount = productCountRow[0]?.count ?? 0;
-  if (!syncedAt || Date.now() - syncedAt.getTime() > 3 * 86400_000)
+  // A service business has no product list to keep fresh.
+  if (!service && (!syncedAt || Date.now() - syncedAt.getTime() > 3 * 86400_000))
     needs.push({
       icon: PackageSearch,
       tone: 'amber',
@@ -153,22 +167,50 @@ export default async function HomePage() {
     <div className="flex flex-col gap-6">
       <DashHeader
         eyebrow={`This week · ${storeName}`}
-        title="Your store this week"
+        title={bookings ? 'Your business this week' : 'Your store this week'}
         description={answer}
         actions={
-          <span
-            className={cn(
-              'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium',
-              productCount > 0 ? 'border-signal/25 bg-signal-soft text-signal' : 'border-amber-500/25 bg-amber-500/10 text-amber-500',
-            )}
-          >
-            <span className={cn('h-1.5 w-1.5 rounded-full', productCount > 0 ? 'bg-signal' : 'bg-amber-500')} />
-            {productCount > 0 ? `${productCount} products loaded` : 'No products loaded'}
-          </span>
+          bookings ? (
+            <span className="inline-flex items-center gap-2 rounded-full border border-signal/25 bg-signal-soft px-3 py-1.5 text-xs font-medium text-signal">
+              <span className="h-1.5 w-1.5 rounded-full bg-signal" />
+              Taking bookings &amp; enquiries
+            </span>
+          ) : (
+            <span
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium',
+                productCount > 0 ? 'border-signal/25 bg-signal-soft text-signal' : 'border-amber-500/25 bg-amber-500/10 text-amber-500',
+              )}
+            >
+              <span className={cn('h-1.5 w-1.5 rounded-full', productCount > 0 ? 'bg-signal' : 'bg-amber-500')} />
+              {productCount > 0 ? `${productCount} products loaded` : 'No products loaded'}
+            </span>
+          )
         }
       />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        {bookings ? (
+          <>
+            <StatCard
+              icon={CalendarCheck}
+              tone="signal"
+              label="Booking & quote requests"
+              value={String(bookings.requests)}
+              delta={pctDelta(bookings.requests, bookings.requestsPrev)}
+              hint="Customers who asked to book or for a price, via your assistant"
+              href="/app/cases"
+            />
+            <StatCard
+              icon={Inbox}
+              label="Waiting on you"
+              value={String(cases.open)}
+              hint={cases.open ? 'Call them back to confirm' : 'Everyone has heard back'}
+              href="/app/cases"
+            />
+          </>
+        ) : (
+          <>
         <StatCard
           icon={TrendingUp}
           tone="signal"
@@ -186,12 +228,14 @@ export default async function HomePage() {
           hint={`${k7.assistedOrderCount} placed with the assistant's help`}
           href="/app/audit"
         />
+          </>
+        )}
         <StatCard
           icon={MessageCircle}
           label="Conversations"
           value={String(convos)}
           delta={pctDelta(convos, convosPrev)}
-          hint="Shoppers who talked or typed to your assistant"
+          hint={bookings ? 'Visitors who talked or typed to your assistant' : 'Shoppers who talked or typed to your assistant'}
           href="/app/conversations"
         />
         <StatCard
@@ -249,8 +293,21 @@ export default async function HomePage() {
           )}
         </section>
         <div className="flex flex-col gap-4">
-          <LivePanel currency={currency} />
-          <FunnelCard funnel={funnel} />
+          <LivePanel currency={currency} service={bookings ? { requestsThisWeek: bookings.requests } : undefined} />
+          {bookings ? (
+            <FunnelCard
+              funnel={funnel}
+              title="From chat to booking"
+              subtitle="Last 7 days · how many visitors asked to book, and how many your team handled"
+              steps={[
+                { label: 'Talked to your assistant', value: funnel.conversations, rate: null },
+                { label: 'Asked to book or for a quote', value: bookings.requests, rate: funnel.conversations ? bookings.requests / funnel.conversations : null },
+                { label: 'Handled by your team', value: bookings.handled, rate: bookings.requests ? bookings.handled / bookings.requests : null },
+              ]}
+            />
+          ) : (
+            <FunnelCard funnel={funnel} />
+          )}
         </div>
       </div>
 

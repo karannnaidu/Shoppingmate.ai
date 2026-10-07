@@ -8,7 +8,9 @@ type Snapshot = {
   revenueTodayCents: number;
 };
 
-export function LivePanel({ currency = 'USD' }: { currency?: string }) {
+/** service: bookings/enquiries business — no orders or sales to show, so the
+ *  second cell is this week's booking & quote requests (from the server). */
+export function LivePanel({ currency = 'USD', service }: { currency?: string; service?: { requestsThisWeek: number } }) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
 
   useEffect(() => {
@@ -47,11 +49,18 @@ export function LivePanel({ currency = 'USD' }: { currency?: string }) {
         <h2 className="font-display text-[17px] font-semibold tracking-[-0.015em]">Live now</h2>
         <span className="ml-auto text-[11px] text-text-muted">updates every 10s</span>
       </div>
-      <div className="relative grid grid-cols-3 gap-4">
-        {cell(snap ? String(snap.activeConversations) : '—', 'chatting now')}
-        {cell(snap ? String(snap.conversionsToday) : '—', 'orders today')}
-        {cell(snap ? formatMoney(snap.revenueTodayCents, currency) : '—', 'sales today')}
-      </div>
+      {service ? (
+        <div className="relative grid grid-cols-2 gap-4">
+          {cell(snap ? String(snap.activeConversations) : '—', 'chatting now')}
+          {cell(String(service.requestsThisWeek), 'booking & quote requests this week')}
+        </div>
+      ) : (
+        <div className="relative grid grid-cols-3 gap-4">
+          {cell(snap ? String(snap.activeConversations) : '—', 'chatting now')}
+          {cell(snap ? String(snap.conversionsToday) : '—', 'orders today')}
+          {cell(snap ? formatMoney(snap.revenueTodayCents, currency) : '—', 'sales today')}
+        </div>
+      )}
     </section>
   );
 }

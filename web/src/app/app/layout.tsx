@@ -8,6 +8,10 @@ import { caseCounts } from '@/lib/cases-repo';
 import { conversationsSince } from '@/lib/kpi-repo';
 import { planCredits } from '@/lib/plan-credits';
 import { isOpsAdmin } from '@/lib/support-tools';
+import { isServiceBusiness } from '@/lib/business-type';
+import { db } from '@/lib/db';
+import { merchants } from '@shoppingmate/db/schema';
+import { eq } from 'drizzle-orm';
 
 export default async function AppLayout({
   children,
@@ -27,13 +31,26 @@ export default async function AppLayout({
   }
 
   const m = session.merchant;
-  const [alert, used, counts] = m
+  const [alert, used, counts, brand] = m
     ? await Promise.all([
         getActiveAlert(m.id),
         conversationsSince({ merchantId: m.id, days: 30 }).catch(() => 0),
         caseCounts(m.id).catch(() => ({ open: 0, urgentOpen: 0 })),
+        db
+          .select({
+            name: merchants.name,
+            domain: merchants.domain,
+            brandSummary: merchants.brandSummary,
+            brandCategories: merchants.brandCategories,
+            businessType: merchants.businessType,
+          })
+          .from(merchants)
+          .where(eq(merchants.id, m.id))
+          .limit(1)
+          .then((r) => r[0] ?? null)
+          .catch(() => null),
       ])
-    : [null, 0, { open: 0, urgentOpen: 0 }];
+    : [null, 0, { open: 0, urgentOpen: 0 }, null];
 
   const store: SidebarStore | undefined = m
     ? {
@@ -53,6 +70,7 @@ export default async function AppLayout({
         store={store}
         openRequests={counts.open}
         opsAdmin={isOpsAdmin(session.user.email)}
+        service={isServiceBusiness(brand)}
       />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <AlertBanner alert={alert as Parameters<typeof AlertBanner>[0]['alert']} />

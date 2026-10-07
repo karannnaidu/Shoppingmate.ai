@@ -4,8 +4,21 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 // "From chat to order": each step as a bar relative to conversations, with the
 // step-to-step drop written out so an owner sees where people stop.
-export function FunnelCard({ funnel }: { funnel: Funnel }) {
-  const steps: { label: string; value: number; rate: number | null }[] = [
+type Step = { label: string; value: number; rate: number | null };
+
+export function FunnelCard({
+  funnel,
+  steps: customSteps,
+  title = 'From chat to order',
+  subtitle = 'Last 7 days · how far shoppers get after talking to your assistant',
+}: {
+  funnel: Funnel;
+  /** Service businesses pass their own steps (talked → asked to book → handled). */
+  steps?: Step[];
+  title?: string;
+  subtitle?: string;
+}) {
+  const steps: Step[] = customSteps ?? [
     { label: 'Talked to your assistant', value: funnel.conversations, rate: null },
     { label: 'Added to cart', value: funnel.cartAdds, rate: funnel.cartRate },
     { label: 'Reached checkout', value: funnel.checkoutReached, rate: funnel.checkoutRate },
@@ -16,8 +29,8 @@ export function FunnelCard({ funnel }: { funnel: Funnel }) {
 
   return (
     <section className="card-v2 p-5 md:p-6">
-      <h2 className="font-display text-[17px] font-semibold tracking-[-0.015em]">From chat to order</h2>
-      <p className="mt-0.5 text-[13px] text-text-muted">Last 7 days · how far shoppers get after talking to your assistant</p>
+      <h2 className="font-display text-[17px] font-semibold tracking-[-0.015em]">{title}</h2>
+      <p className="mt-0.5 text-[13px] text-text-muted">{subtitle}</p>
       <ol className="mt-5 flex flex-col gap-4">
         {steps.map((s, i) => (
           <li key={s.label}>

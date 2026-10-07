@@ -8,14 +8,17 @@ const URL = 'https://openrouter.ai/api/v1/chat/completions';
 // credits (402, the 2026-10-07 outage), rate limited (429), 5xx, or network
 // failure — and GEMINI_API_KEY is set. Keeps every brand's bot answering.
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-// Tried in order; the next one is used on 429 (quota) / 404 / 5xx. Free-tier
-// keys allow only ~20 requests/day on 2.5-flash, so flash-lite (separate,
-// larger quota) keeps answering after that.
+// Tried in order; the next one is used on 429 (quota) / 404 / 5xx. Each model
+// has its own free-tier quota (2.5-flash: only 20 requests/day), so spreading
+// across models keeps answering; a 429 is also retried once after a short
+// pause because per-minute limits clear quickly.
 const FALLBACK_MODELS = () =>
-  (process.env.LLM_FALLBACK_MODELS || process.env.LLM_FALLBACK_MODEL || 'gemini-2.5-flash,gemini-3.5-flash-lite')
+  (process.env.LLM_FALLBACK_MODELS || process.env.LLM_FALLBACK_MODEL || 'gemini-3.5-flash,gemini-3.5-flash-lite,gemini-2.5-flash')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+
+const RETRY_429_MS = () => Number(process.env.LLM_FALLBACK_RETRY_MS ?? 1500);
 
 /** OpenRouter (Anthropic etc.) doesn't know Gemini's per-call extra_content
  *  (thought signatures) — strip it from history sent there. */
@@ -89,14 +92,20 @@ async function completion(
     throw new Error(`openrouter http ${status ?? 'network'}: ${detail.slice(0, 200)}`);
   }
   let last = '';
-  for (const model of FALLBACK_MODELS()) {
-    log.warn({ openrouterStatus: status, fallbackModel: model }, 'llm fallback → gemini');
-    const res = await fetch(GEMINI_URL, {
+  const send = (model: string) =>
+    fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${geminiKey}` },
       body: JSON.stringify({ ...body, model, messages: toGeminiMessages(body.messages as unknown[]) }),
       signal: opts.signal,
     });
+  for (const model of FALLBACK_MODELS()) {
+    log.warn({ openrouterStatus: status, fallbackModel: model }, 'llm fallback → gemini');
+    let res = await send(model);
+    if (res.status === 429 && RETRY_429_MS() > 0) {
+      await new Promise((r) => setTimeout(r, RETRY_429_MS()));
+      res = await send(model);
+    }
     if (res.ok) return { json: await res.json(), provider: 'gemini' };
     last = `gemini fallback (${model}) http ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`;
     if (!(res.status === 429 || res.status === 404 || res.status >= 500)) break;

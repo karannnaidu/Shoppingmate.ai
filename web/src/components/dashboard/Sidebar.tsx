@@ -31,26 +31,31 @@ const CALMOSIS_MERCHANT_ID = 'SM-2SCCLZ';
 type Item = { href: string; label: string; icon: LucideIcon; badge?: number };
 type Group = { label?: string; items: Item[] };
 
-function navGroups(merchantId?: string, openRequests = 0, opsAdmin = false): Group[] {
+function navGroups(merchantId?: string, openRequests = 0, opsAdmin = false, service = false): Group[] {
   const selling: Item[] = [
     { href: '/app/conversations', label: 'Conversations', icon: MessageCircle },
-    { href: '/app/cases', label: 'Customer requests', icon: Inbox, badge: openRequests },
+    { href: '/app/cases', label: service ? 'Bookings & requests' : 'Customer requests', icon: Inbox, badge: openRequests },
     // Consultations is a Calmosis-only feature — show the link only for that tenant.
     ...(merchantId === CALMOSIS_MERCHANT_ID
       ? [{ href: '/app/consultations', label: 'Consultations', icon: Stethoscope }]
       : []),
-    { href: '/app/audit', label: 'Orders', icon: Receipt },
-    { href: '/app/revenue', label: 'Revenue', icon: BarChart3 },
+    // Clinics, restaurants, salons, services take bookings, not online orders.
+    ...(service
+      ? []
+      : [
+          { href: '/app/audit', label: 'Orders', icon: Receipt },
+          { href: '/app/revenue', label: 'Revenue', icon: BarChart3 },
+        ]),
   ];
   return [
     { items: [{ href: '/app', label: 'Home', icon: Home }] },
-    { label: 'Selling', items: selling },
+    { label: service ? 'Customers' : 'Selling', items: selling },
     {
       label: 'Understand',
       items: [
         { href: '/app/insights', label: 'Insights', icon: Lightbulb },
-        { href: '/app/intents', label: 'What shoppers want', icon: Target },
-        { href: '/app/audience', label: 'Shoppers', icon: Users },
+        { href: '/app/intents', label: service ? 'What visitors want' : 'What shoppers want', icon: Target },
+        { href: '/app/audience', label: service ? 'Visitors' : 'Shoppers', icon: Users },
       ],
     },
     {
@@ -145,15 +150,18 @@ export function Sidebar({
   store,
   openRequests = 0,
   opsAdmin = false,
+  service = false,
 }: {
   pathname: string;
   merchantId?: string;
   store?: SidebarStore;
   openRequests?: number;
   opsAdmin?: boolean;
+  /** Bookings/enquiries business (clinic, restaurant, salon, services). */
+  service?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const groups = navGroups(merchantId, openRequests, opsAdmin);
+  const groups = navGroups(merchantId, openRequests, opsAdmin, service);
 
   return (
     <>

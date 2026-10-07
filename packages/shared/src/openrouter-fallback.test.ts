@@ -18,6 +18,7 @@ const toolReply = {
 describe('LLM fallback', () => {
   const env = { ...process.env };
   beforeEach(() => {
+    process.env.LLM_FALLBACK_RETRY_MS = '1';
     process.env.OPENROUTER_API_KEY = 'or-key';
     process.env.GEMINI_API_KEY = 'g-key';
   });
@@ -48,7 +49,7 @@ describe('LLM fallback', () => {
       if (url.includes('openrouter')) return new Response('{"error":{"code":402}}', { status: 402 });
       const m = JSON.parse(init.body).model as string;
       models.push(m);
-      if (m === 'gemini-2.5-flash') return new Response('{"error":{"code":429}}', { status: 429 });
+      if (m === 'gemini-3.5-flash') return new Response('{"error":{"code":429}}', { status: 429 });
       return ok({
         choices: [{
           message: { content: null, tool_calls: [{ id: 'c1', type: 'function', extra_content: { google: { thought_signature: 'sig' } }, function: { name: 'products_search', arguments: '{}' } }] },
@@ -61,7 +62,8 @@ describe('LLM fallback', () => {
       messages: [{ role: 'user', content: 'hi' }],
       tools: [{ type: 'function', function: { name: 'products.search', description: 'x', parameters: {} } }],
     });
-    expect(models).toEqual(['gemini-2.5-flash', 'gemini-3.5-flash-lite']);
+    // A 429 is retried once on the same model, then the next model is tried.
+    expect(models).toEqual(['gemini-3.5-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite']);
     expect(r.toolCalls[0]?.extraContent).toEqual({ google: { thought_signature: 'sig' } });
   });
 
