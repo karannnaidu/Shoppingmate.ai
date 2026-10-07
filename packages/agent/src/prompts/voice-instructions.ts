@@ -1,5 +1,5 @@
 import type { Persona } from './persona-table.js';
-import { segmentVoiceRule } from '../segments.js';
+import { SERVICE_SEGMENTS, detectSegment, segmentVoiceRule } from '../segments.js';
 
 const NO_TOOL_SYNTAX_RULE = `YOU ARE A VOICE, NOT A SCRIPT
 Speak only natural human sentences — the kind you would actually say out loud to a person. Never speak any technical or programming text of any kind: no method or function names, no words joined by dots or underscores, no parentheses containing parameters, no "equals", no quoted code, no JSON, no web addresses or URLs, no identifiers or keys. All the actions (searching, showing products, opening pages, updating the cart, applying discounts, filling in the visitor's checkout details, and placing the order) happen automatically in the background while you talk — you never name, describe, or announce the mechanism, only the human outcome in plain words ("sure, pulling that up", "added it", "here's the sleep one", "taking you to checkout", "got your details in"). If you ever feel about to say something that isn't a normal spoken phrase, stop and rephrase it as an ordinary sentence.`;
@@ -81,7 +81,18 @@ export function buildVoiceSystemInstruction(
     return demoVoiceInstruction(persona, opts.kbText);
   }
   const brandName = brand?.name ?? brand?.domain ?? 'this store';
-  const role = `You are ${persona.name}, the shopping assistant for ${brandName}. Help the visitor with whatever ${brandName} sells — answer questions about products, ingredients, usage, suitability, and help them decide and check out. Stay on topics related to ${brandName}'s offering; if asked about something unrelated to the brand, briefly redirect back.`;
+  const segmentInput = {
+    brandSummary: opts.brandSummary,
+    brandCategories: opts.brandCategories,
+    name: brand?.name,
+    domain: brand?.domain,
+  };
+  // Clinics, restaurants, salons and service firms take bookings/enquiries,
+  // not carts — a "shopping assistant… check out" role contradicts that.
+  const isService = !brand?.domain?.includes('calmosis') && SERVICE_SEGMENTS.has(detectSegment(segmentInput));
+  const role = isService
+    ? `You are ${persona.name}, the assistant on ${brandName}'s website. Help visitors with ${brandName}'s services — what's offered, timings, prices, location — and help them book or send an enquiry. Stay on topics related to ${brandName}; if asked about something unrelated, briefly redirect back.`
+    : `You are ${persona.name}, the shopping assistant for ${brandName}. Help the visitor with whatever ${brandName} sells — answer questions about products, ingredients, usage, suitability, and help them decide and check out. Stay on topics related to ${brandName}'s offering; if asked about something unrelated to the brand, briefly redirect back.`;
   const sceneRule = `Use BRAND SUMMARY and BRAND CONTEXT to answer. Do not invent facts about the brand or its products — if you don't know, say so and offer to point them to the right page or person. When BRAND CONTEXT contains guidance (e.g. "consult a practitioner for dosage", "book a site visit"), follow it instead of refusing.`;
   const guardrails = [
     '- No discussion of competitors or competitor pricing.',
@@ -111,7 +122,7 @@ export function buildVoiceSystemInstruction(
     sections.push(CALMOSIS_CHECKOUT_RULE);
     sections.push(CALMOSIS_CONTACT_RULE);
     sections.push(CALMOSIS_CONSULT_RULE);
-  } else if (brand?.platform === 'shopify') {
+  } else if (brand?.platform === 'shopify' && !isService) {
     // Generic storefront selling + NATIVE checkout for any Shopify brand. A
     // separate layer drives the real cart (Shopify Cart AJAX) while the bot
     // speaks; checkout is the store's own secure page (the bot collects no PII).
@@ -123,7 +134,7 @@ CHECKOUT IS NATIVE: when they're ready, a separate layer takes them to ${brandNa
     );
   }
   if (!brand?.domain?.includes('calmosis')) {
-    sections.push(segmentVoiceRule({ brandSummary: opts.brandSummary, brandCategories: opts.brandCategories }));
+    sections.push(segmentVoiceRule(segmentInput));
   }
   const brandSummaryLine = buildBrandSummary(opts);
   if (brandSummaryLine.length > 0) {

@@ -52,3 +52,17 @@ describe('segmentBlock', () => {
     expect(b).toMatch(/products\.get/);
   });
 });
+
+describe('detectSegment — no brand profile (site blocks our reader)', () => {
+  it('uses the name / domain for service businesses so safety rules still apply', () => {
+    expect(detectSegment({ name: '[QA] Clove Dental', domain: 'www.clovedental.in', brandCategories: null })).toBe('clinic');
+    expect(detectSegment({ name: 'Joe', domain: 'joespizzeria.com' })).toBe('restaurant');
+    expect(detectSegment({ name: 'Studio', domain: 'mybarbershop.co.uk' })).toBe('salon');
+  });
+  it('stays general for a product store with no profile', () => {
+    expect(detectSegment({ name: 'Allbirds', domain: 'allbirds.com' })).toBe('general');
+  });
+  it('ignores the name once a profile exists', () => {
+    expect(detectSegment({ name: 'Kitchen Co', domain: 'kitchenco.com', brandCategories: ['Cookware', 'Kitchen Tools', 'Home'] })).toBe('home');
+  });
+});

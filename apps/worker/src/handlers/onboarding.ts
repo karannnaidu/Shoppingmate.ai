@@ -382,6 +382,10 @@ export async function onboardingHandler(
       .update(schema.merchants)
       .set({ status: 'degraded', lastError: `smoke: ${smoke.reason}` })
       .where(eq(schema.merchants.id, merchantId));
+    // A failed cart smoke only means add-to-cart is unverified — the assistant
+    // still answers, so it must still learn the site (services, policies,
+    // FAQs). Before, a degraded store never had its pages read at all.
+    await queueSiteCrawl(merchantId);
     return;
   }
 

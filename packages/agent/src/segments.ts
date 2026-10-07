@@ -44,7 +44,26 @@ const KEYWORDS: Array<[Segment, RegExp]> = [
 /** Service businesses sell time/visits, not shippable products. */
 export const SERVICE_SEGMENTS: ReadonlySet<Segment> = new Set(['clinic', 'restaurant', 'salon', 'services']);
 
-export function detectSegment(brand: { brandSummary?: string | null; brandCategories?: string[] | null }): Segment {
+// Used only when there is no brand profile (e.g. the site blocks our reader):
+// service words matched inside the name/domain, so "clovedental.in" is still
+// treated as a clinic and gets its safety rules. Compound-safe words only.
+const NAME_HINTS: Array<[Segment, RegExp]> = [
+  ['clinic', /(dental|dentist|clinic|hospital|healthcare|medical|derma|ortho|physio|pediatric|paediatric|eyecare|optometr|doctor)/i],
+  ['restaurant', /(restaurant|bistro|pizzeria|pizza|burger|eatery|diner|brasserie|trattoria|cafe|café|kitchen|grill)/i],
+  ['salon', /(salon|barber|hairdress|nailbar|nailstudio|beautyparlou?r|dayspa)/i],
+];
+
+export function detectSegment(brand: {
+  brandSummary?: string | null;
+  brandCategories?: string[] | null;
+  name?: string | null;
+  domain?: string | null;
+}): Segment {
+  if (!(brand.brandCategories ?? []).length && !brand.brandSummary?.trim()) {
+    const hint = `${brand.name ?? ''} ${brand.domain ?? ''}`;
+    for (const [seg, rx] of NAME_HINTS) if (rx.test(hint)) return seg;
+    return 'general';
+  }
   // Categories are the strongest signal; count them twice.
   const cats = (brand.brandCategories ?? []).join(' . ');
   const text = `${cats} . ${cats} . ${brand.brandSummary ?? ''}`;
@@ -127,13 +146,17 @@ export const SEGMENT_PLAYBOOK: Record<Segment, { label: string; text: string }> 
 
 /** Voice variant: the talker can't call tools, so no products.get rule — it
  *  must say when a detail isn't known instead of guessing. */
-export function segmentVoiceRule(brand: { brandSummary?: string | null; brandCategories?: string[] | null }): string {
-  const p = SEGMENT_PLAYBOOK[detectSegment(brand)];
+export function segmentVoiceRule(brand: Parameters<typeof detectSegment>[0]): string {
+  const seg = detectSegment(brand);
+  const p = SEGMENT_PLAYBOOK[seg];
+  if (SERVICE_SEGMENTS.has(seg)) {
+    return `HELPING CUSTOMERS OF THIS BUSINESS (${p.label})\n${p.text}\nA separate layer files the booking or enquiry once you have the details — say the team will confirm. If a detail (hours, price, a service, a doctor or dish) isn't in what you've been told, say the website doesn't say and offer a call back from the team — never guess.`;
+  }
   return `SELLING IN THIS CATEGORY (${p.label})\n${p.text}\nIf a product detail (size, material, ingredient, dimension, compatibility) isn't in what you've been told, say the product page doesn't say and offer to pass the question to the team — never guess.`;
 }
 
 /** The SELLING IN THIS CATEGORY prompt block for a brand. */
-export function segmentBlock(brand: { brandSummary?: string | null; brandCategories?: string[] | null }): string {
+export function segmentBlock(brand: Parameters<typeof detectSegment>[0]): string {
   const seg = detectSegment(brand);
   const p = SEGMENT_PLAYBOOK[seg];
   // Services have no product catalog — the grounding rule is about the site.

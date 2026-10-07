@@ -140,3 +140,18 @@ describe('buildVoiceSystemInstruction', () => {
     expect(out).not.toMatch(/english only/i);
   });
 });
+
+describe('buildVoiceSystemInstruction — service businesses', () => {
+  it('a clinic gets a booking role and clinic safety rules, not a shopping/checkout role', () => {
+    const out = buildVoiceSystemInstruction(
+      PERSONAS.concierge!,
+      { name: 'Clove Dental', domain: 'www.clovedental.in', platform: 'shopify' },
+      { brandSummary: 'Dental clinic chain offering check-ups and treatments; book appointments online.', brandCategories: ['Dental Clinic', 'Appointments'] },
+    );
+    expect(out).toMatch(/help them book or send an enquiry/);
+    expect(out).toMatch(/NEVER diagnose/);
+    expect(out).toMatch(/emergency/);
+    expect(out).not.toMatch(/shopping assistant/);
+    expect(out).not.toMatch(/SELLING \+ CHECKOUT/);
+  });
+});
