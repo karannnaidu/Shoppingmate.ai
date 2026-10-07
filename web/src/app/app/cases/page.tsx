@@ -22,6 +22,8 @@ const TYPE: Record<string, { label: string; tone: Tone }> = {
   bad_review: { label: 'Unhappy customer', tone: 'rose' },
   product_question: { label: 'Question we couldn’t answer', tone: 'violet' },
   consult: { label: 'Consultation', tone: 'signal' },
+  booking: { label: 'Booking request', tone: 'signal' },
+  quote: { label: 'Quote / callback', tone: 'violet' },
   other: { label: 'Request', tone: 'neutral' },
 };
 

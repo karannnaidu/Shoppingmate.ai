@@ -12,6 +12,8 @@ export const caseTypes = [
   'bad_review',
   'product_question',
   'consult',
+  'booking',
+  'quote',
   'other',
 ] as const;
 export type CaseType = (typeof caseTypes)[number];

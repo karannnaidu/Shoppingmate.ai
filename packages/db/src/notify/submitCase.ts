@@ -22,6 +22,8 @@ const TYPE_LABEL: Record<string, string> = {
   bad_review: 'Unhappy customer',
   product_question: 'Question the assistant could not answer',
   consult: 'Consultation request',
+  booking: 'Booking request',
+  quote: 'Quote / callback request',
   other: 'Customer request',
 };
 

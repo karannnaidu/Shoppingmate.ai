@@ -2,7 +2,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { db as defaultDb, schema } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
 import { uploadObject as defaultUpload, siteGraphKey } from '../r2-upload.js';
-import { fetchSitemap } from '../steps/siteGraph/sitemap.js';
+import { fetchSitemap, priorityPages, sameSiteLinks } from '../steps/siteGraph/sitemap.js';
 
 export type CrawlSiteArgs = {
   merchantId: string;
@@ -47,8 +47,20 @@ export async function runCrawlSite(args: CrawlSiteArgs): Promise<CrawlSiteResult
   });
 
   try {
-    const urls = await fetchSitemap(rootUrl, fetchFn);
-    const seedUrls = urls.length > 0 ? urls : [rootUrl];
+    let urls = await fetchSitemap(rootUrl, fetchFn);
+    // No sitemap (common for small service businesses): follow the home
+    // page's own links instead, so menu / services / contact are still read.
+    if (urls.length === 0) {
+      try {
+        const home = await fetchFn(rootUrl);
+        if (home.ok) urls = sameSiteLinks(await home.text(), rootUrl);
+      } catch {
+        /* keep the priority seeds only */
+      }
+    }
+    // Policy / FAQ / contact pages first (never in Shopify sitemaps), then the
+    // sitemap's pages; the cap applies after, so they can't be crowded out.
+    const seedUrls = [...priorityPages(rootUrl), ...urls];
     const toFetch = Array.from(new Set(seedUrls)).slice(0, maxPages);
 
     const sitemapKey = siteGraphKey(args.merchantId, crawlId, 'sitemap.xml');

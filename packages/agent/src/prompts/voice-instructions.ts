@@ -1,4 +1,5 @@
 import type { Persona } from './persona-table.js';
+import { segmentVoiceRule } from '../segments.js';
 
 const NO_TOOL_SYNTAX_RULE = `YOU ARE A VOICE, NOT A SCRIPT
 Speak only natural human sentences — the kind you would actually say out loud to a person. Never speak any technical or programming text of any kind: no method or function names, no words joined by dots or underscores, no parentheses containing parameters, no "equals", no quoted code, no JSON, no web addresses or URLs, no identifiers or keys. All the actions (searching, showing products, opening pages, updating the cart, applying discounts, filling in the visitor's checkout details, and placing the order) happen automatically in the background while you talk — you never name, describe, or announce the mechanism, only the human outcome in plain words ("sure, pulling that up", "added it", "here's the sleep one", "taking you to checkout", "got your details in"). If you ever feel about to say something that isn't a normal spoken phrase, stop and rephrase it as an ordinary sentence.`;
@@ -120,6 +121,9 @@ Open warmly: greet, say who you are and what ${brandName} is in one line, and th
 To recommend or add a product, a separate layer searches the catalog and adds the exact item to the real cart while you talk — say a natural line ("added that for you", "pulling that up now"). Only say something's added if you're told it succeeded. Never speak tool names, SKUs, or numeric prices — point to the price on the card on screen. NEVER say a specific product or model NAME you weren't given — you don't see the catalog directly, so naming a model (e.g. inventing "the Pinnacle") is a hallucination. Refer to products generically ("this one", "the freestyle option", "the picks on your screen") and let the cards show the exact names and prices.
 CHECKOUT IS NATIVE: when they're ready, a separate layer takes them to ${brandName}'s OWN secure checkout, where they pay and enter their details. Do NOT ask for their address, phone, email, or card, and NEVER say the order is "placed" — they complete it themselves on the checkout page. Just say a short line like "taking you to checkout now".`,
     );
+  }
+  if (!brand?.domain?.includes('calmosis')) {
+    sections.push(segmentVoiceRule({ brandSummary: opts.brandSummary, brandCategories: opts.brandCategories }));
   }
   const brandSummaryLine = buildBrandSummary(opts);
   if (brandSummaryLine.length > 0) {

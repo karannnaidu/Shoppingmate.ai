@@ -9,6 +9,10 @@ export const CASE_TYPES = [
   'return_refund',
   'bad_review',
   'product_question',
+  // Service businesses (multi-segment PRD 2026-10-07): a table / appointment /
+  // visit request, and a price-estimate request.
+  'booking',
+  'quote',
   'other',
 ] as const;
 export type CaseOpenType = (typeof CASE_TYPES)[number];
@@ -62,6 +66,10 @@ export function validateCaseOpen(args: Record<string, unknown>, defaultCc = '+91
   }
   if (type === 'order_tracking' && !details.order_number && !details.orderNumber) {
     return { ok: false, reason: 'ask for their order number before opening a tracking request' };
+  }
+  if (type === 'booking') {
+    const when = details.date ?? details.preferred_date ?? details.time ?? details.preferred_time ?? details.when;
+    if (!when) return { ok: false, reason: 'ask for their preferred date and time before sending the booking request' };
   }
 
   const contact = (args.contact && typeof args.contact === 'object' ? args.contact : {}) as Record<

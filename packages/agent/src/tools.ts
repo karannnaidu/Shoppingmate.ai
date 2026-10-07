@@ -457,13 +457,13 @@ export const CASE_OPEN_TOOL: ToolDef = {
   function: {
     name: 'case.open',
     description:
-      "Log a customer need the store team must follow up on: order tracking, a complaint, a return/refund, an unhappy customer / bad experience, or a question you couldn't answer. Call it ONLY after you have (1) what they need, (2) a phone number or email, (3) read it back in one line and they said yes, including that the team may contact them. Never use it for shopping you can do yourself, and never post reviews.",
+      "Log a customer need the team must follow up on: order tracking, a complaint, a return/refund, an unhappy customer / bad experience, a question you couldn't answer, a BOOKING request (table, appointment, visit — put date, time, guests/service/doctor in details) or a QUOTE / callback request for a service. Call it ONLY after you have (1) what they need, (2) a phone number or email, (3) read it back in one line and they said yes, including that the team may contact them. A booking is a REQUEST — never tell them it's confirmed. Never use it for shopping you can do yourself, and never post reviews.",
     parameters: {
       type: 'object',
       properties: {
         type: {
           type: 'string',
-          enum: ['order_tracking', 'complaint', 'return_refund', 'bad_review', 'product_question', 'other'],
+          enum: ['order_tracking', 'complaint', 'return_refund', 'bad_review', 'product_question', 'booking', 'quote', 'other'],
         },
         summary: { type: 'string', description: "One line in the customer's terms, e.g. 'Order 10259 not delivered, wants tracking'" },
         details: {

@@ -1,5 +1,6 @@
 import type { Merchant } from '@shoppingmate/db';
 import { lookupPersona } from './persona-table.js';
+import { segmentBlock } from '../segments.js';
 import {
   caseCaptureEnabled,
   isCalmosisStitch,
@@ -78,6 +79,9 @@ export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {
 
   const brandSummaryBlock =
     brandSummaryLine.length > 0 ? `\nWHAT THIS BRAND IS\n${brandSummaryLine}\n` : '';
+  // Segment playbook (fashion / beauty / jewelry / home / supplements / pet /
+  // food …) for every brand except Calmosis, whose selling rules are hand-built.
+  const categoryBlock = isCalmosisStitch(merchant) ? '' : segmentBlock(merchant);
 
   const navigationBlock = merchant.siteGraphEnabled
     ? `
@@ -223,7 +227,7 @@ You CANNOT add items to the cart yourself here, and you have no cart tool. ${
 
   return `You are ${persona.name}, an AI shopping assistant for ${brandName}.
 Always write the brand name exactly as "${brandName}" — never alter or misspell it (e.g. it is "Calmosis", never "Caliosis").
-${brandSummaryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${pageControlBlock}${customerCareBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}${adaptBlock}
+${brandSummaryBlock}${categoryBlock}${returningVisitorBlock}${liveSignalBlock}${navigationBlock}${pageControlBlock}${customerCareBlock}${calmosisPurchaseBlock}${calmosisConsultBlock}${storefrontPurchaseBlock}${buyFlowBlock}${playbookBlock}${adaptBlock}
 HOW TO ANSWER
 - WHAT THIS BRAND IS and BRAND CONTEXT below are the source of truth for who this brand is, what they sell, and how they have chosen to guide visitors. Treat them as authoritative.
 - When the visitor asks about dosage, usage, suitability, consultation, scheduling, fit, or ingredients, FOLLOW the brand's guidance from WHAT THIS BRAND IS / BRAND CONTEXT. Do not fall back to a generic "I can't give medical/legal/financial advice" refusal. The brand has already decided how it wants these questions handled.

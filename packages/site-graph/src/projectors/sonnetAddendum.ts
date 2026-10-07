@@ -23,14 +23,12 @@ export function projectSonnetAddendum(graph: SiteGraph): SonnetAddendumResult {
   let text = joinSections(sections);
   const truncatedSections: string[] = [];
 
+  // Trim order = least useful to a shopper first. Policies (KEY FACTS) and FAQ
+  // answer "returns? shipping? sizes?"; a list of 200 page links does not — so
+  // the site map is cut BEFORE any of those (previously key facts went first).
   if (countTokens(text) > TOKEN_BUDGET) {
-    sections.faq = renderFaq(graph.faq, 10);
-    truncatedSections.push('faq');
-    text = joinSections(sections);
-  }
-  if (countTokens(text) > TOKEN_BUDGET) {
-    sections.faq = '';
-    truncatedSections.push('faq_dropped');
+    sections.siteMap = renderSiteMap(graph, 40);
+    truncatedSections.push('site_map');
     text = joinSections(sections);
   }
   if (countTokens(text) > TOKEN_BUDGET) {
@@ -44,13 +42,23 @@ export function projectSonnetAddendum(graph: SiteGraph): SonnetAddendumResult {
     text = joinSections(sections);
   }
   if (countTokens(text) > TOKEN_BUDGET) {
-    sections.keyFacts = '';
-    truncatedSections.push('key_facts_dropped');
+    sections.faq = renderFaq(graph.faq, 10);
+    truncatedSections.push('faq');
     text = joinSections(sections);
   }
   if (countTokens(text) > TOKEN_BUDGET) {
-    sections.siteMap = renderSiteMap(graph, 30);
-    truncatedSections.push('site_map');
+    sections.siteMap = renderSiteMap(graph, 15);
+    truncatedSections.push('site_map_min');
+    text = joinSections(sections);
+  }
+  if (countTokens(text) > TOKEN_BUDGET) {
+    sections.faq = '';
+    truncatedSections.push('faq_dropped');
+    text = joinSections(sections);
+  }
+  if (countTokens(text) > TOKEN_BUDGET) {
+    sections.keyFacts = '';
+    truncatedSections.push('key_facts_dropped');
     text = joinSections(sections);
   }
   return { text, truncated: truncatedSections.length > 0, truncatedSections };

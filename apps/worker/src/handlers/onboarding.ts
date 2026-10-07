@@ -1,4 +1,5 @@
 import { implementedAdapters } from '@shoppingmate/adapters';
+import { siteGraphCrawlQueue } from '@shoppingmate/jobs';
 import { db, schema } from '@shoppingmate/db';
 import { childLogger, decryptSecret } from '@shoppingmate/shared';
 import type { Job } from 'bullmq';
@@ -25,6 +26,55 @@ async function emitMetric(
   tags?: Record<string, string | number | boolean>,
 ): Promise<void> {
   await db.insert(schema.metricEvents).values({ merchantId, metricName, tags });
+}
+
+/** Read the brand's own pages (policies, FAQ, about, contact) right after
+ *  onboarding. Previously this only happened via the Shopify-app webhook or
+ *  the dashboard "Re-read my pages" button, so a script-tag brand's assistant
+ *  couldn't answer "what's your return policy?". Best-effort, never blocks. */
+async function queueSiteCrawl(merchantId: string): Promise<void> {
+  try {
+    await siteGraphCrawlQueue.add('crawl', { merchantId });
+    log.info({ merchantId }, 'onboarding: site crawl queued');
+  } catch (err) {
+    log.warn({ merchantId, err: (err as Error).message }, 'onboarding: could not queue site crawl');
+  }
+}
+
+/** Finish onboarding for a site with no product catalog (restaurants, salons,
+ *  clinics, agencies…): brand profile from its pages, live, pages crawled.
+ *  The assistant answers from the site and captures bookings/enquiries. */
+async function finishServiceSite(
+  merchantId: string,
+  domain: string,
+  adapterConfig: Record<string, unknown>,
+  start: number,
+  opts: { profileDone?: boolean } = {},
+): Promise<void> {
+  if (!opts.profileDone) {
+    const [row] = await db
+      .select({ name: schema.merchants.name })
+      .from(schema.merchants)
+      .where(eq(schema.merchants.id, merchantId))
+      .limit(1);
+    await syncMerchantBrand({ merchantId, domain, brandName: row?.name ?? domain });
+  }
+  await db
+    .update(schema.merchants)
+    .set({
+      status: 'live',
+      adapterConfig: { ...adapterConfig, catalog: 'none', transactionalDisabled: true },
+      lastIndexedAt: new Date(),
+      lastError: null,
+    })
+    .where(eq(schema.merchants.id, merchantId));
+  await emitMetric(merchantId, schema.metricNames.onboardingCompleted, {
+    platform: 'custom',
+    durationMs: Date.now() - start,
+    catalog: 'none',
+  });
+  log.info({ merchantId, domain }, 'onboarding complete (service / info site — no product catalog)');
+  await queueSiteCrawl(merchantId);
 }
 
 async function fail(merchantId: string, step: string, err: Error): Promise<void> {
@@ -151,6 +201,13 @@ export async function onboardingHandler(
       source: catalog.source,
       reason: catalog.reason,
     });
+    // A custom website with no catalog is usually a SERVICE business
+    // (restaurant, salon, clinic, agency) — not a broken store. Finish it as a
+    // booking/info site instead of marking onboarding failed.
+    if (platform === 'custom' && /no_sitemap|no_products/.test(catalog.reason)) {
+      await finishServiceSite(merchantId, domain, adapterConfig, start);
+      return;
+    }
     await fail(merchantId, 'catalogSync', new Error(catalog.reason));
     return;
   }
@@ -191,13 +248,9 @@ export async function onboardingHandler(
       .where(eq(schema.products.merchantId, merchantId))
       .limit(1);
     if (!firstProduct) {
-      await emitMetric(merchantId, schema.metricNames.onboardingSelectorExtractFailed, {
-        reason: 'no_products',
-      });
-      await db
-        .update(schema.merchants)
-        .set({ status: 'degraded', lastError: 'selector_extract: no_products' })
-        .where(eq(schema.merchants.id, merchantId));
+      // No product pages: a service / info site (see finishServiceSite). It was
+      // previously marked 'degraded' and never had its pages read.
+      await finishServiceSite(merchantId, domain, adapterConfig, start, { profileDone: true });
       return;
     }
     try {
@@ -270,6 +323,7 @@ export async function onboardingHandler(
       { merchantId, platform, status: outcome.status, catalogSource: catalog.source },
       'onboarding complete (shopify — server cart smoke skipped, client-side bridge)',
     );
+    await queueSiteCrawl(merchantId);
     return;
   }
 
@@ -332,4 +386,5 @@ export async function onboardingHandler(
     durationMs: Date.now() - start,
   });
   log.info({ merchantId, platform, durationMs: Date.now() - start }, 'onboarding complete');
+  await queueSiteCrawl(merchantId);
 }
