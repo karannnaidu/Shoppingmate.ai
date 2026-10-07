@@ -12,6 +12,13 @@ vi.mock('@shoppingmate/db', async () => {
       status: 'live',
       lastWidgetPing: null,
     },
+    {
+      id: 'SM-DELTED',
+      allowedDomains: ['merchant.example.com'],
+      status: 'live',
+      lastWidgetPing: null,
+      deletedAt: new Date('2026-10-01'),
+    },
   ];
   return {
     db: {
@@ -103,5 +110,16 @@ describe('POST /v1/session', () => {
       body: JSON.stringify({ merchantId: 'SM-TST001', domain: 'other.example.com' }),
     });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /v1/session — deleted account', () => {
+  it('stops serving a soft-deleted merchant', async () => {
+    const res = await app.request('/v1/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'https://merchant.example.com' },
+      body: JSON.stringify({ merchantId: 'SM-DELTED', domain: 'merchant.example.com' }),
+    });
+    expect(res.status).toBe(404);
   });
 });

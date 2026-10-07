@@ -299,6 +299,7 @@ export default async function HomePage() {
               funnel={funnel}
               title="From chat to booking"
               subtitle="Last 7 days · how many visitors asked to book, and how many your team handled"
+              emptyNote="This fills in as visitors talk to your assistant."
               steps={[
                 { label: 'Talked to your assistant', value: funnel.conversations, rate: null },
                 { label: 'Asked to book or for a quote', value: bookings.requests, rate: funnel.conversations ? bookings.requests / funnel.conversations : null },

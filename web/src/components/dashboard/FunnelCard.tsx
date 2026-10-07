@@ -11,12 +11,14 @@ export function FunnelCard({
   steps: customSteps,
   title = 'From chat to order',
   subtitle = 'Last 7 days · how far shoppers get after talking to your assistant',
+  emptyNote = 'This fills in as shoppers talk to your assistant.',
 }: {
   funnel: Funnel;
   /** Service businesses pass their own steps (talked → asked to book → handled). */
   steps?: Step[];
   title?: string;
   subtitle?: string;
+  emptyNote?: string;
 }) {
   const steps: Step[] = customSteps ?? [
     { label: 'Talked to your assistant', value: funnel.conversations, rate: null },
@@ -54,7 +56,7 @@ export function FunnelCard({
           </li>
         ))}
       </ol>
-      {empty && <p className="mt-4 text-[13px] text-text-muted">This fills in as shoppers talk to your assistant.</p>}
+      {empty && <p className="mt-4 text-[13px] text-text-muted">{emptyNote}</p>}
     </section>
   );
 }

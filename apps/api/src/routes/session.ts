@@ -55,7 +55,8 @@ sessionRoute.post('/', async (c) => {
     .where(eq(schema.merchants.id, body.merchantId))
     .limit(1);
 
-  if (!merchant) {
+  // A deleted account (Settings → Danger zone) must stop serving its widget.
+  if (!merchant || merchant.deletedAt) {
     return c.json({ error: 'merchant_not_found', message: 'unknown merchantId' }, 404);
   }
 
