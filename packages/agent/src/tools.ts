@@ -601,7 +601,11 @@ function buildBaseToolSurface(merchant: Merchant): ToolDef[] {
   // dom/suggest (can't really mutate) get none, so the model can't fake an add.
   const adapterCartTools =
     usesStorefrontBridge(merchant) || !merchantCanMutateCart(merchant) ? [] : cartTools;
-  const base = [...productTools, ...adapterCartTools, ...checkoutTools];
+  // Service sites onboarded without a catalog (clinics, restaurants, cleaners —
+  // adapterConfig.catalog 'none'): no product/cart/checkout tools. Searching an
+  // empty catalog only failed 5× per turn and added seconds of latency.
+  const noCatalog = (merchant.adapterConfig as { catalog?: string } | null)?.catalog === 'none';
+  const base = noCatalog ? [] : [...productTools, ...adapterCartTools, ...checkoutTools];
   if (merchant.siteGraphEnabled) {
     // Snapshot page control (Phase 1 flag) replaces the legacy page.* tools for
     // Calmosis and extends page control to every other site-graph merchant.

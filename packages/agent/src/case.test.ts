@@ -90,3 +90,14 @@ describe('CASE_CAPTURE flag', () => {
     expect(buildSystemPrompt(m)).toContain('CUSTOMER CARE');
   });
 });
+
+describe('service site without a catalog', () => {
+  it('gets no product/cart/checkout tools, keeps case.open', () => {
+    process.env.CASE_CAPTURE = '*';
+    const m = { id: 'M2', adapterType: 'dom', adapterConfig: { catalog: 'none' }, siteGraphEnabled: true, domain: 'clinic.example' } as unknown as Merchant;
+    const names = buildToolSurface(m).map((t) => t.function.name);
+    expect(names.some((n) => n.startsWith('products.') || n.startsWith('cart.') || n.startsWith('checkout.'))).toBe(false);
+    expect(names).toContain('case.open');
+    expect(names).toContain('site.navigate');
+  });
+});

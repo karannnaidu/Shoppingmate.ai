@@ -82,6 +82,9 @@ export function detectSegment(brand: {
   return bestHits >= 2 ? best : 'general';
 }
 
+// Eval 2026-10-08: shops asked "men or women?" twice and never showed a shoe.
+const DISCOVERY = `SHOW, THEN ASK: when a shopper says what they want, call products.search in that same turn and show 2–4 good matches together with at most ONE short question to narrow them (e.g. "these run wide — men's or women's?"). Never reply to a shopping request with only questions, and never go two replies in a row without showing products. If they already gave a detail (size, budget, skin type), use it — don't ask again.`;
+
 const GROUNDING = `PRODUCT FACTS COME FROM THE PRODUCT, NOT FROM YOU: before answering a question about a specific product's size or fit, materials, ingredients, dimensions, compatibility, care, nutrition or what's in the box, call products.get (or products.search) and answer ONLY from its description and options. If the answer isn't there, say so plainly ("the product page doesn't say") and offer to pass the question to the team (case.open, type product_question) — never fill the gap with a guess.`;
 
 // Service businesses: the conversion is a booking or enquiry captured with
@@ -143,7 +146,7 @@ export const SEGMENT_PLAYBOOK: Record<Segment, { label: string; text: string }> 
   },
   general: {
     label: 'General retail',
-    text: `Ask one or two quick questions about what they need before recommending, and answer specifics from the product's own details.`,
+    text: `Show a few likely picks straight away, ask at most one quick question to narrow them, and answer specifics from the product's own details.`,
   },
 };
 
@@ -165,6 +168,6 @@ export function segmentBlock(brand: Parameters<typeof detectSegment>[0]): string
   // Services have no product catalog — the grounding rule is about the site.
   const grounding = SERVICE_SEGMENTS.has(seg)
     ? 'FACTS COME FROM THE SITE: hours, prices, services, doctors/staff, menu and policies only as the website states them; if something isn\'t there, say so and offer to have the team call back (case.open).'
-    : GROUNDING;
+    : `${GROUNDING}\n${DISCOVERY}`;
   return `\n${SERVICE_SEGMENTS.has(seg) ? 'HELPING CUSTOMERS OF THIS BUSINESS' : 'SELLING IN THIS CATEGORY'} (${p.label})\n${p.text}\n${grounding}\n`;
 }
