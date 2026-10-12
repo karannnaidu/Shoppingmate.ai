@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { type JobContext, ServerOptions, cli, defineAgent } from '@livekit/agents';
 import {
@@ -589,13 +590,44 @@ const agentDefinition = defineAgent({
       }
       tStartVoice = Date.now();
     }
+    // GREETING CACHE: even pre-generated, a greeting takes Gemini ~3–5s, so a
+    // visitor who taps right away still waits. For first-time visitors the
+    // greeting is the same for a brand + voice + prompt, so keep its audio for a
+    // day and replay it on the tap; Gemini is told it already said it (tested:
+    // with live input a seeded history turn is ignored, the instruction isn't).
+    // Returning visitors (greeted by name) and VOICE_GREETING_CACHE=off skip it.
+    const kickoff = demoMode
+      ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
+      : `The visitor just connected on the ${merchant.name ?? 'store'} site. Open the conversation now: greet them warmly and introduce yourself exactly as your instructions say, then ask how you can help. Keep it to a sentence or two — do not wait for them to speak first.`;
+    const greetCacheable = pregreet && !visitorSummary.trim() && process.env.VOICE_GREETING_CACHE !== 'off';
+    const greetKey = `sm:greet:v1:${merchant.id}:${voice.voiceId}:${createHash('sha1')
+      .update(`${voice.systemInstruction}\n${kickoff}`)
+      .digest('hex')}`;
+    let cachedGreeting: { text: string; pcm: Buffer } | null = null;
+    if (greetCacheable) {
+      try {
+        const raw = await redis().get(greetKey);
+        if (raw) {
+          const g = JSON.parse(raw) as { text?: string; pcm?: string };
+          if (g.text && g.pcm) cachedGreeting = { text: g.text, pcm: Buffer.from(g.pcm, 'base64') };
+        }
+      } catch (err) {
+        log.warn({ err: (err as Error).message }, 'greeting cache read failed');
+      }
+    }
+    // While generating a cacheable greeting, collect its audio to store.
+    let greetCapture: { chunks: Buffer[]; bytes: number } | null =
+      greetCacheable && !cachedGreeting ? { chunks: [], bytes: 0 } : null;
+    const geminiInstruction = cachedGreeting
+      ? `${voice.systemInstruction}\n\nCALL ALREADY STARTED: you opened this call by saying exactly: "${cachedGreeting.text}" — the visitor has heard it. Do NOT greet or introduce yourself again; reply directly to what they say next.`
+      : voice.systemInstruction;
     const tGeminiOpenStart = Date.now();
 
     const transport = createGeminiSdkTransport();
     const gemini = createGeminiSession({
       transport,
       voiceId: voice.voiceId,
-      systemInstruction: voice.systemInstruction,
+      systemInstruction: geminiInstruction,
       // On an unexpected Gemini reconnect, hand the fresh session the LAST ~12
       // turns so it resumes the conversation seamlessly. Capped on purpose — the
       // full transcript is what overflowed and triggered the reconnect.
@@ -740,10 +772,9 @@ const agentDefinition = defineAgent({
     // them the moment the call connects, so inject a one-shot trigger (a user
     // turn) that makes it open the conversation per its system instructions.
     // Fire-and-forget so a hiccup never blocks the session.
-    const kickoff = demoMode
-      ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
-      : `The visitor just connected on the ${merchant.name ?? 'store'} site. Open the conversation now: greet them warmly and introduce yourself exactly as your instructions say, then ask how you can help. Keep it to a sentence or two — do not wait for them to speak first.`;
-    gemini.speak(kickoff).catch((err) => log.warn({ err }, 'kickoff greeting failed'));
+    // (kickoff text is defined above, next to the greeting cache.) A cached
+    // greeting replaces it — Gemini already "said" it via its instructions.
+    if (!cachedGreeting) gemini.speak(kickoff).catch((err) => log.warn({ err }, 'kickoff greeting failed'));
 
     // captureFrame returns a promise that resolves when the frame is buffered.
     // Awaiting it serializes producer→queue and prevents the burst-overflow that
@@ -759,6 +790,21 @@ const agentDefinition = defineAgent({
       live = true;
       if (!tStartVoice) tStartVoice = Date.now();
       rawPublish({ type: 'agent_ready' });
+      if (cachedGreeting) {
+        // Replay the cached greeting: caption + transcript now, audio below.
+        rawPublish({ type: 'say', text: cachedGreeting.text });
+        recorder.addTurn('agent', cachedGreeting.text);
+        bridge.noteAssistantTurn(cachedGreeting.text);
+        const samplesPerFrame = 2_400; // 100 ms at 24 kHz
+        const pcm = new Int16Array(
+          cachedGreeting.pcm.buffer.slice(cachedGreeting.pcm.byteOffset, cachedGreeting.pcm.byteOffset + cachedGreeting.pcm.byteLength),
+        );
+        for (let i = 0; i < pcm.length; i += samplesPerFrame) {
+          const slice = pcm.slice(i, i + samplesPerFrame);
+          heldFrames.push(new AudioFrame(slice, 24_000, 1, slice.length));
+        }
+        tFirstAudio = tFirstAudio || Date.now();
+      }
       for (const m of heldMsgs.splice(0)) rawPublish(m);
       for (const f of heldFrames.splice(0)) {
         captureChain = captureChain
@@ -775,6 +821,7 @@ const agentDefinition = defineAgent({
           ms_gemini_open: tReady - tGeminiOpenStart,
           // How long the greeting took to generate, and whether it was ready
           // before the tap (then the visitor hears it immediately).
+          greeting_cached: cachedGreeting !== null,
           ms_greeting_generated: tFirstAudio ? tFirstAudio - tReady : null,
           greeting_ready_at_tap: tFirstAudio > 0 && tFirstAudio <= tStartVoice,
         },
@@ -1121,6 +1168,18 @@ const agentDefinition = defineAgent({
         if (partial.trim().length > 0) dataChannel.publish({ type: 'say_partial', text: partial });
       } else if (e.type === 'bot_text' && e.text.trim().length > 0) {
         const clean = stripSystemEcho(stripToolSyntax(e.text));
+        if (greetCapture) {
+          // First completed turn = the greeting. Store it for the next callers.
+          const g = greetCapture;
+          greetCapture = null;
+          const pcm = Buffer.concat(g.chunks);
+          if (clean.trim() && pcm.length > 24_000 && pcm.length < 3_000_000) {
+            redis()
+              .set(greetKey, JSON.stringify({ text: clean.trim(), pcm: pcm.toString('base64') }), 'EX', 86_400)
+              .then(() => log.info({ sessionId, bytes: pcm.length }, 'greeting cached'))
+              .catch((err) => log.warn({ err: (err as Error).message }, 'greeting cache write failed'));
+          }
+        }
         if (clean.trim().length > 0) {
           dataChannel.publish({ type: 'say', text: clean });
           recorder.addTurn('agent', clean);
@@ -1199,6 +1258,10 @@ const agentDefinition = defineAgent({
         const pcm = new Int16Array(view);
         const frame = new AudioFrame(pcm, 24_000, 1, samples);
         if (!tFirstAudio) tFirstAudio = Date.now();
+        if (greetCapture && greetCapture.bytes < 3_000_000) {
+          greetCapture.chunks.push(Buffer.from(e.bytes));
+          greetCapture.bytes += e.bytes.length;
+        }
         // Pre-greet: hold the greeting until the visitor actually taps Call.
         if (!live) {
           heldFrames.push(frame);
@@ -1208,6 +1271,8 @@ const agentDefinition = defineAgent({
           .then(() => audioSource.captureFrame(frame))
           .catch((err) => log.warn({ err }, 'captureFrame failed'));
       } else if (e.type === 'interrupted') {
+        // A cut-off greeting must never be cached.
+        greetCapture = null;
         // Visitor barged in. Two things must happen for it to feel like a real
         // conversation: (1) drop bot audio still queued in the AudioSource so
         // Sage stops talking AT ONCE instead of finishing the buffered reply,
