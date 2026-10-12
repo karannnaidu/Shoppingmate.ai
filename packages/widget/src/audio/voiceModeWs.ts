@@ -210,15 +210,35 @@ export function createVoiceModeWs(opts: {
       ws.send(out.buffer);
     }
   };
+  // Load the capture worklet ahead of the tap (during warm-up): it took ~1.5s
+  // of the tap → mic-on time when loaded on click. A context created before a
+  // gesture starts suspended, which is fine for loading; start() resumes it.
+  let workletP: Promise<boolean> | null = null;
+  const loadWorklet = (c: Ctx): Promise<boolean> => {
+    if (workletP) return workletP;
+    workletP = (async () => {
+      try {
+        const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+        await c.audioWorklet.addModule(url);
+        URL.revokeObjectURL(url);
+        return true;
+      } catch {
+        return false; // strict CSP: ScriptProcessor fallback
+      }
+    })();
+    return workletP;
+  };
   const startMic = async (c: Ctx) => {
-    mic = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-    });
+    const [stream, hasWorklet] = await Promise.all([
+      navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      }),
+      loadWorklet(c),
+    ]);
+    mic = stream;
     const source = c.createMediaStreamSource(mic);
     try {
-      const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-      await c.audioWorklet.addModule(url);
-      URL.revokeObjectURL(url);
+      if (!hasWorklet) throw new Error('no worklet');
       const node = new AudioWorkletNode(c, 'sm-cap');
       node.port.onmessage = (e: MessageEvent<Float32Array>) => sendPcm(e.data);
       source.connect(node);
@@ -280,6 +300,11 @@ export function createVoiceModeWs(opts: {
   return {
     warm: () => {
       open().catch((err) => console.warn('[voiceModeWs] warm failed', err));
+      try {
+        void loadWorklet(ensureCtx());
+      } catch {
+        /* no Web Audio — start() will report it */
+      }
     },
     start: () => {
       if (state !== 'idle') return;
