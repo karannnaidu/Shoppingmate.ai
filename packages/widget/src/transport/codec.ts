@@ -28,6 +28,7 @@ export type WidgetMessage =
   | { type: 'host_action_result'; callId: string; result: HostActionResult }
   | { type: 'tour_request' }
   | { type: 'start_voice'; sessionId: string }
+  | { type: 'voice_timing'; sessionId: string; timings: Record<string, number> }
   | {
       type: 'visitor_action';
       sessionId: string;

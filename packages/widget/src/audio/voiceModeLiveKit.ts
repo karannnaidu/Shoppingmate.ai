@@ -18,6 +18,26 @@ export function createVoiceModeLiveKit(opts: {
   // to decide whether a LiveKit reconnect should re-send start_voice (active
   // call) or stay quiet (pre-warm only).
   let started = false;
+  // A warmed-but-unused room is dropped after this long. Every connected minute
+  // is billed by LiveKit, and warming used to happen on every page view.
+  const WARM_IDLE_MS = 60_000;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  const clearIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = null;
+  };
+  // Call-startup timings (ms since the tap), reported once per call.
+  let tTap = 0;
+  let timings: Record<string, number> | null = null;
+  const mark = (k: string) => {
+    if (timings && !(k in timings)) timings[k] = Math.round(performance.now() - tTap);
+  };
+  const reportTimings = () => {
+    if (!timings || !handle) return;
+    const msg = encodeWidgetMessage({ type: 'voice_timing', sessionId: opts.sessionId, timings });
+    timings = null;
+    handle.publishData(new TextEncoder().encode(msg)).catch(() => {});
+  };
   const listeners: ((s: VoiceModeState) => void)[] = [];
   const errorListeners: ((info: { code: string; message: string }) => void)[] = [];
   const set = (s: VoiceModeState) => {
@@ -55,8 +75,22 @@ export function createVoiceModeLiveKit(opts: {
   // calls share the same in-flight connect promise. The voice-agent dispatch
   // begins as soon as we join the room, so by the time the visitor clicks,
   // Phase A (room + audio track) has typically already completed.
+  const armIdle = () => {
+    clearIdle();
+    if (started) return;
+    idleTimer = setTimeout(() => {
+      if (started || !handle) return;
+      handle.disconnect().catch(() => {});
+      handle = null;
+      warmingP = null;
+    }, WARM_IDLE_MS);
+  };
   const warm = (): Promise<LiveKitHandle> => {
-    if (handle) return Promise.resolve(handle);
+    // Still interested (hovering/touching again): keep the warm room a while longer.
+    if (handle) {
+      armIdle();
+      return Promise.resolve(handle);
+    }
     if (warmingP) return warmingP;
     warmingP = (async () => {
       const h = await connectToRoom({
@@ -66,6 +100,10 @@ export function createVoiceModeLiveKit(opts: {
       });
       h.onData((bytes) => opts.onTranscriptEvent(bytes));
       h.onAgentSpeaking((speaking) => {
+        if (speaking && timings) {
+          mark('first_audio');
+          reportTimings();
+        }
         if (muted) return;
         if (speaking) sageHasJoined = true;
         if (!sageHasJoined) return;
@@ -84,6 +122,7 @@ export function createVoiceModeLiveKit(opts: {
         );
       });
       handle = h;
+      armIdle();
       return h;
     })();
     warmingP.catch(() => {
@@ -102,13 +141,20 @@ export function createVoiceModeLiveKit(opts: {
       // is the only remaining cost on the click→listening path.
       set('connecting');
       sageHasJoined = false;
+      clearIdle();
+      tTap = performance.now();
+      // was_warm: 1 if the room was already connected when they tapped.
+      timings = { was_warm: handle ? 1 : 0 };
       (async () => {
         try {
           const h = await warm();
+          clearIdle();
+          mark('room_connected');
           // Signal Phase B start. The voice-agent has been idling since
           // agent_warmed; this triggers gemini.open(). It responds with
           // agent_ready when the WS handshake completes.
           await sendStartVoice(h);
+          mark('mic_on');
           started = true;
           if (muted) set('muted');
         } catch (err) {
@@ -121,6 +167,12 @@ export function createVoiceModeLiveKit(opts: {
       });
     },
     stop: () => {
+      clearIdle();
+      // Hung up before Olivia spoke — still report how far startup got.
+      if (timings) {
+        mark('hung_up');
+        reportTimings();
+      }
       handle?.disconnect().catch(() => {});
       handle = null;
       warmingP = null;
@@ -151,6 +203,7 @@ export function createVoiceModeLiveKit(opts: {
       // listening. If the visitor muted during connect, honor that — muted UI
       // takes priority over listening.
       sageHasJoined = true;
+      mark('agent_ready');
       if (state === 'connecting') set(muted ? 'muted' : 'listening');
     },
     publishData: async (bytes) => {

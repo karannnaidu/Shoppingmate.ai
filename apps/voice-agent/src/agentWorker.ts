@@ -532,6 +532,17 @@ const agentDefinition = defineAgent({
         resolveStartVoice = null;
         return;
       }
+      if (msg.type === 'voice_timing') {
+        // Widget-side call startup (tap → mic → ready → first audio), so we
+        // can see where a slow first call actually spends its time.
+        log.info({ sessionId, ...msg.timings }, 'voice startup timing');
+        void db
+          .insert(schema.metricEvents)
+          .values({ merchantId: merchant.id, metricName: 'voiceStartup', tags: { session_id: sessionId, ...msg.timings } })
+          .onConflictDoNothing()
+          .catch(() => {});
+        return;
+      }
       if (msg.type === 'host_action_result' && bridgeRef) {
         bridgeRef.deliverHostActionResult?.({ callId: msg.callId, result: msg.result });
       }
@@ -541,9 +552,13 @@ const agentDefinition = defineAgent({
     // Gemini Live WS. This prevents burning Gemini $$ on visitors who land on
     // the page but never click the call button. Gemini WS handshake (~100-300ms)
     // is the only remaining cost on the click → listening path.
-    // Watchdog: if no click within 5 min, close the room to free the worker.
+    // Watchdog: if no click soon, close the room. Was 5 min, and rooms were
+    // warmed on every page view — 78 of 84 sat idle for the full 5 min, billed
+    // by LiveKit. The widget now warms only on intent and drops an unused room
+    // after 60s itself; this is the server-side backstop.
+    const warmIdleMs = Number(process.env.VOICE_WARM_IDLE_MS ?? 75_000);
     const startVoiceTimeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('start_voice timeout (300s)')), 300_000),
+      setTimeout(() => reject(new Error(`start_voice timeout (${Math.round(warmIdleMs / 1000)}s)`)), warmIdleMs),
     );
     try {
       await Promise.race([startVoiceP, startVoiceTimeout]);

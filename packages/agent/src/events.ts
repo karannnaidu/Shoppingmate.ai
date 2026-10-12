@@ -87,6 +87,16 @@ export function decodeWidgetMessage(raw: string): WidgetMessage | null {
     case 'start_voice':
       if (typeof obj.sessionId !== 'string') return null;
       return { type: 'start_voice', sessionId: obj.sessionId };
+    case 'voice_timing': {
+      if (typeof obj.sessionId !== 'string' || typeof obj.timings !== 'object' || obj.timings === null) return null;
+      const timings: Record<string, number> = {};
+      for (const [k, v] of Object.entries(obj.timings as Record<string, unknown>).slice(0, 12)) {
+        if (/^[a-z_]{1,32}$/.test(k) && typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 600_000) {
+          timings[k] = Math.round(v);
+        }
+      }
+      return { type: 'voice_timing', sessionId: obj.sessionId, timings };
+    }
     case 'visitor_action': {
       if (typeof obj.sessionId !== 'string') return null;
       const ACTIONS = ['click', 'route_change', 'dwell', 'cart_add', 'form_focus', 'outbound_click'] as const;

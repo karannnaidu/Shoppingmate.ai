@@ -473,11 +473,12 @@ class WidgetElement extends HTMLElement {
       });
       if (lkVoiceMode) {
         this.voiceMode = lkVoiceMode;
-        // Pre-connect the LiveKit room now so Phase A (agent dispatch +
-        // job.connect + track publish) overlaps with the visitor scrolling
-        // the landing page. By the time they click, agent_warmed has usually
-        // arrived and the click → agent_ready path is just one Gemini WS open.
-        this.voiceMode.warm?.();
+        // Pre-connect the LiveKit room on INTENT, not on page load: warming on
+        // every page view billed LiveKit for ~10 connected minutes per visitor
+        // while only ~1 in 80 called. Hover/touch/focus on the launcher, the
+        // incoming-call ring, or opening chat still gives the room a head start
+        // before the tap (and voiceModeLiveKit drops it after 60s unused).
+        this.armVoiceWarm();
       }
     } else {
       // Plan 5 fallback (web-speech) or live-kit unavailable.
@@ -539,6 +540,23 @@ class WidgetElement extends HTMLElement {
       sessionId: result.sessionId,
       hints: new Map(),
       send: (msg) => this.publishWidgetMessage(msg),
+    });
+  }
+
+  private armVoiceWarm(): void {
+    const host = this.pillHost;
+    if (!host) return;
+    const warm = () => this.voiceMode.warm?.();
+    for (const ev of ['pointerenter', 'touchstart', 'focusin'] as const) {
+      host.addEventListener(ev, warm, { passive: true });
+    }
+    // Ringing (incoming-call invite) or an open chat panel = likely to call.
+    let wasWarmWorthy = false;
+    this.store.subscribe(() => {
+      const s = this.store.get();
+      const worthy = s.invited || s.mode === 'chat' || s.mode === 'expanded';
+      if (worthy && !wasWarmWorthy) warm();
+      wasWarmWorthy = worthy;
     });
   }
 
