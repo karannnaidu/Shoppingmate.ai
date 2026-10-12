@@ -4,6 +4,7 @@ import { createTTS } from './audio/tts.js';
 import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
 import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
+import { createVoiceModeWs } from './audio/voiceModeWs.js';
 import { executeHostAction } from './host/actions.js';
 import { startActivityTracker } from './host/activity.js';
 import { receiptFor } from './host/receipts.js';
@@ -228,7 +229,8 @@ class WidgetElement extends HTMLElement {
     // path eats the full fetch + parse latency (~500-1500ms first visit). This
     // is fire-and-forget; preloadLiveKit caches the import promise so the
     // actual connect at click time just awaits the already-resolved module.
-    if (resolveVoiceStack() === 'live-kit') preloadLiveKit();
+    // (livekit-client is preloaded after bootstrap, only for LiveKit-transport
+    // merchants — WebSocket-voice merchants never need it.)
     void this.start();
   }
 
@@ -460,7 +462,18 @@ class WidgetElement extends HTMLElement {
 
     const stack = resolveVoiceStack();
     const stt = createSTT();
-    if (stack === 'live-kit' && this.voice) {
+    if (stack === 'live-kit' && this.voice?.transport === 'ws' && this.voice.voiceWsUrl) {
+      // Our own WebSocket voice transport (LiveKit replacement, per merchant).
+      this.voiceMode = createVoiceModeWs({
+        sessionId: result.sessionId,
+        url: this.voice.voiceWsUrl,
+        onAgentEvent: (bytes) => this.handleLiveKitData(bytes),
+      });
+      this.armVoiceWarm();
+    } else if (stack === 'live-kit' && this.voice) {
+      // Warm the livekit-client ESM import (~120KB from a CDN) so the click →
+      // listening path doesn't pay the fetch + parse. Cached promise.
+      preloadLiveKit();
       const lkVoiceMode = createVoiceModeFactory({
         stack: 'live-kit',
         livekit: {

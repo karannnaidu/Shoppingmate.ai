@@ -1,17 +1,6 @@
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { type JobContext, ServerOptions, cli, defineAgent } from '@livekit/agents';
-import {
-  AudioFrame,
-  AudioSource,
-  AudioStream,
-  LocalAudioTrack,
-  type RemoteAudioTrack,
-  RoomEvent,
-  TrackKind,
-  TrackPublishOptions,
-  TrackSource,
-} from '@livekit/rtc-node';
 import { InMemorySessionState, getAdapter } from '@shoppingmate/adapters';
 import {
   type HostActionResult,
@@ -50,6 +39,7 @@ import { Redis } from 'ioredis';
 import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
+import { type VoiceRoom, createLiveKitVoiceRoom } from './voiceRoom.js';
 import { voiceEnv } from './env.js';
 import { createGeminiSdkTransport } from './geminiSdkTransport.js';
 import { createGeminiSession } from './geminiSession.js';
@@ -330,19 +320,22 @@ async function publishShowcaseCards(
   }
 }
 
-const agentDefinition = defineAgent({
-  entry: async (job: JobContext) => {
-    const tEntry = Date.now();
-    await job.connect();
-    const tConnected = Date.now();
-    const roomName = job.room.name ?? '';
-    const sessionId = roomName.replace(/^sm_/, '');
-    log.info({ sessionId, roomName, ms_connect: tConnected - tEntry }, 'voice-agent job started');
+/**
+ * One voice call, independent of transport (LiveKit room or our own
+ * WebSocket — see voiceRoom.ts / wsServer.ts).
+ */
+export async function runVoiceSession(
+  room: VoiceRoom,
+  t: { tEntry: number; tConnected: number },
+): Promise<void> {
+    const { tEntry, tConnected } = t;
+    const sessionId = room.sessionId;
+    log.info({ sessionId, transport: room.transport, ms_connect: tConnected - tEntry }, 'voice-agent job started');
 
     const session = await loadSession(redis(), sessionId);
     if (!session) {
       log.warn({ sessionId }, 'no session found — closing room');
-      await job.room.disconnect();
+      await room.disconnect();
       return;
     }
     // Merchant + KB + site-graph projection are independent — fire in parallel to save ~150ms.
@@ -368,7 +361,7 @@ const agentDefinition = defineAgent({
     const merchant = merchants[0];
     if (!merchant) {
       log.warn({ merchantId: session.merchantId }, 'no merchant — closing room');
-      await job.room.disconnect();
+      await room.disconnect();
       return;
     }
 
@@ -455,13 +448,7 @@ const agentDefinition = defineAgent({
     );
 
     const dataChannel = createDataChannel({
-      publish: (bytes, opts) => {
-        const lp = job.room.localParticipant;
-        if (!lp) return;
-        lp.publishData(bytes, { reliable: opts.reliable }).catch((err) =>
-          log.warn({ err }, 'publishData failed'),
-        );
-      },
+      publish: (bytes) => room.publishData(bytes),
     });
 
     const metrics = createMetricsLedger({
@@ -474,25 +461,16 @@ const agentDefinition = defineAgent({
       onWarn: ({ remaining }) => dataChannel.publish({ type: 'cap_warning', remaining }),
       onTrip: ({ cap }) => {
         dataChannel.publish({ type: 'session_closed', reason: `cap_${cap}` });
-        job.room.disconnect().catch(() => {});
+        room.disconnect().catch(() => {});
       },
     });
     caps.start();
     const tickInterval = setInterval(() => caps.tick(), 5_000);
 
-    // Publish a local audio track so visitors hear Sage. Gemini Live native-audio
-    // returns 24 kHz mono PCM16; we feed those bytes straight into AudioSource.
-    // Queue 30s — Gemini emits replies in fast bursts and the default ~1s queue
-    // overflows immediately, leaving every captureFrame to fail with InvalidState.
-    // Phase A: publish the empty track now so the room is ready the instant the
-    // visitor clicks. Gemini-bound audio frames are pushed once Phase B opens.
-    const audioSource = new AudioSource(24_000, 1, 30_000);
-    const botTrack = LocalAudioTrack.createAudioTrack('sage', audioSource);
-    const publishTrackP = job.room.localParticipant?.publishTrack(
-      botTrack,
-      new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE }),
-    );
-    await publishTrackP;
+    // Phase A: get the bot's audio output ready now (LiveKit: publish the empty
+    // track) so the room is ready the instant the visitor clicks. Gemini Live
+    // native-audio returns 24 kHz mono PCM16, pushed once Phase B opens.
+    await room.prepareAudioOut();
     const tWarmed = Date.now();
 
     // Phase A done: signal the widget that the room is ready (LK + track up).
@@ -519,7 +497,7 @@ const agentDefinition = defineAgent({
     const startVoiceP = new Promise<void>((resolve) => {
       resolveStartVoice = resolve;
     });
-    job.room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+    room.onData((payload: Uint8Array) => {
       let raw: string;
       try {
         raw = new TextDecoder().decode(payload);
@@ -572,7 +550,7 @@ const agentDefinition = defineAgent({
     const pregreet = process.env.VOICE_PREGREET !== 'off';
     let live = !pregreet;
     const heldMsgs: Parameters<typeof dataChannel.publish>[0][] = [];
-    const heldFrames: AudioFrame[] = [];
+    const heldFrames: Int16Array[] = [];
     const rawPublish = dataChannel.publish.bind(dataChannel);
     dataChannel.publish = (msg) => {
       if (live) rawPublish(msg);
@@ -585,7 +563,7 @@ const agentDefinition = defineAgent({
       } catch (err) {
         log.warn({ sessionId, err: (err as Error).message }, 'no start_voice received — closing');
         clearInterval(tickInterval);
-        await job.room.disconnect();
+        await room.disconnect();
         return;
       }
       tStartVoice = Date.now();
@@ -759,7 +737,7 @@ const agentDefinition = defineAgent({
         dataChannel.publish(msg);
       },
       closeRoom: () => {
-        job.room.disconnect().catch(() => {});
+        room.disconnect().catch(() => {});
       },
       interrupt: () => gemini.interrupt(),
       caps: { recordTurn: () => caps.recordTurn() },
@@ -801,14 +779,14 @@ const agentDefinition = defineAgent({
         );
         for (let i = 0; i < pcm.length; i += samplesPerFrame) {
           const slice = pcm.slice(i, i + samplesPerFrame);
-          heldFrames.push(new AudioFrame(slice, 24_000, 1, slice.length));
+          heldFrames.push(slice);
         }
         tFirstAudio = tFirstAudio || Date.now();
       }
       for (const m of heldMsgs.splice(0)) rawPublish(m);
       for (const f of heldFrames.splice(0)) {
         captureChain = captureChain
-          .then(() => audioSource.captureFrame(f))
+          .then(() => room.playAudio(f))
           .catch((err) => log.warn({ err }, 'captureFrame failed'));
       }
       log.info(
@@ -833,7 +811,7 @@ const agentDefinition = defineAgent({
         log.warn({ sessionId, err: (err as Error).message }, 'no start_voice received — closing');
         clearInterval(tickInterval);
         gemini.close().catch(() => {});
-        job.room.disconnect().catch(() => {});
+        room.disconnect().catch(() => {});
       });
     } else {
       goLive();
@@ -1254,9 +1232,8 @@ const agentDefinition = defineAgent({
         caps.recordVoiceSeconds(seconds);
         metrics.add('gemini_audio_output_seconds', seconds);
         const view = new Int16Array(e.bytes.buffer, e.bytes.byteOffset, e.bytes.byteLength / 2);
-        // Copy: AudioFrame keeps the buffer; the underlying Buffer may be reused.
+        // Copy: the transport keeps the buffer; the underlying Buffer may be reused.
         const pcm = new Int16Array(view);
-        const frame = new AudioFrame(pcm, 24_000, 1, samples);
         if (!tFirstAudio) tFirstAudio = Date.now();
         if (greetCapture && greetCapture.bytes < 3_000_000) {
           greetCapture.chunks.push(Buffer.from(e.bytes));
@@ -1264,11 +1241,11 @@ const agentDefinition = defineAgent({
         }
         // Pre-greet: hold the greeting until the visitor actually taps Call.
         if (!live) {
-          heldFrames.push(frame);
+          heldFrames.push(pcm);
           return;
         }
         captureChain = captureChain
-          .then(() => audioSource.captureFrame(frame))
+          .then(() => room.playAudio(pcm))
           .catch((err) => log.warn({ err }, 'captureFrame failed'));
       } else if (e.type === 'interrupted') {
         // A cut-off greeting must never be cached.
@@ -1279,7 +1256,7 @@ const agentDefinition = defineAgent({
         // and (2) abort the in-flight executor turn so it doesn't keep producing
         // 'say' events and resume speaking right after.
         try {
-          audioSource.clearQueue();
+          room.clearAudio();
         } catch (err) {
           log.warn({ err }, 'clearQueue on interrupt failed');
         }
@@ -1290,47 +1267,9 @@ const agentDefinition = defineAgent({
       }
     });
 
-    const subscribedTracks = new WeakSet<object>();
-    const pipeMic = (track: RemoteAudioTrack, participantIdentity: string) => {
-      if (subscribedTracks.has(track as unknown as object)) return;
-      subscribedTracks.add(track as unknown as object);
-      log.info({ participantIdentity, sid: track.sid }, 'subscribing to mic track');
-      const stream = new AudioStream(track, 16_000, 1);
-      (async () => {
-        for await (const frame of stream) {
-          const bytes = new Uint8Array(
-            frame.data.buffer,
-            frame.data.byteOffset,
-            frame.data.byteLength,
-          );
-          gemini.pushAudio(bytes);
-        }
-      })().catch((err) => log.error({ err }, 'audio stream ended with error'));
-    };
-
-    job.room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
-      if (track.kind !== TrackKind.KIND_AUDIO) return;
-      pipeMic(track as RemoteAudioTrack, participant.identity);
-    });
-
-    // Catch tracks that were already subscribed before this handler attached.
-    // RoomEvent.TrackSubscribed fires only for *new* subscriptions, so if the
-    // visitor's mic track lands during the awaits between job.connect() and
-    // here, the event is missed and Gemini never gets any audio in.
-    for (const participant of job.room.remoteParticipants.values()) {
-      for (const pub of participant.trackPublications.values()) {
-        const track = pub.track;
-        if (track && track.kind === TrackKind.KIND_AUDIO) {
-          pipeMic(track as RemoteAudioTrack, participant.identity);
-        }
-      }
-    }
-
-    job.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-      const localIdentity = job.room.localParticipant?.identity;
-      const remoteSpeaking = speakers.some((p) => p.identity !== localIdentity);
-      if (remoteSpeaking) gemini.interrupt();
-    });
+    // Visitor's mic → Gemini (16 kHz PCM16), from whichever transport.
+    room.onMicAudio((bytes) => gemini.pushAudio(bytes));
+    room.onVisitorSpeaking(() => gemini.interrupt());
 
     // Emit the conversation record in an AWAITED shutdown callback — NOT
     // fire-and-forget in Disconnected. The per-job worker tears down right after
@@ -1413,9 +1352,9 @@ const agentDefinition = defineAgent({
         log.error({ err, sessionId }, 'conversationCompleted insert failed');
       }
     };
-    job.addShutdownCallback(emitConversationRecord);
+    room.addShutdownCallback(emitConversationRecord);
 
-    job.room.on(RoomEvent.Disconnected, () => {
+    room.onDisconnected(() => {
       clearInterval(tickInterval);
       metrics.flush();
       gemini.close().catch(() => {});
@@ -1426,6 +1365,13 @@ const agentDefinition = defineAgent({
         .catch((err) => log.warn({ err, sessionId }, 'closeSession failed'));
       log.info({ sessionId }, 'voice-agent job ended');
     });
+}
+
+const agentDefinition = defineAgent({
+  entry: async (job: JobContext) => {
+    const tEntry = Date.now();
+    await job.connect();
+    await runVoiceSession(createLiveKitVoiceRoom(job), { tEntry, tConnected: Date.now() });
   },
 });
 

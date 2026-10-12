@@ -13,6 +13,9 @@ export type VoiceBootstrap = {
   roomName: string;
   token: string;
   personaId: string;
+  /** 'ws' = our own WebSocket voice transport (LiveKit fields are the fallback). */
+  transport?: 'ws' | 'livekit';
+  voiceWsUrl?: string;
 };
 
 export type BootstrapResult =

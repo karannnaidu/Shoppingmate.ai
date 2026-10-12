@@ -8,5 +8,8 @@ logger.info(
   'voice-agent boot — env validated, registering worker',
 );
 
-const { startWorker } = await import('./agentWorker.js');
+const { startWorker, runVoiceSession } = await import('./agentWorker.js');
+// Our own WebSocket voice transport (LiveKit replacement, per merchant).
+const { startVoiceWsServer } = await import('./wsServer.js');
+startVoiceWsServer(runVoiceSession);
 startWorker();

@@ -1,6 +1,6 @@
 import { createSession, loadSession, lookupPersona, saveSession } from '@shoppingmate/agent';
 import { db, schema } from '@shoppingmate/db';
-import { childLogger, env } from '@shoppingmate/shared';
+import { childLogger, env, signVoiceToken, voiceWsEnabled } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { Redis } from 'ioredis';
@@ -103,5 +103,17 @@ voiceTokenRoute.post('/', async (c) => {
 
   const persona = lookupPersona(merchant.personaId);
 
-  return c.json({ wsUrl: lkUrl, roomName, token, personaId: persona.id }, 200);
+  // Our own WebSocket voice transport (LiveKit replacement), per merchant via
+  // VOICE_WS_MERCHANTS. LiveKit fields stay in the response as the fallback.
+  const wsBase = process.env.VOICE_WS_BASE_URL?.trim();
+  const wsSecret = process.env.VOICE_WS_SECRET?.trim();
+  const voiceWs =
+    wsBase && wsSecret && voiceWsEnabled(merchantId)
+      ? {
+          transport: 'ws' as const,
+          voiceWsUrl: `${wsBase.replace(/\/$/, '')}/v1/voice?token=${signVoiceToken({ sessionId, merchantId }, wsSecret)}`,
+        }
+      : {};
+
+  return c.json({ wsUrl: lkUrl, roomName, token, personaId: persona.id, ...voiceWs }, 200);
 });

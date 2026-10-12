@@ -23,3 +23,4 @@ export type {
   AssistantToolCalls,
   ChatToolsResult,
 } from './openrouter.js';
+export { signVoiceToken, verifyVoiceToken, voiceWsEnabled } from './voiceToken.js';
