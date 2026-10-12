@@ -560,15 +560,36 @@ const agentDefinition = defineAgent({
     const startVoiceTimeout = new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error(`start_voice timeout (${Math.round(warmIdleMs / 1000)}s)`)), warmIdleMs),
     );
-    try {
-      await Promise.race([startVoiceP, startVoiceTimeout]);
-    } catch (err) {
-      log.warn({ sessionId, err: (err as Error).message }, 'no start_voice received — closing');
-      clearInterval(tickInterval);
-      await job.room.disconnect();
-      return;
+    const goLiveP = Promise.race([startVoiceP, startVoiceTimeout]);
+
+    // PRE-GREET (default on): measured 2026-10-12, Gemini took ~5.8s after the
+    // tap to produce the first word of its greeting (Gemini open itself ~0.1s).
+    // Rooms are now warmed only on visitor intent, so open Gemini and generate
+    // the greeting during warm-up, HOLDING its audio + captions until the tap —
+    // then it plays at once. Unused greetings are dropped with the room.
+    // VOICE_PREGREET=off restores open-on-tap.
+    const pregreet = process.env.VOICE_PREGREET !== 'off';
+    let live = !pregreet;
+    const heldMsgs: Parameters<typeof dataChannel.publish>[0][] = [];
+    const heldFrames: AudioFrame[] = [];
+    const rawPublish = dataChannel.publish.bind(dataChannel);
+    dataChannel.publish = (msg) => {
+      if (live) rawPublish(msg);
+      else heldMsgs.push(msg);
+    };
+    let tStartVoice = 0;
+    if (!pregreet) {
+      try {
+        await goLiveP;
+      } catch (err) {
+        log.warn({ sessionId, err: (err as Error).message }, 'no start_voice received — closing');
+        clearInterval(tickInterval);
+        await job.room.disconnect();
+        return;
+      }
+      tStartVoice = Date.now();
     }
-    const tStartVoice = Date.now();
+    const tGeminiOpenStart = Date.now();
 
     const transport = createGeminiSdkTransport();
     const gemini = createGeminiSession({
@@ -714,11 +735,6 @@ const agentDefinition = defineAgent({
     });
     bridgeRef = bridge;
 
-    // Tell the widget the bot is online. The widget flips its tray from
-    // CONNECTING → listening immediately on this signal instead of waiting
-    // for the first audio frame.
-    dataChannel.publish({ type: 'agent_ready' });
-
     // Kickoff greeting: Gemini Live native-audio is purely reactive — left alone
     // it waits for the visitor to speak first. Visitors expect the bot to greet
     // them the moment the call connects, so inject a one-shot trigger (a user
@@ -728,22 +744,53 @@ const agentDefinition = defineAgent({
       ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
       : `The visitor just connected on the ${merchant.name ?? 'store'} site. Open the conversation now: greet them warmly and introduce yourself exactly as your instructions say, then ask how you can help. Keep it to a sentence or two — do not wait for them to speak first.`;
     gemini.speak(kickoff).catch((err) => log.warn({ err }, 'kickoff greeting failed'));
-    log.info(
-      {
-        sessionId,
-        ms_total: tReady - tEntry,
-        ms_warm: tWarmed - tEntry,
-        ms_idle: tStartVoice - tWarmed,
-        ms_gemini_open: tReady - tStartVoice,
-      },
-      'agent_ready published',
-    );
 
     // captureFrame returns a promise that resolves when the frame is buffered.
     // Awaiting it serializes producer→queue and prevents the burst-overflow that
     // the default fire-and-forget pattern would cause. We chain instead of
     // awaiting inline because gemini.onEvent is sync.
     let captureChain: Promise<void> = Promise.resolve();
+    let tFirstAudio = 0;
+
+    // The visitor tapped Call: tell the widget the bot is online (it flips
+    // CONNECTING → listening on this), then release anything held during
+    // pre-greet — captions first, then the greeting audio, in order.
+    const goLive = () => {
+      live = true;
+      if (!tStartVoice) tStartVoice = Date.now();
+      rawPublish({ type: 'agent_ready' });
+      for (const m of heldMsgs.splice(0)) rawPublish(m);
+      for (const f of heldFrames.splice(0)) {
+        captureChain = captureChain
+          .then(() => audioSource.captureFrame(f))
+          .catch((err) => log.warn({ err }, 'captureFrame failed'));
+      }
+      log.info(
+        {
+          sessionId,
+          pregreet,
+          ms_total: tReady - tEntry,
+          ms_warm: tWarmed - tEntry,
+          ms_idle: tStartVoice - tWarmed,
+          ms_gemini_open: tReady - tGeminiOpenStart,
+          // How long the greeting took to generate, and whether it was ready
+          // before the tap (then the visitor hears it immediately).
+          ms_greeting_generated: tFirstAudio ? tFirstAudio - tReady : null,
+          greeting_ready_at_tap: tFirstAudio > 0 && tFirstAudio <= tStartVoice,
+        },
+        'agent_ready published',
+      );
+    };
+    if (pregreet) {
+      goLiveP.then(goLive, (err) => {
+        log.warn({ sessionId, err: (err as Error).message }, 'no start_voice received — closing');
+        clearInterval(tickInterval);
+        gemini.close().catch(() => {});
+        job.room.disconnect().catch(() => {});
+      });
+    } else {
+      goLive();
+    }
 
     // Track which verticals have already had their cards shown this session.
     // Without this, every follow-up question about jewelry would re-publish
@@ -1151,6 +1198,12 @@ const agentDefinition = defineAgent({
         // Copy: AudioFrame keeps the buffer; the underlying Buffer may be reused.
         const pcm = new Int16Array(view);
         const frame = new AudioFrame(pcm, 24_000, 1, samples);
+        if (!tFirstAudio) tFirstAudio = Date.now();
+        // Pre-greet: hold the greeting until the visitor actually taps Call.
+        if (!live) {
+          heldFrames.push(frame);
+          return;
+        }
         captureChain = captureChain
           .then(() => audioSource.captureFrame(frame))
           .catch((err) => log.warn({ err }, 'captureFrame failed'));
@@ -1228,7 +1281,8 @@ const agentDefinition = defineAgent({
       const tags = recorder.finish({ mode: 'voice', nowMs: Date.now() });
       // Nothing was said — a pre-warm/abandoned connection that never became a
       // real call. Don't create an empty conversation row.
-      if (tags.turns === 0) return;
+      // Also skip a pre-greeted room nobody called on (greeting generated, never heard).
+      if (tags.turns === 0 || !live) return;
       // Intent enrichment is BEST-EFFORT and BOUNDED (4s): it must never block or
       // delay the conversation record. On timeout/failure we still emit the row
       // (without intent), so the dashboard always gets the conversation.
