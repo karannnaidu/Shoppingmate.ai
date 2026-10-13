@@ -30,17 +30,21 @@ class SmCap extends AudioWorkletProcessor {
   // Decimate to 16 kHz, then a speech gate (like Krisp gives LiveKit): only
   // speech passes, everything else becomes true silence so Gemini sees clean
   // pauses and ends the turn. 10 ms frames, adaptive noise floor, 100 ms
-  // look-back so the first syllable isn't clipped, 400 ms hold between words.
+  // look-back so the first syllable isn't clipped, 200 ms hold (Gemini's own
+  // end-of-turn tolerates longer pauses between words; a longer hold only
+  // delayed every reply by passing leftover noise).
   constructor(){super();this.r=sampleRate/16000;this.acc=0;this.n=0;this.pos=0;
-    this.f=new Float32Array(160);this.fi=0;this.hist=[];this.floor=0.01;this.run=0;this.hold=0;this.open=false;}
+    this.f=new Float32Array(160);this.fi=0;this.hist=[];this.floor=0.01;this.run=0;this.hold=0;this.open=false;this.duck=false;
+    // Echo guard: while Olivia is speaking, require louder input to open the gate.
+    this.port.onmessage=(e)=>{if(e.data&&typeof e.data.duck==='boolean')this.duck=e.data.duck;};}
   frame(fr){let s=0;for(let i=0;i<160;i++)s+=fr[i]*fr[i];const rms=Math.sqrt(s/160);
     if(rms<this.floor)this.floor=this.floor*0.9+rms*0.1;else this.floor=this.floor*0.9995+rms*0.0005;
-    const thr=Math.max(0.012,this.floor*3.5);const speech=rms>thr;
+    const thr=Math.max(0.012,this.floor*3.5)*(this.duck?3:1);const speech=rms>thr;
     this.run=speech?this.run+1:0;
     if(!this.open&&this.run>=2){this.open=true;
       const out=new Float32Array(160*(this.hist.length+1));let o=0;for(const h of this.hist){out.set(h,o);o+=160;}out.set(fr,o);
-      this.hist=[];this.hold=40;this.port.postMessage(out);return;}
-    if(this.open){if(speech)this.hold=40;else if(--this.hold<=0)this.open=false;}
+      this.hist=[];this.hold=20;this.port.postMessage(out);return;}
+    if(this.open){if(speech)this.hold=20;else if(--this.hold<=0)this.open=false;}
     if(this.open){this.port.postMessage(fr);}
     else{this.hist.push(fr);if(this.hist.length>10)this.hist.shift();this.port.postMessage(new Float32Array(160));}}
   process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;
@@ -107,6 +111,7 @@ export function createVoiceModeWs(opts: {
   let setupP: Promise<{ ns: AudioWorkletNode | null }> | null = null;
   let mic: MediaStream | null = null;
   let micNodes: AudioNode[] = [];
+  let capNode: AudioWorkletNode | null = null;
   let pending: number[] = [];
   let audioPlaying = false;
   const stats: WsVoiceStats = { stutters: 0, micFrames: 0, micPeak: 0, noiseSuppression: false, prebufferMs: 150, playStarts: 0, playing: false };
@@ -203,6 +208,7 @@ export function createVoiceModeWs(opts: {
         if (m.t === 'playing') {
           audioPlaying = true;
           stats.playing = true;
+          capNode?.port.postMessage({ duck: true });
           stats.playStarts++;
           stats.stutters = m.stutters ?? stats.stutters;
           stats.prebufferMs = m.preMs ?? stats.prebufferMs;
@@ -215,6 +221,7 @@ export function createVoiceModeWs(opts: {
         } else if (m.t === 'drained') {
           audioPlaying = false;
           stats.playing = false;
+          capNode?.port.postMessage({ duck: false });
           if (state === 'speaking') set('listening');
         }
       };
@@ -271,6 +278,7 @@ export function createVoiceModeWs(opts: {
     mic = stream;
     const source = c.createMediaStreamSource(stream);
     const cap = new AudioWorkletNode(c, 'sm-cap');
+    capNode = cap;
     cap.port.onmessage = (e: MessageEvent<Float32Array>) => sendPcm(e.data);
     if (ns) {
       source.connect(ns);
@@ -335,6 +343,9 @@ export function createVoiceModeWs(opts: {
         opts.onAgentEvent(new TextEncoder().encode(text));
       };
       s.onclose = () => {
+        // Closed before it ever opened (server unreachable / refused): fail now
+        // so the LiveKit fallback kicks in at once, not after the no-audio timeout.
+        if (s.readyState !== WebSocket.OPEN && ws !== s) reject(new Error('voice websocket connect failed'));
         if (ws === s) ws = null;
         openP = null;
         if (started) {

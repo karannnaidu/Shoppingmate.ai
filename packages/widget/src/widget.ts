@@ -5,6 +5,7 @@ import { type VoiceMode, createVoiceMode } from './audio/voiceMode.js';
 import { createVoiceModeFactory } from './audio/voiceModeFactory.js';
 import { type VoiceBootstrap, bootstrap } from './bootstrap.js';
 import { createVoiceModeWs } from './audio/voiceModeWs.js';
+import { createVoiceModeWithFallback } from './audio/voiceModeFallback.js';
 import { executeHostAction } from './host/actions.js';
 import { startActivityTracker } from './host/activity.js';
 import { receiptFor } from './host/receipts.js';
@@ -465,12 +466,30 @@ class WidgetElement extends HTMLElement {
     const stack = resolveVoiceStack();
     const stt = createSTT();
     if (stack === 'live-kit' && this.voice?.transport === 'ws' && this.voice.voiceWsUrl) {
-      // Our own WebSocket voice transport (LiveKit replacement, per merchant).
-      this.voiceMode = createVoiceModeWs({
-        sessionId: result.sessionId,
-        url: this.voice.voiceWsUrl,
-        onAgentEvent: (bytes) => this.handleLiveKitData(bytes),
-      });
+      // Our own WebSocket voice transport (LiveKit replacement, per merchant),
+      // with an automatic per-call fallback to LiveKit if it can't get going.
+      const voice = this.voice;
+      this.voiceMode = createVoiceModeWithFallback(
+        createVoiceModeWs({
+          sessionId: result.sessionId,
+          url: voice.voiceWsUrl as string,
+          onAgentEvent: (bytes) => this.handleLiveKitData(bytes),
+        }),
+        () => {
+          preloadLiveKit();
+          return createVoiceModeFactory({
+            stack: 'live-kit',
+            livekit: {
+              sessionId: result.sessionId,
+              wsUrl: voice.wsUrl,
+              token: voice.token,
+              roomName: voice.roomName,
+              onTranscriptEvent: (bytes) => this.handleLiveKitData(bytes),
+            },
+          });
+        },
+        { onSwitch: (reason) => console.warn('[shoppingmate] voice fell back to LiveKit:', reason) },
+      );
       this.armVoiceWarm();
     } else if (stack === 'live-kit' && this.voice) {
       // Warm the livekit-client ESM import (~120KB from a CDN) so the click →
