@@ -150,6 +150,8 @@ class WidgetElement extends HTMLElement {
   // Dashboard-configured launcher copy (null = widget defaults).
   private launcherLabel: string | null = null;
   private launcherCaption: string | null = null;
+  // Olivia's captions received while the call is still connecting (see handleAgentEvent).
+  private heldCaptions: import('./transport/codec.js').AgentEvent[] = [];
   private apiBase = '';
   private merchantId = '';
   private domain = window.location.host;
@@ -510,7 +512,16 @@ class WidgetElement extends HTMLElement {
         );
       });
     }
-    this.voiceMode.onStateChange((s) => this.store.dispatch({ type: 'set_voice_state', state: s }));
+    this.voiceMode.onStateChange((s) => {
+      this.store.dispatch({ type: 'set_voice_state', state: s });
+      // Audio started (or the call ended): release captions held while connecting.
+      if (s !== 'connecting' && this.heldCaptions.length) {
+        for (const held of this.heldCaptions.splice(0)) {
+          if (s === 'idle') continue;
+          this.store.dispatch({ type: 'agent_event', event: held });
+        }
+      }
+    });
     this.voiceMode.onError?.((info) => {
       console.warn('[shoppingmate] voice error', info);
       this.store.dispatch({ type: 'set_voice_error', error: info });
@@ -605,6 +616,12 @@ class WidgetElement extends HTMLElement {
       // Voice-agent says Gemini WS is open + Sage's audio track is published.
       // Flip the tray immediately so the visitor stops staring at CONNECTING.
       this.voiceMode.signalAgentReady?.();
+      return;
+    }
+    // While the call is still CONNECTING (Olivia's audio not yet playing), hold
+    // her captions so the greeting text appears WITH her voice, not before it.
+    if ((ev.type === 'say' || ev.type === 'say_partial') && this.voiceMode.getState() === 'connecting') {
+      this.heldCaptions.push(ev);
       return;
     }
     this.store.dispatch({ type: 'agent_event', event: ev });

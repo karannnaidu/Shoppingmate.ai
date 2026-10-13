@@ -22,6 +22,7 @@ export function createVoiceModeLiveKit(opts: {
   // is billed by LiveKit, and warming used to happen on every page view.
   const WARM_IDLE_MS = 60_000;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  let readyTimer: ReturnType<typeof setTimeout> | null = null;
   const clearIdle = () => {
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = null;
@@ -105,7 +106,11 @@ export function createVoiceModeLiveKit(opts: {
           reportTimings();
         }
         if (muted) return;
-        if (speaking) sageHasJoined = true;
+        if (speaking) {
+          sageHasJoined = true;
+          if (readyTimer) clearTimeout(readyTimer);
+          readyTimer = null;
+        }
         if (!sageHasJoined) return;
         set(speaking ? 'speaking' : 'listening');
       });
@@ -168,6 +173,8 @@ export function createVoiceModeLiveKit(opts: {
     },
     stop: () => {
       clearIdle();
+      if (readyTimer) clearTimeout(readyTimer);
+      readyTimer = null;
       // Hung up before Olivia spoke — still report how far startup got.
       if (timings) {
         mark('hung_up');
@@ -199,12 +206,18 @@ export function createVoiceModeLiveKit(opts: {
       errorListeners.push(cb);
     },
     signalAgentReady: () => {
-      // Phase B done: Gemini WS is open and Sage is online. Flip CONNECTING →
-      // listening. If the visitor muted during connect, honor that — muted UI
-      // takes priority over listening.
-      sageHasJoined = true;
+      // Server + Gemini are up, but "connected" must mean Olivia is already
+      // speaking (real-device feedback: a 1–2s silent gap after "connected"
+      // felt broken). Stay CONNECTING until her audio starts (onAgentSpeaking);
+      // fall back to listening only if no audio comes at all.
       mark('agent_ready');
-      if (state === 'connecting') set(muted ? 'muted' : 'listening');
+      if (state === 'connecting' && !readyTimer) {
+        readyTimer = setTimeout(() => {
+          readyTimer = null;
+          sageHasJoined = true;
+          if (state === 'connecting') set(muted ? 'muted' : 'listening');
+        }, 8_000);
+      }
     },
     publishData: async (bytes) => {
       if (!handle) return;

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createVoiceModeWs } from '../src/audio/voiceModeWs.js';
 
-// Minimal browser fakes: a WebSocket we can drive, and an AudioContext /
-// getUserMedia good enough for the voice mode's plumbing.
+// Minimal browser fakes: a WebSocket we can drive, an AudioContext with
+// worklets, and getUserMedia — enough to exercise the voice mode's logic.
 class FakeWS {
   static OPEN = 1;
   static last: FakeWS | null = null;
@@ -28,35 +28,38 @@ class FakeWS {
     this.onclose?.();
   }
 }
-const node = () => ({ connect: vi.fn(), disconnect: vi.fn(), gain: { value: 1 } });
+const workletNodes: FakeWorkletNode[] = [];
+class FakeWorkletNode {
+  posted: unknown[] = [];
+  port = {
+    onmessage: null as ((e: { data: unknown }) => void) | null,
+    postMessage: (m: unknown) => this.posted.push(m),
+  };
+  constructor(_c: unknown, public name: string) {
+    workletNodes.push(this);
+  }
+  connect() {}
+  disconnect() {}
+}
+const gain = () => ({ connect: vi.fn(), disconnect: vi.fn(), gain: { value: 1 } });
 class FakeCtx {
   sampleRate = 48_000;
-  currentTime = 0;
   destination = {};
   audioWorklet = { addModule: vi.fn(async () => {}) };
   resume = vi.fn(async () => {});
-  createGain = () => node();
-  createMediaStreamDestination = () => ({ stream: {} });
-  createMediaStreamSource = () => node();
-  createBuffer = (_c: number, n: number, rate: number) => ({ duration: n / rate, copyToChannel: vi.fn() });
-  createBufferSource = () => ({ buffer: null, connect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null });
+  createGain = () => gain();
+  createMediaStreamSource = () => gain();
 }
+const player = () => workletNodes.find((n) => n.name === 'sm-play')!;
+const jsonSent = (ws: FakeWS) => ws.sent.filter((d): d is string => typeof d === 'string').map((s) => JSON.parse(s));
 
 describe('WebSocket voice mode', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    workletNodes.length = 0;
     vi.stubGlobal('WebSocket', FakeWS);
     vi.stubGlobal('AudioContext', FakeCtx);
-    vi.stubGlobal('AudioWorkletNode', class {
-      port: { onmessage: unknown } = { onmessage: null };
-      connect() {}
-      disconnect() {}
-    });
-    vi.stubGlobal('Audio', class {
-      autoplay = false;
-      srcObject: unknown = null;
-      play = () => Promise.resolve();
-    });
+    vi.stubGlobal('AudioWorkletNode', FakeWorkletNode);
     Object.defineProperty(globalThis.navigator, 'mediaDevices', {
       configurable: true,
       value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: vi.fn() }] })) },
@@ -75,48 +78,57 @@ describe('WebSocket voice mode', () => {
       onAgentEvent: (b) => events.push(new TextDecoder().decode(b)),
     });
 
-  it('warm opens the socket; an unused one is closed after 60s', async () => {
+  it('warm opens the socket and builds the audio graph; an unused socket closes after 60s', async () => {
     const vm = make();
     vm.warm?.();
-    await vi.advanceTimersByTimeAsync(1);
-    const ws = FakeWS.last!;
-    expect(ws.readyState).toBe(1);
+    await vi.advanceTimersByTimeAsync(5);
+    expect(FakeWS.last!.readyState).toBe(1);
+    expect(player()).toBeTruthy(); // jitter-buffered player ready before the tap
     await vi.advanceTimersByTimeAsync(60_500);
-    expect(ws.readyState).toBe(3);
+    expect(FakeWS.last!.readyState).toBe(3);
   });
 
-  it('a tap opens the mic and sends start_voice; events, audio and barge-in flow', async () => {
+  it('stays CONNECTING until Olivia is audible, then flows audio, barge-in and timings', async () => {
     const events: string[] = [];
     const vm = make(events);
-    const states: string[] = [];
-    vm.onStateChange((s) => states.push(s));
     vm.start();
     await vi.advanceTimersByTimeAsync(5);
     const ws = FakeWS.last!;
-    const msgs = ws.sent.filter((d): d is string => typeof d === 'string').map((s) => JSON.parse(s));
-    expect(msgs.map((m) => m.type)).toContain('start_voice');
-    // Agent event → forwarded to the widget.
-    ws.onmessage?.({ data: JSON.stringify({ type: 'agent_ready' }) });
-    expect(events[0]).toContain('agent_ready');
+    await vi.waitFor(() => expect(jsonSent(ws).map((m) => m.type)).toContain('start_voice'));
+    // Server ready is NOT "connected" yet.
     vm.signalAgentReady?.();
-    // Olivia's audio → speaking; first audio reports the startup timing.
+    expect(vm.getState()).toBe('connecting');
+    // Audio arrives → handed to the player (as float samples).
     ws.onmessage?.({ data: new Int16Array(2400).buffer });
+    expect(player().posted.some((m) => m instanceof Float32Array)).toBe(true);
+    // Player starts sounding → now connected + speaking, first_audio reported.
+    player().port.onmessage?.({ data: { t: 'playing', stutters: 0, preMs: 150 } });
     expect(vm.getState()).toBe('speaking');
-    const timing = ws.sent.filter((d): d is string => typeof d === 'string').map((s) => JSON.parse(s)).find((m) => m.type === 'voice_timing');
+    const timing = jsonSent(ws).find((m) => m.type === 'voice_timing');
     expect(timing.timings).toMatchObject({ transport_ws: 1 });
     expect(timing.timings).toHaveProperty('first_audio');
-    // Barge-in clears playback.
+    // Agent events are forwarded; audio_clear empties the player instead.
+    ws.onmessage?.({ data: JSON.stringify({ type: 'say', text: 'Hi' }) });
     ws.onmessage?.({ data: JSON.stringify({ type: 'audio_clear' }) });
+    expect(events).toHaveLength(1);
+    expect(player().posted).toContain('clear');
     expect(vm.getState()).toBe('listening');
-    expect(events).toHaveLength(1); // audio_clear is not forwarded
-    // A started call is never idle-closed.
+    // A started call is never idle-closed; a server drop ends it with an error.
     await vi.advanceTimersByTimeAsync(120_000);
     expect(ws.readyState).toBe(1);
-    // Server drops → call ends with a connect error the panel can show.
     const errors: string[] = [];
     vm.onError?.((e) => errors.push(e.code));
     ws.close();
     expect(vm.getState()).toBe('idle');
     expect(errors).toEqual(['connect_failed']);
+  });
+
+  it('falls back to listening if no audio ever arrives', async () => {
+    const vm = make();
+    vm.start();
+    await vi.advanceTimersByTimeAsync(5);
+    vm.signalAgentReady?.();
+    await vi.advanceTimersByTimeAsync(8_100);
+    expect(vm.getState()).toBe('listening');
   });
 });

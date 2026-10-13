@@ -2,29 +2,72 @@ import { encodeWidgetMessage } from '../transport/codec.js';
 import type { VoiceMode, VoiceModeState } from './voiceModeWebSpeech.js';
 
 // Voice over our own WebSocket (replaces LiveKit for merchants switched to it).
-//   up:   visitor mic → 16 kHz mono PCM16 binary frames (+ JSON widget messages)
-//   down: Olivia → 24 kHz mono PCM16 binary frames (+ JSON agent events,
-//         {"type":"audio_clear"} = barge-in, drop what's queued)
-// Mic uses the browser's echo cancellation; playback goes through an <audio>
-// element (not straight to the speakers) because Chrome's echo canceller only
-// "hears" media-element/WebRTC output — otherwise Olivia would interrupt herself.
+//   up:   visitor mic → RNNoise noise suppression → 16 kHz mono PCM16 frames
+//   down: Olivia → 24 kHz mono PCM16 frames + JSON agent events;
+//         {"type":"audio_clear"} = barge-in, drop what's queued
+//
+// v2 (2026-10-13, after a real-phone test was slow + crackly):
+// - ONE continuous AudioWorklet player with a jitter buffer (prebuffer, refill
+//   on stalls, smooth resampling) instead of a separate buffer per network
+//   chunk — uneven mobile delivery no longer clicks.
+// - RNNoise on the mic (LiveKit used Krisp) so room noise doesn't hold Gemini's
+//   turn open or cut Olivia off.
+// - The call shows CONNECTING until Olivia's audio actually starts, so
+//   "connected" means she is already speaking — no dead air after it.
 
 const IN_RATE = 16_000;
 const OUT_RATE = 24_000;
+const CTX_RATE = 48_000; // RNNoise needs 48 kHz; 48k→16k is an exact 3:1 decimation
 const SEND_SAMPLES = 640; // 40 ms per frame up
 const WARM_IDLE_MS = 60_000;
+const READY_FALLBACK_MS = 8_000; // flip to listening if no audio arrives at all
+const NS_LIB = 'https://cdn.jsdelivr.net/npm/@sapphi-red/web-noise-suppressor@0.4.1';
 
-// Resampler to 16 kHz, run in an AudioWorklet (off the main thread). Box-filter
-// decimation: averages the input samples that fall into each output sample.
-const WORKLET = `class SmCap extends AudioWorkletProcessor {
+// Capture (box-filter decimation to 16 kHz) + playback (jitter-buffered ring,
+// linear-interpolated 24 kHz → context rate) processors, loaded from a blob.
+const WORKLETS = `
+class SmCap extends AudioWorkletProcessor {
   constructor(){super();this.r=sampleRate/${IN_RATE};this.acc=0;this.n=0;this.pos=0;}
   process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;const out=[];
     for(let i=0;i<ch.length;i++){this.acc+=ch[i];this.n++;this.pos+=1;
       if(this.pos>=this.r){out.push(this.acc/this.n);this.acc=0;this.n=0;this.pos-=this.r;}}
     if(out.length)this.port.postMessage(new Float32Array(out));return true;}}
-registerProcessor('sm-cap',SmCap);`;
+registerProcessor('sm-cap',SmCap);
+class SmPlay extends AudioWorkletProcessor {
+  constructor(o){super();const p=o.processorOptions||{};this.inRate=p.inRate||${OUT_RATE};
+    this.step=this.inRate/sampleRate;this.cap=this.inRate*60;this.buf=new Float32Array(this.cap);
+    this.r=0;this.w=0;this.n=0;this.pos=0;this.playing=false;
+    this.pre=Math.round(this.inRate*(p.prebufferMs||150)/1000);this.maxPre=Math.round(this.inRate*0.35);
+    this.lastDrain=0;this.lastWrite=0;this.stutters=0;this.frames=0;
+    this.port.onmessage=(e)=>{const d=e.data;
+      if(d==='clear'){this.r=0;this.w=0;this.n=0;this.pos=0;if(this.playing){this.playing=false;this.port.postMessage({t:'drained',cleared:true});}return;}
+      this.lastWrite=this.frames;for(let i=0;i<d.length&&this.n<this.cap;i++){this.buf[this.w]=d[i];this.w=(this.w+1)%this.cap;this.n++;}};}
+  process(_i,outputs){const out=outputs[0][0];this.frames++;
+    if(!this.playing){
+      // Start when the jitter buffer is full, or data stopped coming (a short reply).
+      if(this.n>=this.pre||(this.n>0&&this.frames-this.lastWrite>20)){
+        // Data arrived again within ~0.1s of running dry mid-utterance = a network stall.
+        if(this.lastDrain&&this.frames-this.lastDrain<40){this.stutters++;this.pre=Math.min(this.maxPre,Math.round(this.pre*1.5));}
+        this.playing=true;this.port.postMessage({t:'playing',stutters:this.stutters,preMs:Math.round(this.pre*1000/this.inRate)});
+      } else {out.fill(0);return true;}}
+    for(let i=0;i<out.length;i++){
+      if(this.n<2){out.fill(0,i);this.playing=false;this.lastDrain=this.frames;this.port.postMessage({t:'drained'});break;}
+      const a=this.buf[this.r],b=this.buf[(this.r+1)%this.cap];out[i]=a+(b-a)*this.pos;this.pos+=this.step;
+      while(this.pos>=1){this.pos-=1;this.r=(this.r+1)%this.cap;this.n--;}}
+    return true;}}
+registerProcessor('sm-play',SmPlay);`;
 
-type Ctx = AudioContext;
+type NsLib = {
+  loadRnnoise: (u: { url: string; simdUrl: string }) => Promise<ArrayBuffer>;
+  RnnoiseWorkletNode: new (ctx: AudioContext, o: { maxChannels: number; wasmBinary: ArrayBuffer }) => AudioWorkletNode;
+};
+
+export type WsVoiceStats = {
+  stutters: number;
+  noiseSuppression: boolean;
+  prebufferMs: number;
+  playStarts: number;
+};
 
 export function createVoiceModeWs(opts: {
   sessionId: string;
@@ -37,14 +80,17 @@ export function createVoiceModeWs(opts: {
   let ws: WebSocket | null = null;
   let openP: Promise<WebSocket> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
-  let ctx: Ctx | null = null;
+  let readyTimer: ReturnType<typeof setTimeout> | null = null;
+  let ctx: AudioContext | null = null;
   let outGain: GainNode | null = null;
-  let audioEl: HTMLAudioElement | null = null;
+  let player: AudioWorkletNode | null = null;
+  let setupP: Promise<{ ns: AudioWorkletNode | null }> | null = null;
   let mic: MediaStream | null = null;
-  let capNode: AudioWorkletNode | ScriptProcessorNode | null = null;
+  let micNodes: AudioNode[] = [];
   let pending: number[] = [];
-  let nextTime = 0;
-  const playing = new Set<AudioBufferSourceNode>();
+  let audioPlaying = false;
+  const stats: WsVoiceStats = { stutters: 0, noiseSuppression: false, prebufferMs: 150, playStarts: 0 };
+  (globalThis as { __smVoiceStats?: WsVoiceStats }).__smVoiceStats = stats;
   const listeners: ((s: VoiceModeState) => void)[] = [];
   const errorListeners: ((info: { code: string; message: string }) => void)[] = [];
 
@@ -56,7 +102,13 @@ export function createVoiceModeWs(opts: {
   };
   const reportTimings = () => {
     if (!timings) return;
-    sendJson(encodeWidgetMessage({ type: 'voice_timing', sessionId: opts.sessionId, timings: { ...timings, transport_ws: 1 } }));
+    sendJson(
+      encodeWidgetMessage({
+        type: 'voice_timing',
+        sessionId: opts.sessionId,
+        timings: { ...timings, transport_ws: 1, ns: stats.noiseSuppression ? 1 : 0 },
+      }),
+    );
     timings = null;
   };
 
@@ -93,60 +145,138 @@ export function createVoiceModeWs(opts: {
       /* already closed */
     }
   };
+  // Connected = Olivia's voice is actually coming out of the speaker.
+  const becomeLive = () => {
+    if (readyTimer) clearTimeout(readyTimer);
+    readyTimer = null;
+    if (state === 'connecting') set(muted ? 'muted' : audioPlaying ? 'speaking' : 'listening');
+  };
 
-  // ---- playback -----------------------------------------------------------
-  const ensureCtx = (): Ctx => {
+  // ---- audio graph (built during warm-up, before the tap) -------------------
+  const ensureCtx = (): AudioContext => {
     if (ctx) return ctx;
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    ctx = new AC();
-    outGain = ctx.createGain();
     try {
-      const dest = ctx.createMediaStreamDestination();
-      outGain.connect(dest);
-      audioEl = new Audio();
-      audioEl.autoplay = true;
-      audioEl.srcObject = dest.stream;
+      ctx = new AC({ sampleRate: CTX_RATE, latencyHint: 'interactive' });
     } catch {
-      outGain.connect(ctx.destination); // very old browsers
+      ctx = new AC();
     }
+    outGain = ctx.createGain();
+    outGain.connect(ctx.destination);
     return ctx;
   };
-  const clearPlayback = () => {
-    for (const src of playing) {
+  const setup = (): Promise<{ ns: AudioWorkletNode | null }> => {
+    if (setupP) return setupP;
+    setupP = (async () => {
+      const c = ensureCtx();
+      const url = URL.createObjectURL(new Blob([WORKLETS], { type: 'application/javascript' }));
+      await c.audioWorklet.addModule(url);
+      URL.revokeObjectURL(url);
+      player = new AudioWorkletNode(c, 'sm-play', {
+        numberOfInputs: 0,
+        outputChannelCount: [1],
+        processorOptions: { inRate: OUT_RATE, prebufferMs: stats.prebufferMs },
+      });
+      player.connect(outGain as GainNode);
+      player.port.onmessage = (e: MessageEvent<{ t: string; stutters?: number; preMs?: number; cleared?: boolean }>) => {
+        const m = e.data;
+        if (m.t === 'playing') {
+          audioPlaying = true;
+          stats.playStarts++;
+          stats.stutters = m.stutters ?? stats.stutters;
+          stats.prebufferMs = m.preMs ?? stats.prebufferMs;
+          if (timings && !('first_audio' in timings)) {
+            mark('first_audio');
+            reportTimings();
+          }
+          if (state === 'connecting') becomeLive();
+          else if (!muted) set('speaking');
+        } else if (m.t === 'drained') {
+          audioPlaying = false;
+          if (state === 'speaking') set('listening');
+        }
+      };
+      // Noise suppression (RNNoise, ~LiveKit's Krisp). Optional: a site whose
+      // CSP blocks the CDN just gets the browser's own noise suppression.
+      let ns: AudioWorkletNode | null = null;
       try {
-        src.stop();
+        const lib = (await import(/* @vite-ignore */ `${NS_LIB}/+esm`)) as NsLib;
+        const [wasmBinary] = await Promise.all([
+          lib.loadRnnoise({ url: `${NS_LIB}/dist/rnnoise.wasm`, simdUrl: `${NS_LIB}/dist/rnnoise_simd.wasm` }),
+          c.audioWorklet.addModule(`${NS_LIB}/dist/rnnoise/workletProcessor.js`),
+        ]);
+        if (c.sampleRate === CTX_RATE) {
+          ns = new lib.RnnoiseWorkletNode(c, { maxChannels: 1, wasmBinary });
+          stats.noiseSuppression = true;
+        }
+      } catch (err) {
+        console.warn('[voiceModeWs] noise suppression unavailable', err);
+      }
+      return { ns };
+    })();
+    setupP.catch(() => {
+      setupP = null;
+    });
+    return setupP;
+  };
+
+  const sendPcm = (f: Float32Array) => {
+    if (muted || !ws || ws.readyState !== WebSocket.OPEN) return;
+    for (let i = 0; i < f.length; i++) pending.push(f[i] as number);
+    while (pending.length >= SEND_SAMPLES) {
+      const chunk = pending.splice(0, SEND_SAMPLES);
+      const out = new Int16Array(SEND_SAMPLES);
+      for (let i = 0; i < SEND_SAMPLES; i++) {
+        const v = Math.max(-1, Math.min(1, chunk[i] as number));
+        out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+      }
+      ws.send(out.buffer);
+    }
+  };
+  const startMic = async () => {
+    const c = ensureCtx();
+    const [stream, { ns }] = await Promise.all([
+      navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      }),
+      setup(),
+    ]);
+    mic = stream;
+    const source = c.createMediaStreamSource(stream);
+    const cap = new AudioWorkletNode(c, 'sm-cap');
+    cap.port.onmessage = (e: MessageEvent<Float32Array>) => sendPcm(e.data);
+    if (ns) {
+      source.connect(ns);
+      ns.connect(cap);
+    } else {
+      source.connect(cap);
+    }
+    micNodes = [source, ...(ns ? [ns] : []), cap];
+  };
+  const stopMic = () => {
+    for (const n of micNodes) {
+      try {
+        n.disconnect();
       } catch {
-        /* already stopped */
+        /* ignore */
       }
     }
-    playing.clear();
-    nextTime = 0;
+    micNodes = [];
+    for (const t of mic?.getTracks() ?? []) t.stop();
+    mic = null;
+    pending = [];
+  };
+  const clearPlayback = () => {
+    player?.port.postMessage('clear');
+    audioPlaying = false;
     if (state === 'speaking') set(muted ? 'muted' : 'listening');
   };
   const enqueue = (buf: ArrayBuffer) => {
-    if (!ctx || !outGain) return;
+    if (!player) return;
     const pcm = new Int16Array(buf);
-    if (pcm.length === 0) return;
     const f = new Float32Array(pcm.length);
     for (let i = 0; i < pcm.length; i++) f[i] = (pcm[i] as number) / 32768;
-    const ab = ctx.createBuffer(1, f.length, OUT_RATE);
-    ab.copyToChannel(f, 0);
-    const src = ctx.createBufferSource();
-    src.buffer = ab;
-    src.connect(outGain);
-    const at = Math.max(ctx.currentTime + 0.04, nextTime);
-    src.start(at);
-    nextTime = at + ab.duration;
-    playing.add(src);
-    if (!muted) set('speaking');
-    if (timings && !('first_audio' in timings)) {
-      mark('first_audio');
-      reportTimings();
-    }
-    src.onended = () => {
-      playing.delete(src);
-      if (playing.size === 0 && state === 'speaking') set('listening');
-    };
+    player.port.postMessage(f, [f.buffer]);
   };
 
   // ---- socket ---------------------------------------------------------------
@@ -181,7 +311,6 @@ export function createVoiceModeWs(opts: {
         if (ws === s) ws = null;
         openP = null;
         if (started) {
-          // Call dropped (network / server). Tell the panel; the visitor can tap again.
           started = false;
           stopMic();
           clearPlayback();
@@ -194,97 +323,6 @@ export function createVoiceModeWs(opts: {
       openP = null;
     });
     return openP;
-  };
-
-  // ---- mic ------------------------------------------------------------------
-  const sendPcm = (f: Float32Array) => {
-    if (muted || !ws || ws.readyState !== WebSocket.OPEN) return;
-    for (let i = 0; i < f.length; i++) pending.push(f[i] as number);
-    while (pending.length >= SEND_SAMPLES) {
-      const chunk = pending.splice(0, SEND_SAMPLES);
-      const out = new Int16Array(SEND_SAMPLES);
-      for (let i = 0; i < SEND_SAMPLES; i++) {
-        const v = Math.max(-1, Math.min(1, chunk[i] as number));
-        out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
-      }
-      ws.send(out.buffer);
-    }
-  };
-  // Load the capture worklet ahead of the tap (during warm-up): it took ~1.5s
-  // of the tap → mic-on time when loaded on click. A context created before a
-  // gesture starts suspended, which is fine for loading; start() resumes it.
-  let workletP: Promise<boolean> | null = null;
-  const loadWorklet = (c: Ctx): Promise<boolean> => {
-    if (workletP) return workletP;
-    workletP = (async () => {
-      try {
-        const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
-        await c.audioWorklet.addModule(url);
-        URL.revokeObjectURL(url);
-        return true;
-      } catch {
-        return false; // strict CSP: ScriptProcessor fallback
-      }
-    })();
-    return workletP;
-  };
-  const startMic = async (c: Ctx) => {
-    const [stream, hasWorklet] = await Promise.all([
-      navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-      }),
-      loadWorklet(c),
-    ]);
-    mic = stream;
-    const source = c.createMediaStreamSource(mic);
-    try {
-      if (!hasWorklet) throw new Error('no worklet');
-      const node = new AudioWorkletNode(c, 'sm-cap');
-      node.port.onmessage = (e: MessageEvent<Float32Array>) => sendPcm(e.data);
-      source.connect(node);
-      capNode = node;
-    } catch {
-      // Sites whose CSP blocks blob: worklets: main-thread fallback.
-      const proc = c.createScriptProcessor(2048, 1, 1);
-      const ratio = c.sampleRate / IN_RATE;
-      let acc = 0;
-      let n = 0;
-      let pos = 0;
-      proc.onaudioprocess = (e) => {
-        const ch = e.inputBuffer.getChannelData(0);
-        const out: number[] = [];
-        for (let i = 0; i < ch.length; i++) {
-          acc += ch[i] as number;
-          n++;
-          pos += 1;
-          if (pos >= ratio) {
-            out.push(acc / n);
-            acc = 0;
-            n = 0;
-            pos -= ratio;
-          }
-        }
-        sendPcm(new Float32Array(out));
-      };
-      source.connect(proc);
-      // ScriptProcessor only runs when connected to the output — through a muted gain.
-      const sink = c.createGain();
-      sink.gain.value = 0;
-      proc.connect(sink);
-      sink.connect(c.destination);
-      capNode = proc;
-    }
-  };
-  const stopMic = () => {
-    try {
-      capNode?.disconnect();
-    } catch {
-      /* ignore */
-    }
-    capNode = null;
-    for (const t of mic?.getTracks() ?? []) t.stop();
-    mic = null;
-    pending = [];
   };
 
   const classify = (err: unknown) => {
@@ -300,11 +338,7 @@ export function createVoiceModeWs(opts: {
   return {
     warm: () => {
       open().catch((err) => console.warn('[voiceModeWs] warm failed', err));
-      try {
-        void loadWorklet(ensureCtx());
-      } catch {
-        /* no Web Audio — start() will report it */
-      }
+      setup().catch((err) => console.warn('[voiceModeWs] audio setup failed', err));
     },
     start: () => {
       if (state !== 'idle') return;
@@ -312,15 +346,13 @@ export function createVoiceModeWs(opts: {
       clearIdle();
       tTap = performance.now();
       timings = { was_warm: ws?.readyState === WebSocket.OPEN ? 1 : 0 };
-      // Create/resume audio + start the <audio> sink INSIDE the tap (autoplay rules).
-      const c = ensureCtx();
-      void c.resume();
-      void audioEl?.play().catch(() => {});
+      // Resume audio INSIDE the tap (autoplay rules).
+      void ensureCtx().resume();
       (async () => {
         try {
           await open();
           mark('room_connected');
-          await startMic(c);
+          await startMic();
           mark('mic_on');
           started = true;
           sendJson(encodeWidgetMessage({ type: 'start_voice', sessionId: opts.sessionId }));
@@ -337,6 +369,8 @@ export function createVoiceModeWs(opts: {
         mark('hung_up');
         reportTimings();
       }
+      if (readyTimer) clearTimeout(readyTimer);
+      readyTimer = null;
       started = false;
       stopMic();
       clearPlayback();
@@ -350,7 +384,7 @@ export function createVoiceModeWs(opts: {
       muted = m;
       if (outGain) outGain.gain.value = m ? 0 : 1;
       if (m) set('muted');
-      else if (state === 'muted') set(playing.size ? 'speaking' : 'listening');
+      else if (state === 'muted') set(audioPlaying ? 'speaking' : 'listening');
     },
     getState: () => state,
     onStateChange: (cb) => {
@@ -361,11 +395,12 @@ export function createVoiceModeWs(opts: {
     },
     signalAgentReady: () => {
       mark('agent_ready');
-      if (state === 'connecting') set(muted ? 'muted' : playing.size ? 'speaking' : 'listening');
+      // Stay CONNECTING until Olivia's audio actually plays (becomeLive); only
+      // fall back to listening if no audio ever comes.
+      if (state === 'connecting' && !readyTimer) readyTimer = setTimeout(becomeLive, READY_FALLBACK_MS);
     },
     publishData: async (bytes) => {
       sendJson(new TextDecoder().decode(bytes));
     },
   };
 }
-

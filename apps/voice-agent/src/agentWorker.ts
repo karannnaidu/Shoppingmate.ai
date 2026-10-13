@@ -48,6 +48,9 @@ import { alertExecutorExhausted } from './opsAlert.js';
 import { resolveVoiceContext } from './persona.js';
 
 const log = childLogger({ mod: 'agent-worker' });
+// Mic loudness (PCM16 RMS, ~-27 dBFS) that counts as the visitor speaking over
+// the cached greeting. Mic audio is already noise-suppressed (Krisp / RNNoise).
+const GREETING_BARGE_RMS = Number(process.env.GREETING_BARGE_RMS ?? 1500);
 
 // Detects a clear "take me to checkout" intent in a voice transcript. Used to
 // navigate deterministically (independent of the side-channel LLM + abort flag)
@@ -601,6 +604,8 @@ export async function runVoiceSession(
       .update(`${genericInstruction}\n${kickoff}`)
       .digest('hex')}`;
     let cachedGreeting: { text: string; pcm: Buffer } | null = null;
+    // While the cached greeting is playing (epoch ms it ends), for barge-in.
+    let greetingUntil = 0;
     if (greetCacheable) {
       try {
         const raw = await redis().get(greetKey);
@@ -805,6 +810,9 @@ export async function runVoiceSession(
           heldFrames.push(slice);
         }
         tFirstAudio = tFirstAudio || Date.now();
+        // Our server — not Gemini — is speaking the cached greeting, so
+        // Gemini's own barge-in can't stop it; the mic check below does.
+        greetingUntil = Date.now() + Math.round((pcm.length / 24_000) * 1000) + 500;
       }
       for (const m of heldMsgs.splice(0)) rawPublish(m);
       for (const f of heldFrames.splice(0)) {
@@ -1290,8 +1298,28 @@ export async function runVoiceSession(
       }
     });
 
-    // Visitor's mic → Gemini (16 kHz PCM16), from whichever transport.
-    room.onMicAudio((bytes) => gemini.pushAudio(bytes));
+    // Visitor's mic → Gemini (16 kHz PCM16), from whichever transport. While the
+    // cached greeting plays, ~200 ms of clear speech cuts it off (real-device
+    // feedback: "I can't interrupt it during the greeting").
+    let loudMs = 0;
+    room.onMicAudio((bytes) => {
+      gemini.pushAudio(bytes);
+      if (!greetingUntil || Date.now() > greetingUntil) return;
+      const aligned = bytes.byteOffset % 2 === 0 ? bytes : bytes.slice();
+      const s = new Int16Array(aligned.buffer, aligned.byteOffset, aligned.byteLength >> 1);
+      let sum = 0;
+      for (let i = 0; i < s.length; i++) sum += (s[i] as number) * (s[i] as number);
+      const rms = Math.sqrt(sum / Math.max(1, s.length));
+      const ms = s.length / 16;
+      loudMs = rms > GREETING_BARGE_RMS ? loudMs + ms : Math.max(0, loudMs - ms);
+      if (loudMs >= 200) {
+        greetingUntil = 0;
+        loudMs = 0;
+        heldFrames.length = 0;
+        room.clearAudio();
+        log.info({ sessionId, rms: Math.round(rms) }, 'visitor interrupted the greeting');
+      }
+    });
     room.onVisitorSpeaking(() => gemini.interrupt());
 
     // Emit the conversation record in an AWAITED shutdown callback — NOT
