@@ -30,9 +30,9 @@ class SmCap extends AudioWorkletProcessor {
   // Decimate to 16 kHz, then a speech gate (like Krisp gives LiveKit): only
   // speech passes, everything else becomes true silence so Gemini sees clean
   // pauses and ends the turn. 10 ms frames, adaptive noise floor, 100 ms
-  // look-back so the first syllable isn't clipped, 200 ms hold (Gemini's own
-  // end-of-turn tolerates longer pauses between words; a longer hold only
-  // delayed every reply by passing leftover noise).
+  // look-back so the first syllable isn't clipped, 400 ms hold so a normal
+  // pause between words never reads as the end of the turn (200 ms felt like
+  // being cut off — Karan, 2026-10-14).
   constructor(){super();this.r=sampleRate/16000;this.acc=0;this.n=0;this.pos=0;
     this.f=new Float32Array(160);this.fi=0;this.hist=[];this.floor=0.01;this.run=0;this.hold=0;this.open=false;this.duck=false;
     // Echo guard: while Olivia is speaking, require louder input to open the gate.
@@ -46,8 +46,8 @@ class SmCap extends AudioWorkletProcessor {
     this.run=opens?this.run+1:0;
     if(!this.open&&this.run>=2){this.open=true;
       const out=new Float32Array(160*(this.hist.length+1));let o=0;for(const h of this.hist){out.set(h,o);o+=160;}out.set(fr,o);
-      this.hist=[];this.hold=20;this.port.postMessage(out);return;}
-    if(this.open){if(speech)this.hold=20;else if(--this.hold<=0)this.open=false;}
+      this.hist=[];this.hold=40;this.port.postMessage(out);return;}
+    if(this.open){if(speech)this.hold=40;else if(--this.hold<=0)this.open=false;}
     if(this.open){this.port.postMessage(fr);}
     else{this.hist.push(fr);if(this.hist.length>10)this.hist.shift();this.port.postMessage(new Float32Array(160));}}
   process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;

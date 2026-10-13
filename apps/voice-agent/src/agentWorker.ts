@@ -612,9 +612,10 @@ export async function runVoiceSession(
     let lastVisitorSpeechAt = 0;
     let lastAudioOutAt = 0;
     let lastAckAt = 0;
-    // "Mm-hmm" clips in this voice (empty until generated once; VOICE_ACK=off disables).
+    // "Mm-hmm" clips in this voice. OFF by default — Karan (2026-10-14): it felt
+    // like being interrupted. Kept dormant; VOICE_ACK=on re-enables.
     const ackClips =
-      process.env.VOICE_ACK === 'off' ? [] : await getAckClips(redis(), voice.voiceId).catch(() => [] as Int16Array[]);
+      process.env.VOICE_ACK !== 'on' ? [] : await getAckClips(redis(), voice.voiceId).catch(() => [] as Int16Array[]);
     if (greetCacheable) {
       try {
         const raw = await redis().get(greetKey);
