@@ -606,6 +606,8 @@ export async function runVoiceSession(
     let cachedGreeting: { text: string; pcm: Buffer } | null = null;
     // While the cached greeting is playing (epoch ms it ends), for barge-in.
     let greetingUntil = 0;
+    let lastVisitorSpeechAt = 0;
+    let lastAudioOutAt = 0;
     if (greetCacheable) {
       try {
         const raw = await redis().get(greetKey);
@@ -1184,7 +1186,7 @@ export async function runVoiceSession(
           const pcm = Buffer.concat(g.chunks);
           if (clean.trim() && pcm.length > 24_000 && pcm.length < 3_000_000) {
             redis()
-              .set(greetKey, JSON.stringify({ text: clean.trim(), pcm: pcm.toString('base64') }), 'EX', 86_400)
+              .set(greetKey, JSON.stringify({ text: clean.trim(), pcm: pcm.toString('base64') }), 'EX', 30 * 86_400)
               .then(() => log.info({ sessionId, bytes: pcm.length }, 'greeting cached'))
               .catch((err) => log.warn({ err: (err as Error).message }, 'greeting cache write failed'));
           }
@@ -1266,6 +1268,12 @@ export async function runVoiceSession(
         // Copy: the transport keeps the buffer; the underlying Buffer may be reused.
         const pcm = new Int16Array(view);
         if (!tFirstAudio) tFirstAudio = Date.now();
+        // Reply latency: visitor's last loud mic audio → Gemini's first reply audio.
+        if (lastVisitorSpeechAt && Date.now() - lastAudioOutAt > 1500) {
+          log.info({ sessionId, ms_reply: Date.now() - lastVisitorSpeechAt, transport: room.transport }, 'reply latency');
+          lastVisitorSpeechAt = 0;
+        }
+        lastAudioOutAt = Date.now();
         if (greetCapture && greetCapture.bytes < 3_000_000) {
           greetCapture.chunks.push(Buffer.from(e.bytes));
           greetCapture.bytes += e.bytes.length;
@@ -1304,12 +1312,13 @@ export async function runVoiceSession(
     let loudMs = 0;
     room.onMicAudio((bytes) => {
       gemini.pushAudio(bytes);
-      if (!greetingUntil || Date.now() > greetingUntil) return;
       const aligned = bytes.byteOffset % 2 === 0 ? bytes : bytes.slice();
       const s = new Int16Array(aligned.buffer, aligned.byteOffset, aligned.byteLength >> 1);
       let sum = 0;
       for (let i = 0; i < s.length; i++) sum += (s[i] as number) * (s[i] as number);
       const rms = Math.sqrt(sum / Math.max(1, s.length));
+      if (rms > GREETING_BARGE_RMS) lastVisitorSpeechAt = Date.now();
+      if (!greetingUntil || Date.now() > greetingUntil) return;
       const ms = s.length / 16;
       loudMs = rms > GREETING_BARGE_RMS ? loudMs + ms : Math.max(0, loudMs - ms);
       if (loudMs >= 200) {

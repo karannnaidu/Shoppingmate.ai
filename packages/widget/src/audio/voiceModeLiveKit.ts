@@ -160,6 +160,7 @@ export function createVoiceModeLiveKit(opts: {
           // agent_ready when the WS handshake completes.
           await sendStartVoice(h);
           mark('mic_on');
+          (globalThis as { __smVoiceMicOnAt?: number }).__smVoiceMicOnAt = Date.now();
           started = true;
           if (muted) set('muted');
         } catch (err) {

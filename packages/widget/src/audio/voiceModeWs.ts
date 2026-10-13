@@ -27,12 +27,27 @@ const NS_LIB = 'https://cdn.jsdelivr.net/npm/@sapphi-red/web-noise-suppressor@0.
 // linear-interpolated 24 kHz → context rate) processors, loaded from a blob.
 const WORKLETS = `
 class SmCap extends AudioWorkletProcessor {
-  constructor(){super();this.r=sampleRate/${IN_RATE};this.acc=0;this.n=0;this.pos=0;}
-  process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;const out=[];
+  // Decimate to 16 kHz, then a speech gate (like Krisp gives LiveKit): only
+  // speech passes, everything else becomes true silence so Gemini sees clean
+  // pauses and ends the turn. 10 ms frames, adaptive noise floor, 100 ms
+  // look-back so the first syllable isn't clipped, 400 ms hold between words.
+  constructor(){super();this.r=sampleRate/16000;this.acc=0;this.n=0;this.pos=0;
+    this.f=new Float32Array(160);this.fi=0;this.hist=[];this.floor=0.01;this.run=0;this.hold=0;this.open=false;}
+  frame(fr){let s=0;for(let i=0;i<160;i++)s+=fr[i]*fr[i];const rms=Math.sqrt(s/160);
+    if(rms<this.floor)this.floor=this.floor*0.9+rms*0.1;else this.floor=this.floor*0.9995+rms*0.0005;
+    const thr=Math.max(0.012,this.floor*3.5);const speech=rms>thr;
+    this.run=speech?this.run+1:0;
+    if(!this.open&&this.run>=2){this.open=true;
+      const out=new Float32Array(160*(this.hist.length+1));let o=0;for(const h of this.hist){out.set(h,o);o+=160;}out.set(fr,o);
+      this.hist=[];this.hold=40;this.port.postMessage(out);return;}
+    if(this.open){if(speech)this.hold=40;else if(--this.hold<=0)this.open=false;}
+    if(this.open){this.port.postMessage(fr);}
+    else{this.hist.push(fr);if(this.hist.length>10)this.hist.shift();this.port.postMessage(new Float32Array(160));}}
+  process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;
     for(let i=0;i<ch.length;i++){this.acc+=ch[i];this.n++;this.pos+=1;
-      if(this.pos>=this.r){out.push(this.acc/this.n);this.acc=0;this.n=0;this.pos-=this.r;}}
-    if(out.length)this.port.postMessage(new Float32Array(out));return true;}}
-registerProcessor('sm-cap',SmCap);
+      if(this.pos>=this.r){this.f[this.fi++]=this.acc/this.n;this.acc=0;this.n=0;this.pos-=this.r;
+        if(this.fi===160){this.frame(this.f.slice());this.fi=0;}}}
+    return true;}}registerProcessor('sm-cap',SmCap);
 class SmPlay extends AudioWorkletProcessor {
   constructor(o){super();const p=o.processorOptions||{};this.inRate=p.inRate||${OUT_RATE};
     this.step=this.inRate/sampleRate;this.cap=this.inRate*60;this.buf=new Float32Array(this.cap);
@@ -51,7 +66,7 @@ class SmPlay extends AudioWorkletProcessor {
         this.playing=true;this.port.postMessage({t:'playing',stutters:this.stutters,preMs:Math.round(this.pre*1000/this.inRate)});
       } else {out.fill(0);return true;}}
     for(let i=0;i<out.length;i++){
-      if(this.n<2){out.fill(0,i);this.playing=false;this.lastDrain=this.frames;this.port.postMessage({t:'drained'});break;}
+      if(this.n<2){out.fill(0,i);this.n=0;this.r=this.w;this.pos=0;this.playing=false;this.lastDrain=this.frames;this.port.postMessage({t:'drained'});break;}
       const a=this.buf[this.r],b=this.buf[(this.r+1)%this.cap];out[i]=a+(b-a)*this.pos;this.pos+=this.step;
       while(this.pos>=1){this.pos-=1;this.r=(this.r+1)%this.cap;this.n--;}}
     return true;}}
@@ -64,9 +79,14 @@ type NsLib = {
 
 export type WsVoiceStats = {
   stutters: number;
+  micFrames: number;
+  /** Peak mic loudness sent (0..1), to prove audio is actually leaving the browser. */
+  micPeak: number;
   noiseSuppression: boolean;
   prebufferMs: number;
   playStarts: number;
+  /** Olivia is sounding right now (for timing tests). */
+  playing: boolean;
 };
 
 export function createVoiceModeWs(opts: {
@@ -89,7 +109,7 @@ export function createVoiceModeWs(opts: {
   let micNodes: AudioNode[] = [];
   let pending: number[] = [];
   let audioPlaying = false;
-  const stats: WsVoiceStats = { stutters: 0, noiseSuppression: false, prebufferMs: 150, playStarts: 0 };
+  const stats: WsVoiceStats = { stutters: 0, micFrames: 0, micPeak: 0, noiseSuppression: false, prebufferMs: 150, playStarts: 0, playing: false };
   (globalThis as { __smVoiceStats?: WsVoiceStats }).__smVoiceStats = stats;
   const listeners: ((s: VoiceModeState) => void)[] = [];
   const errorListeners: ((info: { code: string; message: string }) => void)[] = [];
@@ -182,6 +202,7 @@ export function createVoiceModeWs(opts: {
         const m = e.data;
         if (m.t === 'playing') {
           audioPlaying = true;
+          stats.playing = true;
           stats.playStarts++;
           stats.stutters = m.stutters ?? stats.stutters;
           stats.prebufferMs = m.preMs ?? stats.prebufferMs;
@@ -193,6 +214,7 @@ export function createVoiceModeWs(opts: {
           else if (!muted) set('speaking');
         } else if (m.t === 'drained') {
           audioPlaying = false;
+          stats.playing = false;
           if (state === 'speaking') set('listening');
         }
       };
@@ -222,7 +244,11 @@ export function createVoiceModeWs(opts: {
 
   const sendPcm = (f: Float32Array) => {
     if (muted || !ws || ws.readyState !== WebSocket.OPEN) return;
-    for (let i = 0; i < f.length; i++) pending.push(f[i] as number);
+    for (let i = 0; i < f.length; i++) {
+      const v = f[i] as number;
+      pending.push(v);
+      if (Math.abs(v) > stats.micPeak) stats.micPeak = Math.abs(v);
+    }
     while (pending.length >= SEND_SAMPLES) {
       const chunk = pending.splice(0, SEND_SAMPLES);
       const out = new Int16Array(SEND_SAMPLES);
@@ -231,6 +257,7 @@ export function createVoiceModeWs(opts: {
         out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
       }
       ws.send(out.buffer);
+      stats.micFrames++;
     }
   };
   const startMic = async () => {
@@ -354,6 +381,7 @@ export function createVoiceModeWs(opts: {
           mark('room_connected');
           await startMic();
           mark('mic_on');
+          (globalThis as { __smVoiceMicOnAt?: number }).__smVoiceMicOnAt = Date.now();
           started = true;
           sendJson(encodeWidgetMessage({ type: 'start_voice', sessionId: opts.sessionId }));
           if (muted) set('muted');
