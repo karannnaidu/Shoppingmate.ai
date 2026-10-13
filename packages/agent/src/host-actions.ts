@@ -60,7 +60,8 @@ export type HostActionResult =
       // Nav Phase 3: channel that served a cart action (shopify-ajax | woo-store-api | storefront-hooks).
       channel?: string;
     }
-  | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' };
+  // superseded: a voice half-sentence was replaced by the full sentence before acting.
+  | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' | 'superseded' };
 
 export type HostActionRequest = {
   type: 'host_action_request';

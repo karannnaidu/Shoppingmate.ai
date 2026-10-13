@@ -71,7 +71,10 @@ export type BridgeDeps = {
 };
 
 export type Bridge = {
-  handleUserText: (text: string) => Promise<void>;
+  /** `continues`: the visitor carried on after a short pause. If the cut-off
+   *  half-sentence hasn't done anything on the page yet, it is withdrawn and
+   *  the whole sentence runs instead; otherwise this runs as a follow-up. */
+  handleUserText: (text: string, opts?: { continues?: boolean }) => Promise<void>;
   // Record what the VOICE (Gemini) actually said, so the side-channel executor
   // reasons over the real dialogue. See voiceHistory in createBridge.
   noteAssistantTurn: (text: string) => void;
@@ -106,8 +109,24 @@ export function createBridge(deps: BridgeDeps): Bridge {
   >();
   let hostActionCounter = 0;
 
+  // The executor turn in flight: a newer turn (seq) supersedes it; `acted` =
+  // it already did something on the page (then it can't be withdrawn).
+  let turnSeq = 0;
+  let current: { seq: number; text: string; acted: boolean } | null = null;
+
   const api: Bridge = {
-    async handleUserText(text) {
+    async handleUserText(rawText, opts) {
+      let text = rawText;
+      if (opts?.continues && current && !current.acted) {
+        // Withdraw the half-sentence: drop its history entry, merge, re-run.
+        const idx = voiceHistory.map((h) => h.role === 'user' && h.content === current?.text).lastIndexOf(true);
+        if (idx >= 0) voiceHistory.splice(idx, 1);
+        text = `${current.text} ${rawText}`.trim();
+        log.info({ sessionId: deps.sessionId, merged: text }, 'bridge: merged continuation, superseding half-sentence');
+      }
+      const mySeq = ++turnSeq;
+      const me = { seq: mySeq, text, acted: false };
+      current = me;
       aborted = false;
       deps.caps?.recordTurn();
       deps.publishData({ type: 'user_text', text });
@@ -150,6 +169,9 @@ export function createBridge(deps: BridgeDeps): Bridge {
         loadPromptOpts: deps.loadPromptOpts,
         dispatchHostAction: hostActionsEnabled
           ? async (action) => {
+              // A newer (merged) turn replaced this one: don't touch the page.
+              if (mySeq !== turnSeq) return { ok: false, reason: 'superseded' };
+              me.acted = true;
               const r = await api.dispatchHostAction!(action);
               const d = describeAction(action, r);
               if (d) turnActions.push(d);
@@ -170,9 +192,9 @@ export function createBridge(deps: BridgeDeps): Bridge {
             { sessionId: deps.sessionId, eventType: event.type, idx: eventCount },
             'bridge: runTurn event',
           );
-          if (aborted) {
+          if (aborted || mySeq !== turnSeq) {
             log.info(
-              { sessionId: deps.sessionId },
+              { sessionId: deps.sessionId, superseded: mySeq !== turnSeq },
               'bridge: abort flag set, dropping remaining events',
             );
             return;

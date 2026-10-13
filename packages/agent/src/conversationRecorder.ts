@@ -19,6 +19,10 @@ export type ConversationTags = {
 
 export type ConversationRecorder = {
   addTurn: (role: TranscriptRole, content: string) => void;
+  /** The visitor carried on after a mid-sentence pause: append to their last
+   *  turn instead of recording a separate fragment (adds a turn if the last
+   *  turn isn't theirs). */
+  extendLastUser: (content: string) => void;
   /** Read the conversation so far (both sides) without finishing — used to
    *  deterministically extract checkout details mid-call. */
   snapshot: () => TranscriptTurn[];
@@ -51,6 +55,12 @@ export function createConversationRecorder(args: {
     addTurn(role, content) {
       if (!content || content.trim().length === 0) return;
       turns.push({ role, content, timestamp: Date.now() - args.startMs });
+    },
+    extendLastUser(content) {
+      if (!content || content.trim().length === 0) return;
+      const last = turns[turns.length - 1];
+      if (last && last.role === 'user') last.content = `${last.content.trimEnd()} ${content.trim()}`;
+      else turns.push({ role: 'user', content, timestamp: Date.now() - args.startMs });
     },
     snapshot() {
       return [...turns];

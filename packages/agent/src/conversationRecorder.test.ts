@@ -36,3 +36,17 @@ describe('ConversationRecorder', () => {
     expect(tags.turns).toBe(0);
   });
 });
+
+describe('ConversationRecorder.extendLastUser', () => {
+  it('joins a continuation onto the visitor’s last turn, or starts one', () => {
+    const r = createConversationRecorder({ sessionId: 's', startMs: 0 });
+    r.addTurn('agent', 'Hi!');
+    r.addTurn('user', 'Please add one green');
+    r.extendLastUser('mantra to my cart');
+    expect(r.snapshot().map((t) => t.content)).toEqual(['Hi!', 'Please add one green mantra to my cart']);
+    r.addTurn('agent', 'Done.');
+    r.extendLastUser('thanks');
+    expect(r.snapshot().at(-1)).toMatchObject({ role: 'user', content: 'thanks' });
+    expect(r.finish({ mode: 'voice', nowMs: 1000 }).turns).toBe(4);
+  });
+});

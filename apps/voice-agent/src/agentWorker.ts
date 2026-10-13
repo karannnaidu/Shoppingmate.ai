@@ -36,6 +36,7 @@ import {
 import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { Redis } from 'ioredis';
+import { getAckClips } from './ackClips.js';
 import { createBridge } from './bridge.js';
 import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
@@ -51,6 +52,8 @@ const log = childLogger({ mod: 'agent-worker' });
 // Mic loudness (PCM16 RMS, ~-27 dBFS) that counts as the visitor speaking over
 // the cached greeting. Mic audio is already noise-suppressed (Krisp / RNNoise).
 const GREETING_BARGE_RMS = Number(process.env.GREETING_BARGE_RMS ?? 1500);
+// Minimum gap between "mm-hmm" acknowledgements, so they never get repetitive.
+const ACK_MIN_GAP_MS = Number(process.env.VOICE_ACK_MIN_GAP_MS ?? 8000);
 
 // Detects a clear "take me to checkout" intent in a voice transcript. Used to
 // navigate deterministically (independent of the side-channel LLM + abort flag)
@@ -608,6 +611,10 @@ export async function runVoiceSession(
     let greetingUntil = 0;
     let lastVisitorSpeechAt = 0;
     let lastAudioOutAt = 0;
+    let lastAckAt = 0;
+    // "Mm-hmm" clips in this voice (empty until generated once; VOICE_ACK=off disables).
+    const ackClips =
+      process.env.VOICE_ACK === 'off' ? [] : await getAckClips(redis(), voice.voiceId).catch(() => [] as Int16Array[]);
     if (greetCacheable) {
       try {
         const raw = await redis().get(greetKey);
@@ -1076,13 +1083,34 @@ export async function runVoiceSession(
         // Phase 1 design: Gemini Live owns voice conversation; the visitor's
         // transcript also goes to the widget for caption display.
         dataChannel.publish({ type: 'user_text', text: e.text });
-        recorder.addTurn('user', e.text);
+        // Carried on after a short pause → same sentence, not a new turn.
+        if (e.continues) recorder.extendLastUser(e.text);
+        else recorder.addTurn('user', e.text);
+        // The visitor just paused and Olivia hasn't started answering: a soft
+        // "mm-hmm" so the gap reads as listening (and as a backchannel if they
+        // were mid-sentence). At most one every 8s; never over the greeting.
+        if (
+          e.viaQuiet &&
+          live &&
+          ackClips.length > 0 &&
+          Date.now() - lastAudioOutAt > 1500 &&
+          Date.now() > greetingUntil &&
+          Date.now() - lastAckAt > ACK_MIN_GAP_MS
+        ) {
+          lastAckAt = Date.now();
+          const clip = ackClips[Math.floor(Math.random() * ackClips.length)] as Int16Array;
+          for (let i = 0; i < clip.length; i += 2_400) {
+            const part = clip.slice(i, i + 2_400);
+            captureChain = captureChain.then(() => room.playAudio(part)).catch(() => {});
+          }
+          log.info({ sessionId }, 'ack played');
+        }
         // Side-channel: route the visitor's text through the chat tool-loop
         // so host_action tools can navigate / scroll / quote pricing while
         // Gemini speaks naturally over the top. The bridge's `say` events
         // are suppressed (Gemini's transcript is the canonical caption).
         const turnDone = bridge
-          .handleUserText(e.text)
+          .handleUserText(e.text, { continues: e.continues })
           .catch((err) => log.warn({ err }, 'bridge.handleUserText failed'));
         // Demo tour: when Sage is on shoppingmate.ai itself and the visitor
         // names a vertical, surface 3 showcase cards directly. Belt-and-

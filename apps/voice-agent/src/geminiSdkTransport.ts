@@ -32,7 +32,7 @@ export function createGeminiSdkTransport(): GeminiTransport {
   // The VISITOR's words go out as soon as they've finished speaking (see
   // inputFlusher) so cart/checkout actions start while Olivia is still
   // answering — not after her whole spoken reply.
-  const input = createInputFlusher({ emit: (text) => emit({ type: 'final_transcript', text }) });
+  const input = createInputFlusher({ emit: (text, meta) => emit({ type: 'final_transcript', text, ...meta }) });
   let outputBuf = '';
 
   // Reconnect state.

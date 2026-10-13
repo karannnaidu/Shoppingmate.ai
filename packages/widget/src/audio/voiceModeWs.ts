@@ -39,8 +39,11 @@ class SmCap extends AudioWorkletProcessor {
     this.port.onmessage=(e)=>{if(e.data&&typeof e.data.duck==='boolean')this.duck=e.data.duck;};}
   frame(fr){let s=0;for(let i=0;i<160;i++)s+=fr[i]*fr[i];const rms=Math.sqrt(s/160);
     if(rms<this.floor)this.floor=this.floor*0.9+rms*0.1;else this.floor=this.floor*0.9995+rms*0.0005;
-    const thr=Math.max(0.012,this.floor*3.5)*(this.duck?3:1);const speech=rms>thr;
-    this.run=speech?this.run+1:0;
+    const thr=Math.max(0.012,this.floor*3.5);const speech=rms>thr;
+    // Echo guard applies to OPENING only: once the visitor is talking, a
+    // "mm-hmm" or reply starting must never swallow their next words.
+    const opens=rms>thr*(this.duck?3:1);
+    this.run=opens?this.run+1:0;
     if(!this.open&&this.run>=2){this.open=true;
       const out=new Float32Array(160*(this.hist.length+1));let o=0;for(const h of this.hist){out.set(h,o);o+=160;}out.set(fr,o);
       this.hist=[];this.hold=20;this.port.postMessage(out);return;}

@@ -241,3 +241,52 @@ describe('bridge.dispatchHostAction()', () => {
     vi.useRealTimers();
   });
 });
+
+describe('bridge — continuation after a short pause', () => {
+  // runTurn that "thinks" (waits) and then adds to cart via the host-action dep.
+  function slowCartRunTurn(seen: string[], gate: Promise<void>) {
+    return vi.fn(async function* (runDeps: { dispatchHostAction?: (a: unknown) => Promise<{ ok: boolean; reason?: string }> }, _m: unknown, _s: unknown, msg: { text: string }) {
+      seen.push(msg.text);
+      await gate;
+      const r = await runDeps.dispatchHostAction?.({ type: 'cart_add', sku: 'green-mantra', qty: 1 });
+      seen.push(`dispatch:${r?.ok ? 'ok' : r?.reason}`);
+      yield { type: 'end_of_turn' } as AgentEvent;
+    });
+  }
+
+  it('withdraws the half-sentence and runs the whole one — the page is touched once', async () => {
+    const seen: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      loadMerchant: vi.fn().mockResolvedValue({ id: 'SM-AAAAAA', siteGraphEnabled: true }),
+      runTurn: slowCartRunTurn(seen, gate) as unknown as BridgeDeps['runTurn'],
+    };
+    const bridge = createBridge(deps);
+    bridge.dispatchHostAction = vi.fn().mockResolvedValue({ ok: true });
+    const first = bridge.handleUserText('Please add one green');
+    await new Promise((r) => setTimeout(r, 0));
+    const second = bridge.handleUserText('mantra to my cart', { continues: true });
+    await new Promise((r) => setTimeout(r, 0));
+    release();
+    await Promise.all([first, second]);
+    expect(seen).toContain('Please add one green mantra to my cart');
+    expect(seen.filter((s) => s === 'dispatch:ok')).toHaveLength(1);
+    expect(seen).toContain('dispatch:superseded');
+  });
+
+  it('if the half-sentence already acted, the rest runs as a normal follow-up', async () => {
+    const seen: string[] = [];
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      loadMerchant: vi.fn().mockResolvedValue({ id: 'SM-AAAAAA', siteGraphEnabled: true }),
+      runTurn: slowCartRunTurn(seen, Promise.resolve()) as unknown as BridgeDeps['runTurn'],
+    };
+    const bridge = createBridge(deps);
+    bridge.dispatchHostAction = vi.fn().mockResolvedValue({ ok: true });
+    await bridge.handleUserText('Add the sleep drops');
+    await bridge.handleUserText('and the dog one', { continues: true });
+    expect(seen).toEqual(['Add the sleep drops', 'dispatch:ok', 'and the dog one', 'dispatch:ok']);
+  });
+});

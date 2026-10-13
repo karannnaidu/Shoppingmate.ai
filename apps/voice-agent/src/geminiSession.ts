@@ -1,6 +1,8 @@
 export type GeminiTransportEvent =
   // Visitor's words, finalized at end of turn (server-side ASR via inputAudioTranscription).
-  | { type: 'final_transcript'; text: string }
+  // continues: carries on after a short pause (merge with the previous piece);
+  // viaQuiet: flushed because the visitor went quiet (Olivia hasn't started).
+  | { type: 'final_transcript'; text: string; continues?: boolean; viaQuiet?: boolean }
   // Bot's words, accumulated running transcript while the turn is in progress.
   // Emitted per outputAudioTranscription chunk so the widget can render captions
   // in lock-step with Sage's audio instead of dumping a wall of text at the end.
