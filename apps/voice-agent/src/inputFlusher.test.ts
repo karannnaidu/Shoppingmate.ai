@@ -58,3 +58,20 @@ describe('input flusher (act on the visitor’s words as soon as they stop)', ()
     expect(c.out.map((o) => o.continues)).toEqual([false, false, true, false]);
   });
 });
+
+describe('input flusher — never mid-sentence while the visitor is still talking', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  it('waits through a transcript stall while the mic still hears speech', () => {
+    const out: string[] = [];
+    let speaking = true;
+    const f = createInputFlusher({ quietMs: 400, stillSpeaking: () => speaking, emit: (t) => out.push(t) });
+    f.push(' Please add one');
+    vi.advanceTimersByTime(900); // transcript stalls, but they're still talking
+    expect(out).toEqual([]);
+    f.push(' green mantra to my cart.');
+    speaking = false;
+    vi.advanceTimersByTime(450);
+    expect(out).toEqual(['Please add one green mantra to my cart.']);
+  });
+});

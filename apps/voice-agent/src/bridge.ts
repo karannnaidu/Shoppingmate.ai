@@ -112,11 +112,17 @@ export function createBridge(deps: BridgeDeps): Bridge {
   // The executor turn in flight: a newer turn (seq) supersedes it; `acted` =
   // it already did something on the page (then it can't be withdrawn).
   let turnSeq = 0;
-  let current: { seq: number; text: string; acted: boolean } | null = null;
+  let current: { seq: number; text: string; acted: boolean; done: Promise<void> } | null = null;
 
   const api: Bridge = {
     async handleUserText(rawText, opts) {
       let text = rawText;
+      // The half-sentence already did something on the page: let that turn
+      // finish first so this follow-up sees "[Already done …]" in its history
+      // (live test: "…mantra to my cart" re-added Green Mantra a second time).
+      if (opts?.continues && current?.acted) {
+        await Promise.race([current.done, new Promise((r) => setTimeout(r, 8_000))]);
+      }
       if (opts?.continues && current && !current.acted) {
         // Withdraw the half-sentence: drop its history entry, merge, re-run.
         const idx = voiceHistory.map((h) => h.role === 'user' && h.content === current?.text).lastIndexOf(true);
@@ -125,7 +131,8 @@ export function createBridge(deps: BridgeDeps): Bridge {
         log.info({ sessionId: deps.sessionId, merged: text }, 'bridge: merged continuation, superseding half-sentence');
       }
       const mySeq = ++turnSeq;
-      const me = { seq: mySeq, text, acted: false };
+      let markDone!: () => void;
+      const me = { seq: mySeq, text, acted: false, done: new Promise<void>((r) => (markDone = r)) };
       current = me;
       aborted = false;
       deps.caps?.recordTurn();
@@ -213,6 +220,7 @@ export function createBridge(deps: BridgeDeps): Bridge {
             content: `[Already done on the page — do NOT repeat these unless the visitor asks again: ${turnActions.join('; ')}]`,
           });
         }
+        markDone();
       }
     },
     noteAssistantTurn(text) {

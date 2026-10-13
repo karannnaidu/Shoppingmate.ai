@@ -17,6 +17,10 @@ type LiveSession = Awaited<ReturnType<GoogleGenAI['live']['connect']>>;
 // in-session conversational memory resets, hence the "already in progress, don't
 // re-greet" note we prepend on reconnect.
 const MAX_RECONNECTS = 3;
+// Mic loudness (PCM16 RMS) that counts as speech, and how long after it the
+// visitor still counts as talking.
+const MIC_SPEECH_RMS = Number(process.env.MIC_SPEECH_RMS ?? 1200);
+const MIC_SPEECH_HOLD_MS = 300;
 const HEALTHY_RESET_MS = 60_000;
 
 export function createGeminiSdkTransport(): GeminiTransport {
@@ -32,7 +36,12 @@ export function createGeminiSdkTransport(): GeminiTransport {
   // The VISITOR's words go out as soon as they've finished speaking (see
   // inputFlusher) so cart/checkout actions start while Olivia is still
   // answering — not after her whole spoken reply.
-  const input = createInputFlusher({ emit: (text, meta) => emit({ type: 'final_transcript', text, ...meta }) });
+  // Last moment the visitor's mic carried clear speech (see pushAudio).
+  let lastLoudAt = 0;
+  const input = createInputFlusher({
+    stillSpeaking: () => Date.now() - lastLoudAt < MIC_SPEECH_HOLD_MS,
+    emit: (text, meta) => emit({ type: 'final_transcript', text, ...meta }),
+  });
   let outputBuf = '';
 
   // Reconnect state.
@@ -200,6 +209,13 @@ export function createGeminiSdkTransport(): GeminiTransport {
       log.info({ voiceId }, 'gemini live opened');
     },
     pushAudio(frame) {
+      // Track speech on the (noise-suppressed) mic so a transcript stall
+      // mid-sentence never hands half a sentence to the action layer.
+      const aligned = frame.byteOffset % 2 === 0 ? frame : frame.slice();
+      const s = new Int16Array(aligned.buffer, aligned.byteOffset, aligned.byteLength >> 1);
+      let sum = 0;
+      for (let i = 0; i < s.length; i++) sum += (s[i] as number) * (s[i] as number);
+      if (Math.sqrt(sum / Math.max(1, s.length)) > MIC_SPEECH_RMS) lastLoudAt = Date.now();
       // During a reconnect window `session` is null. DROP frames silently rather
       // than throw — otherwise the worker's `for await` audio loop ends and the
       // mic goes dead even after the session comes back.

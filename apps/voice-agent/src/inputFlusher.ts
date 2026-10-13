@@ -30,6 +30,10 @@ export type InputFlusher = {
 export function createInputFlusher(opts: {
   quietMs?: number;
   continueWindowMs?: number;
+  /** True while the visitor's mic still carries speech. Gemini's transcript can
+   *  stall ~0.5s mid-sentence; their voice can't — so never flush while they
+   *  are still talking (live test: a 3-part transcript added an item twice). */
+  stillSpeaking?: () => boolean;
   emit: (text: string, meta: FlushMeta) => void;
 }): InputFlusher {
   const quietMs = opts.quietMs ?? Number(process.env.INPUT_FLUSH_MS ?? 400);
@@ -51,11 +55,20 @@ export function createInputFlusher(opts: {
     lastQuietFlushAt = viaQuiet ? now : 0;
     opts.emit(text, { viaQuiet, continues });
   };
+  const arm = () => {
+    clear();
+    timer = setTimeout(() => {
+      if (opts.stillSpeaking?.()) {
+        arm(); // words are still coming out of their mouth — wait
+        return;
+      }
+      flush(true);
+    }, quietMs);
+  };
   return {
     push(text) {
       buf += text;
-      clear();
-      timer = setTimeout(() => flush(true), quietMs);
+      arm();
     },
     flushNow: () => flush(false),
     dispose() {
