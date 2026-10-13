@@ -78,9 +78,17 @@ export function createGeminiSdkTransport(): GeminiTransport {
             // 300ms (was 20) keeps enough audio BEFORE detected speech so the
             // first word isn't clipped before the model hears it.
             prefixPaddingMs: 300,
-            silenceDurationMs: 600,
+            silenceDurationMs: Number(process.env.GEMINI_SILENCE_MS ?? 600),
           },
         },
+        // Thinking OFF by default: measured 2026-10-13 it added 3–4s before
+        // EVERY reply (reply 4.0–5.3s → 1.4s after the visitor stops talking).
+        // Tools/cart/checkout reasoning runs in the side-channel executor, not
+        // here — Gemini only has to talk. GEMINI_THINKING_BUDGET=default restores
+        // the model's own thinking; a number sets a budget.
+        ...(process.env.GEMINI_THINKING_BUDGET === 'default'
+          ? {}
+          : { thinkingConfig: { thinkingBudget: Number(process.env.GEMINI_THINKING_BUDGET ?? 0) } }),
         // Sliding-window context compression lets long conversations run without
         // hitting Gemini's session context limit (which otherwise terminates the
         // session mid-call: ws close 1008 "Operation is not implemented..."). It
