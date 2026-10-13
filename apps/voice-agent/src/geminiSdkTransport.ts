@@ -1,6 +1,7 @@
 import { EndSensitivity, GoogleGenAI, Modality, StartSensitivity } from '@google/genai';
 import { childLogger } from '@shoppingmate/shared';
 import { voiceEnv } from './env.js';
+import { createInputFlusher } from './inputFlusher.js';
 import type { GeminiTransport, GeminiTransportEvent } from './geminiSession.js';
 
 const log = childLogger({ mod: 'gemini-sdk' });
@@ -27,10 +28,11 @@ export function createGeminiSdkTransport(): GeminiTransport {
     for (const cb of listeners) cb(e);
   };
 
-  // Accumulate transcription chunks across a turn; flush as final on turnComplete.
-  // Gemini Live streams these in small pieces and only the boundary signal tells
-  // us the turn has ended.
-  let inputBuf = '';
+  // Olivia's transcript accumulates across her turn (flushed on turnComplete).
+  // The VISITOR's words go out as soon as they've finished speaking (see
+  // inputFlusher) so cart/checkout actions start while Olivia is still
+  // answering — not after her whole spoken reply.
+  const input = createInputFlusher({ emit: (text) => emit({ type: 'final_transcript', text }) });
   let outputBuf = '';
 
   // Reconnect state.
@@ -108,8 +110,10 @@ export function createGeminiSdkTransport(): GeminiTransport {
             emit({ type: 'interrupted' });
           }
           const inputXcript = msg.serverContent?.inputTranscription?.text;
-          if (inputXcript) inputBuf += inputXcript;
+          if (inputXcript) input.push(inputXcript);
           const outputXcript = msg.serverContent?.outputTranscription?.text;
+          // Olivia started answering → the visitor's turn is over: act on it now.
+          if (outputXcript || msg.serverContent?.modelTurn?.parts?.length) input.flushNow();
           if (outputXcript) {
             outputBuf += outputXcript;
             // Stream the running bot transcript so the widget caption keeps sync
@@ -124,9 +128,8 @@ export function createGeminiSdkTransport(): GeminiTransport {
             emit({ type: 'audio_out', bytes: Buffer.from(audioPart.inlineData.data, 'base64') });
           }
           if (msg.serverContent?.turnComplete) {
-            if (inputBuf.trim()) emit({ type: 'final_transcript', text: inputBuf.trim() });
+            input.flushNow(); // anything said late in the turn
             if (outputBuf.trim()) emit({ type: 'bot_text', text: outputBuf.trim() });
-            inputBuf = '';
             outputBuf = '';
             emit({ type: 'speech_ended' });
           }
@@ -222,6 +225,7 @@ export function createGeminiSdkTransport(): GeminiTransport {
     async close() {
       intentionalClose = true;
       clearHealthyTimer();
+      input.dispose(); // never act on words after the visitor has hung up
       if (!session) return;
       session.close();
       session = null;
