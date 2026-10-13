@@ -61,7 +61,8 @@ export type HostActionResult =
       channel?: string;
     }
   // superseded: a voice half-sentence was replaced by the full sentence before acting.
-  | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' | 'superseded' };
+  // duplicate: the same product was just added and the visitor didn't ask for more.
+  | { ok: false; reason: 'not_found' | 'stale_target' | 'cross_origin' | 'route_not_found' | 'timeout' | 'superseded' | 'duplicate' };
 
 export type HostActionRequest = {
   type: 'host_action_request';

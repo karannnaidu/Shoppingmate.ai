@@ -248,7 +248,8 @@ describe('bridge — continuation after a short pause', () => {
     return vi.fn(async function* (runDeps: { dispatchHostAction?: (a: unknown) => Promise<{ ok: boolean; reason?: string }> }, _m: unknown, _s: unknown, msg: { text: string }) {
       seen.push(msg.text);
       await gate;
-      const r = await runDeps.dispatchHostAction?.({ type: 'cart_add', sku: 'green-mantra', qty: 1 });
+      const sku = /dog/i.test(msg.text) ? 'dog-mantra' : 'green-mantra';
+      const r = await runDeps.dispatchHostAction?.({ type: 'cart_add', sku, qty: 1 });
       seen.push(`dispatch:${r?.ok ? 'ok' : r?.reason}`);
       yield { type: 'end_of_turn' } as AgentEvent;
     });
@@ -288,5 +289,32 @@ describe('bridge — continuation after a short pause', () => {
     await bridge.handleUserText('Add the sleep drops');
     await bridge.handleUserText('and the dog one', { continues: true });
     expect(seen).toEqual(['Add the sleep drops', 'dispatch:ok', 'and the dog one', 'dispatch:ok']);
+  });
+});
+
+describe('bridge — duplicate cart-add safety net', () => {
+  const cartRunTurn = (seen: string[]) =>
+    vi.fn(async function* (runDeps: { dispatchHostAction?: (a: unknown) => Promise<{ ok: boolean; reason?: string }> }) {
+      const r = await runDeps.dispatchHostAction?.({ type: 'cart_add', sku: 'green-mantra', qty: 1 });
+      seen.push(r?.ok ? 'added' : `blocked:${r?.reason}`);
+      yield { type: 'end_of_turn' } as AgentEvent;
+    });
+  const make = (seen: string[]) => {
+    const bridge = createBridge({
+      ...baseDeps(),
+      loadMerchant: vi.fn().mockResolvedValue({ id: 'SM-AAAAAA', siteGraphEnabled: true }),
+      runTurn: cartRunTurn(seen) as unknown as BridgeDeps['runTurn'],
+    });
+    bridge.dispatchHostAction = vi.fn().mockResolvedValue({ ok: true });
+    return bridge;
+  };
+
+  it('blocks adding the same product again moments later unless they ask for more', async () => {
+    const seen: string[] = [];
+    const bridge = make(seen);
+    await bridge.handleUserText('Please add one green');
+    await bridge.handleUserText('Mantra to my cart.');
+    await bridge.handleUserText('Add another one please');
+    expect(seen).toEqual(['added', 'blocked:duplicate', 'added']);
   });
 });

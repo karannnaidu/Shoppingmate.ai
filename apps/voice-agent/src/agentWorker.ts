@@ -1075,22 +1075,12 @@ export async function runVoiceSession(
     }
 
     gemini.onEvent((e) => {
-      if (e.type === 'final_transcript' && e.text.trim().length > 0) {
-        const words = e.text.split(/\s+/).filter(Boolean).length;
-        const inputSeconds = words / 3.3;
-        caps.recordVoiceSeconds(inputSeconds);
-        metrics.add('gemini_audio_input_seconds', inputSeconds);
-        // Phase 1 design: Gemini Live owns voice conversation; the visitor's
-        // transcript also goes to the widget for caption display.
-        dataChannel.publish({ type: 'user_text', text: e.text });
-        // Carried on after a short pause → same sentence, not a new turn.
-        if (e.continues) recorder.extendLastUser(e.text);
-        else recorder.addTurn('user', e.text);
-        // The visitor just paused and Olivia hasn't started answering: a soft
+      if (e.type === 'visitor_paused') {
+        // The visitor paused and Olivia hasn't started answering: a soft
         // "mm-hmm" so the gap reads as listening (and as a backchannel if they
-        // were mid-sentence). At most one every 8s; never over the greeting.
+        // were mid-sentence). Audio only — actions wait for the real end of the
+        // turn. At most one every 8s; never over the greeting.
         if (
-          e.viaQuiet &&
           live &&
           ackClips.length > 0 &&
           Date.now() - lastAudioOutAt > 1500 &&
@@ -1105,6 +1095,19 @@ export async function runVoiceSession(
           }
           log.info({ sessionId }, 'ack played');
         }
+        return;
+      }
+      if (e.type === 'final_transcript' && e.text.trim().length > 0) {
+        const words = e.text.split(/\s+/).filter(Boolean).length;
+        const inputSeconds = words / 3.3;
+        caps.recordVoiceSeconds(inputSeconds);
+        metrics.add('gemini_audio_input_seconds', inputSeconds);
+        // Phase 1 design: Gemini Live owns voice conversation; the visitor's
+        // transcript also goes to the widget for caption display.
+        dataChannel.publish({ type: 'user_text', text: e.text });
+        // Carried on after a short pause → same sentence, not a new turn.
+        if (e.continues) recorder.extendLastUser(e.text);
+        else recorder.addTurn('user', e.text);
         // Side-channel: route the visitor's text through the chat tool-loop
         // so host_action tools can navigate / scroll / quote pricing while
         // Gemini speaks naturally over the top. The bridge's `say` events

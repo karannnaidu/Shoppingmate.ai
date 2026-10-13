@@ -87,6 +87,9 @@ export type Bridge = {
 };
 
 const HOST_ACTION_TIMEOUT_MS = 5000;
+const DUPLICATE_ADD_MS = 15_000;
+// The visitor actually asked for more of the same product.
+const ASKS_FOR_MORE = /\b(another|one more|more|again|extra|second|two|three|four|five|couple|pair|\d+)\b/i;
 
 export function createBridge(deps: BridgeDeps): Bridge {
   let aborted = false;
@@ -111,6 +114,8 @@ export function createBridge(deps: BridgeDeps): Bridge {
 
   // The executor turn in flight: a newer turn (seq) supersedes it; `acted` =
   // it already did something on the page (then it can't be withdrawn).
+  // Product → when it was last added on this call (duplicate-add safety net).
+  const recentCartAdds = new Map<string, number>();
   let turnSeq = 0;
   let current: { seq: number; text: string; acted: boolean; done: Promise<void> } | null = null;
 
@@ -178,6 +183,16 @@ export function createBridge(deps: BridgeDeps): Bridge {
           ? async (action) => {
               // A newer (merged) turn replaced this one: don't touch the page.
               if (mySeq !== turnSeq) return { ok: false, reason: 'superseded' };
+              // Safety net (live test: a split sentence added Green Mantra twice):
+              // the same product again within 15s only if they asked for more.
+              if (action.type === 'cart_add') {
+                const last = recentCartAdds.get(action.sku);
+                if (last && Date.now() - last < DUPLICATE_ADD_MS && !ASKS_FOR_MORE.test(text)) {
+                  log.warn({ sessionId: deps.sessionId, sku: action.sku, text }, 'bridge: duplicate cart add blocked');
+                  return { ok: false, reason: 'duplicate' };
+                }
+                recentCartAdds.set(action.sku, Date.now());
+              }
               me.acted = true;
               const r = await api.dispatchHostAction!(action);
               const d = describeAction(action, r);

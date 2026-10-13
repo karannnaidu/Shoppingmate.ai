@@ -40,6 +40,7 @@ export function createGeminiSdkTransport(): GeminiTransport {
   let lastLoudAt = 0;
   const input = createInputFlusher({
     stillSpeaking: () => Date.now() - lastLoudAt < MIC_SPEECH_HOLD_MS,
+    onPause: () => emit({ type: 'visitor_paused' }),
     emit: (text, meta) => emit({ type: 'final_transcript', text, ...meta }),
   });
   let outputBuf = '';

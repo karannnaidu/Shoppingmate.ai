@@ -6,6 +6,8 @@ export type GeminiTransportEvent =
   // Bot's words, accumulated running transcript while the turn is in progress.
   // Emitted per outputAudioTranscription chunk so the widget can render captions
   // in lock-step with Sage's audio instead of dumping a wall of text at the end.
+  // The visitor went quiet for a moment (audio cue only — never an action).
+  | { type: 'visitor_paused' }
   | { type: 'bot_text_partial'; text: string }
   // Bot's words, finalized at end of turn (server-side captioning of model output).
   | { type: 'bot_text'; text: string }

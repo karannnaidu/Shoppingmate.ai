@@ -1,49 +1,55 @@
-// Hands the visitor's words to the action layer as soon as they've finished
-// speaking — not when Olivia finishes her spoken reply.
+// Hands the visitor's words to the action layer as soon as their turn is over —
+// not when Olivia finishes her spoken reply.
 //
 // Measured 2026-10-13 ("Please add one Green Mantra to my cart"): speech ended
 // 5.2s, transcript complete 5.7s, Olivia's first audio 7.9s, Gemini turnComplete
 // 11.2s (15–20s for longer replies) — and actions only started at turnComplete.
-// Gemini never sends the transcription `finished` flag, so we flush when no new
-// words have arrived for `quietMs`, or the moment Olivia starts answering.
 //
-// The quiet window is short (400ms) for speed. If the visitor was only pausing,
-// the next words come out marked `continues` so the action layer replaces the
-// half-sentence with the whole one (and Olivia can "mm-hmm" in the pause).
+// Two separate signals:
+// - PAUSE (`pauseMs`, 400ms): the visitor went quiet. Audio-only use: Olivia
+//   plays a soft "mm-hmm". Never acts on the page.
+// - FLUSH: the turn is over → hand the words to the action layer. Normally the
+//   moment Olivia starts answering (Gemini's own end-of-turn decision, so actions
+//   and voice always agree where the sentence ended); `quietMs` (1200ms) is only
+//   a fallback. Live test with a 400ms flush: Gemini's transcript arrived in
+//   3 pieces and "…Mantra to my cart" re-added Green Mantra — fragments are
+//   ambiguous, and a wrong cart is worse than a slower one.
+// Neither fires while the mic still carries speech (`stillSpeaking`).
 
 export type FlushMeta = {
-  /** Flushed because the visitor went quiet (vs Olivia starting / turn end). */
+  /** Flushed by the quiet fallback (vs Olivia starting / turn end). */
   viaQuiet: boolean;
-  /** Continues an utterance that was flushed after a short pause moments ago. */
+  /** Continues an utterance flushed moments ago (merge in the action layer). */
   continues: boolean;
 };
 
 export type InputFlusher = {
-  /** A new piece of the visitor's transcript arrived. */
   push(text: string): void;
   /** Olivia started answering (or the turn completed): flush now. */
   flushNow(): void;
-  /** Drop pending text and timers (session closing). */
   dispose(): void;
 };
 
 export function createInputFlusher(opts: {
   quietMs?: number;
+  pauseMs?: number;
   continueWindowMs?: number;
-  /** True while the visitor's mic still carries speech. Gemini's transcript can
-   *  stall ~0.5s mid-sentence; their voice can't — so never flush while they
-   *  are still talking (live test: a 3-part transcript added an item twice). */
   stillSpeaking?: () => boolean;
+  onPause?: () => void;
   emit: (text: string, meta: FlushMeta) => void;
 }): InputFlusher {
-  const quietMs = opts.quietMs ?? Number(process.env.INPUT_FLUSH_MS ?? 400);
+  const quietMs = opts.quietMs ?? Number(process.env.INPUT_FLUSH_MS ?? 1200);
+  const pauseMs = opts.pauseMs ?? 400;
   const continueWindowMs = opts.continueWindowMs ?? 2_500;
   let buf = '';
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let lastQuietFlushAt = 0;
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let pauseTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastFlushAt = 0;
   const clear = () => {
-    if (timer) clearTimeout(timer);
-    timer = null;
+    if (flushTimer) clearTimeout(flushTimer);
+    if (pauseTimer) clearTimeout(pauseTimer);
+    flushTimer = null;
+    pauseTimer = null;
   };
   const flush = (viaQuiet: boolean) => {
     clear();
@@ -51,24 +57,29 @@ export function createInputFlusher(opts: {
     buf = '';
     if (!text) return;
     const now = Date.now();
-    const continues = lastQuietFlushAt > 0 && now - lastQuietFlushAt < continueWindowMs;
-    lastQuietFlushAt = viaQuiet ? now : 0;
+    const continues = lastFlushAt > 0 && now - lastFlushAt < continueWindowMs;
+    lastFlushAt = now;
     opts.emit(text, { viaQuiet, continues });
   };
-  const arm = () => {
-    clear();
-    timer = setTimeout(() => {
-      if (opts.stillSpeaking?.()) {
-        arm(); // words are still coming out of their mouth — wait
-        return;
-      }
+  const armPause = () => {
+    pauseTimer = setTimeout(() => {
+      if (opts.stillSpeaking?.()) return armPause();
+      pauseTimer = null;
+      opts.onPause?.();
+    }, pauseMs);
+  };
+  const armFlush = () => {
+    flushTimer = setTimeout(() => {
+      if (opts.stillSpeaking?.()) return armFlush();
       flush(true);
     }, quietMs);
   };
   return {
     push(text) {
       buf += text;
-      arm();
+      clear();
+      armPause();
+      armFlush();
     },
     flushNow: () => flush(false),
     dispose() {

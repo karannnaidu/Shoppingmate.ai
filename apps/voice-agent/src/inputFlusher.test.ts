@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FlushMeta, createInputFlusher } from './inputFlusher.js';
 
-describe('input flusher (act on the visitor’s words as soon as they stop)', () => {
+describe('input flusher', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
   const collect = () => {
@@ -9,69 +9,62 @@ describe('input flusher (act on the visitor’s words as soon as they stop)', ()
     return { out, emit: (text: string, meta: FlushMeta) => out.push({ text, ...meta }) };
   };
 
-  it('emits the whole utterance once no new words arrive for quietMs', () => {
+  it('acts the moment Olivia starts answering (Gemini decided the turn ended)', () => {
     const c = collect();
-    const f = createInputFlusher({ quietMs: 400, emit: c.emit });
-    for (const piece of [' Ple', 'ase', ' add', ' one', ' green', ' man', 'tra', ' to', ' my cart.']) {
-      f.push(piece);
-      vi.advanceTimersByTime(250);
-    }
-    expect(c.out).toEqual([]);
-    vi.advanceTimersByTime(200);
-    expect(c.out).toEqual([{ text: 'Please add one green mantra to my cart.', viaQuiet: true, continues: false }]);
+    const f = createInputFlusher({ emit: c.emit });
+    f.push(' Please add one green mantra to my cart.');
+    vi.advanceTimersByTime(300);
+    f.flushNow();
+    vi.advanceTimersByTime(3000);
+    expect(c.out).toEqual([{ text: 'Please add one green mantra to my cart.', viaQuiet: false, continues: false }]);
   });
 
-  it('flushes immediately when Olivia starts answering, once', () => {
+  it('a 400ms pause only triggers the "mm-hmm" — it never acts on half a sentence', () => {
     const c = collect();
-    const f = createInputFlusher({ quietMs: 400, emit: c.emit });
+    const pauses: number[] = [];
+    const f = createInputFlusher({ quietMs: 1200, pauseMs: 400, onPause: () => pauses.push(Date.now()), emit: c.emit });
+    f.push(' Please add one green');
+    vi.advanceTimersByTime(900); // mid-sentence pause
+    expect(pauses).toHaveLength(1);
+    expect(c.out).toEqual([]);
+    f.push(' mantra to my cart.');
+    f.flushNow();
+    expect(c.out.map((o) => o.text)).toEqual(['Please add one green mantra to my cart.']);
+  });
+
+  it('falls back to acting after quietMs if Olivia never starts', () => {
+    const c = collect();
+    const f = createInputFlusher({ quietMs: 1200, emit: c.emit });
+    f.push(' hello?');
+    vi.advanceTimersByTime(1250);
+    expect(c.out).toEqual([{ text: 'hello?', viaQuiet: true, continues: false }]);
+  });
+
+  it('never pauses or flushes while the mic still hears speech', () => {
+    const c = collect();
+    const pauses: number[] = [];
+    let speaking = true;
+    const f = createInputFlusher({ quietMs: 1200, pauseMs: 400, stillSpeaking: () => speaking, onPause: () => pauses.push(1), emit: c.emit });
+    f.push(' Please add one');
+    vi.advanceTimersByTime(3000);
+    expect(pauses).toEqual([]);
+    expect(c.out).toEqual([]);
+    speaking = false;
+    vi.advanceTimersByTime(1300);
+    expect(pauses).toEqual([1]);
+    expect(c.out.map((o) => o.text)).toEqual(['Please add one']);
+  });
+
+  it('words right after a flush are marked as a continuation', () => {
+    const c = collect();
+    const f = createInputFlusher({ continueWindowMs: 2500, emit: c.emit });
     f.push(' Add the sleep drops');
     f.flushNow();
-    vi.advanceTimersByTime(1000);
-    expect(c.out).toEqual([{ text: 'Add the sleep drops', viaQuiet: false, continues: false }]);
-  });
-
-  it('marks words after a short pause as a continuation of the cut-off phrase', () => {
-    const c = collect();
-    const f = createInputFlusher({ quietMs: 400, continueWindowMs: 2500, emit: c.emit });
-    f.push(' Add one green');
-    vi.advanceTimersByTime(450); // paused mid-sentence → flushed early
-    f.push(' mantra please');
-    vi.advanceTimersByTime(450);
-    expect(c.out).toEqual([
-      { text: 'Add one green', viaQuiet: true, continues: false },
-      { text: 'mantra please', viaQuiet: true, continues: true },
-    ]);
-  });
-
-  it('a new sentence long after the last, or after Olivia spoke, is not a continuation', () => {
-    const c = collect();
-    const f = createInputFlusher({ quietMs: 400, continueWindowMs: 2500, emit: c.emit });
-    f.push(' Hi');
-    vi.advanceTimersByTime(450);
-    vi.advanceTimersByTime(5000);
-    f.push(' Show me sleep drops');
-    vi.advanceTimersByTime(450);
     f.push(' and the dog one');
-    f.flushNow(); // Olivia began → not quiet
+    f.flushNow();
+    vi.advanceTimersByTime(5000);
     f.push(' thanks');
-    vi.advanceTimersByTime(450);
-    expect(c.out.map((o) => o.continues)).toEqual([false, false, true, false]);
-  });
-});
-
-describe('input flusher — never mid-sentence while the visitor is still talking', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-  it('waits through a transcript stall while the mic still hears speech', () => {
-    const out: string[] = [];
-    let speaking = true;
-    const f = createInputFlusher({ quietMs: 400, stillSpeaking: () => speaking, emit: (t) => out.push(t) });
-    f.push(' Please add one');
-    vi.advanceTimersByTime(900); // transcript stalls, but they're still talking
-    expect(out).toEqual([]);
-    f.push(' green mantra to my cart.');
-    speaking = false;
-    vi.advanceTimersByTime(450);
-    expect(out).toEqual(['Please add one green mantra to my cart.']);
+    f.flushNow();
+    expect(c.out.map((o) => o.continues)).toEqual([false, true, false]);
   });
 });
