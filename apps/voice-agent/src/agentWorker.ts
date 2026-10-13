@@ -577,9 +577,28 @@ export async function runVoiceSession(
     const kickoff = demoMode
       ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
       : `The visitor just connected on the ${merchant.name ?? 'store'} site. Open the conversation now: greet them warmly and introduce yourself exactly as your instructions say, then ask how you can help. Keep it to a sentence or two — do not wait for them to speak first.`;
-    const greetCacheable = pregreet && !visitorSummary.trim() && process.env.VOICE_GREETING_CACHE !== 'off';
+    // Real-device test 2026-10-13: returning visitors (personal greeting, never
+    // cached) waited 8–27s for a live-generated greeting. Now EVERY caller gets
+    // the cached generic greeting instantly; a returning visitor is welcomed
+    // back by name in Olivia's next reply. Only generic greetings (first-time
+    // visitors) are ever written to the cache — never one with a name in it.
+    const greetCacheable = pregreet && process.env.VOICE_GREETING_CACHE !== 'off';
+    const returning = visitorSummary.trim().length > 0;
+    const genericInstruction = returning
+      ? resolveVoiceContext(
+          merchant.personaId,
+          { name: merchant.name, domain: merchant.domain, platform: merchant.platform, businessType: merchant.businessType },
+          {
+            kbText,
+            demoMode,
+            brandSummary: merchant.brandSummary ?? undefined,
+            brandCategories: merchant.brandCategories ?? undefined,
+            brandPlaybook: pb?.playbook,
+          },
+        ).systemInstruction
+      : voice.systemInstruction;
     const greetKey = `sm:greet:v1:${merchant.id}:${voice.voiceId}:${createHash('sha1')
-      .update(`${voice.systemInstruction}\n${kickoff}`)
+      .update(`${genericInstruction}\n${kickoff}`)
       .digest('hex')}`;
     let cachedGreeting: { text: string; pcm: Buffer } | null = null;
     if (greetCacheable) {
@@ -595,9 +614,13 @@ export async function runVoiceSession(
     }
     // While generating a cacheable greeting, collect its audio to store.
     let greetCapture: { chunks: Buffer[]; bytes: number } | null =
-      greetCacheable && !cachedGreeting ? { chunks: [], bytes: 0 } : null;
+      greetCacheable && !returning && !cachedGreeting ? { chunks: [], bytes: 0 } : null;
     const geminiInstruction = cachedGreeting
-      ? `${voice.systemInstruction}\n\nCALL ALREADY STARTED: you opened this call by saying exactly: "${cachedGreeting.text}" — the visitor has heard it. Do NOT greet or introduce yourself again; reply directly to what they say next.`
+      ? `${voice.systemInstruction}\n\nCALL ALREADY STARTED: you opened this call by saying exactly: "${cachedGreeting.text}" — the visitor has heard it. Do NOT greet or introduce yourself again; reply directly to what they say next.${
+          returning
+            ? ' They are a RETURNING VISITOR (see above): in your next reply, briefly and warmly show you remember them (by name if known) — without greeting again.'
+            : ''
+        }`
       : voice.systemInstruction;
     const tGeminiOpenStart = Date.now();
 
