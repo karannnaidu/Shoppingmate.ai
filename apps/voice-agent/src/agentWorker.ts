@@ -955,7 +955,10 @@ export async function runVoiceSession(
           },
           { role: 'user', content: `SAVED PROFILE: ${saved || 'none'}\n\nTRANSCRIPT:\n${transcript}` },
         ]);
-        const j = JSON.parse(res.text) as { name?: string | null; age?: number | null; phone?: string | null; country_code?: string; condition?: string | null };
+        // Models sometimes wrap JSON in ```json fences (live test) — take the object itself.
+        const raw = res.text.trim();
+        const body = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
+        const j = JSON.parse(body) as { name?: string | null; age?: number | null; phone?: string | null; country_code?: string; condition?: string | null };
         const name = (j.name ?? '').trim();
         const age = Number(j.age);
         const phone = String(j.phone ?? '').replace(/\D/g, '').replace(/^(91|0)(?=\d{10}$)/, '');
