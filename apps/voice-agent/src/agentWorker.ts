@@ -15,6 +15,7 @@ import {
   runTurn,
   saveSession as saveSessionAgent,
   stripToolSyntax,
+  lookupPersona,
 } from '@shoppingmate/agent';
 import {
   type ChatFn,
@@ -52,6 +53,11 @@ const log = childLogger({ mod: 'agent-worker' });
 // Mic loudness (PCM16 RMS, ~-27 dBFS) that counts as the visitor speaking over
 // the cached greeting. Mic audio is already noise-suppressed (Krisp / RNNoise).
 const GREETING_BARGE_RMS = Number(process.env.GREETING_BARGE_RMS ?? 1500);
+// Doctor-consultation intent, the visitor agreeing, and Olivia narrating the booking.
+const CONSULT_INTENT = /\b(consult(ation)?|doctor|practitioner|physician|dr\.?)\b/i;
+const CONSULT_CONFIRM = /\b(yes|yeah|yep|sure|ok(ay)?|go ahead|please do|book it|correct|that'?s right|haan|ha+n?ji)\b/i;
+const CONSULT_NARRATION =
+  /(practitioner|doctor)\b.{0,40}\b(reach out|call|contact)|\bbook(ing)?\s+(that|this|it|your|the)\b.{0,20}\b(consult|appointment|now)|\bfill(ing)?\s+(those|that|them)\s+in\b/i;
 // Minimum gap between "mm-hmm" acknowledgements, so they never get repetitive.
 const ACK_MIN_GAP_MS = Number(process.env.VOICE_ACK_MIN_GAP_MS ?? 8000);
 
@@ -400,10 +406,14 @@ export async function runVoiceSession(
     // Guard on session.visitorId (NOT the anon fallback) so anon sessions, which
     // never have a profile, don't issue a pointless query.
     let visitorSummary = '';
+    // A returning visitor's saved name/phone (used to book a consultation when
+    // they say "use my saved details").
+    let savedIdentity: { name?: string; phone?: string } = {};
     try {
       if (session.visitorId) {
         const vp = await loadVisitorProfile(merchant.id, session.visitorId);
         visitorSummary = buildVisitorSummary(vp);
+        savedIdentity = ((vp as { identity?: unknown } | null)?.identity ?? {}) as typeof savedIdentity;
         if (vp)
           log.info(
             { sessionId, visitorId, sessionCount: vp.sessionCount },
@@ -580,14 +590,16 @@ export async function runVoiceSession(
     // day and replay it on the tap; Gemini is told it already said it (tested:
     // with live input a seeded history turn is ignored, the instruction isn't).
     // Returning visitors (greeted by name) and VOICE_GREETING_CACHE=off skip it.
+    // Karan 2026-10-14: the opener must be just "Hi, I'm Calmio, how can I help
+    // you?" — and a free-form greeting once called itself "Gemini" and got
+    // cached. The opener is now a fixed sentence in the persona's own name.
+    const personaName = lookupPersona(voice.personaId).name;
+    const greetingLine = `Hi, I'm ${personaName}, how can I help you?`;
     const kickoff = demoMode
       ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
-      : `The visitor just connected on the ${merchant.name ?? 'store'} site. Open the conversation now: greet them warmly and introduce yourself exactly as your instructions say, then ask how you can help. Keep it to a sentence or two — do not wait for them to speak first.`;
-    // Real-device test 2026-10-13: returning visitors (personal greeting, never
-    // cached) waited 8–27s for a live-generated greeting. Now EVERY caller gets
-    // the cached generic greeting instantly; a returning visitor is welcomed
-    // back by name in Olivia's next reply. Only generic greetings (first-time
-    // visitors) are ever written to the cache — never one with a name in it.
+      : `The visitor just connected. Say exactly this sentence and nothing else, then wait for them: "${greetingLine}"`;
+    // A cached greeting is only trusted if it actually says the persona's name.
+    const greetingOk = (t: string) => demoMode || (t.includes(personaName) && t.length < 90);
     const greetCacheable = pregreet && process.env.VOICE_GREETING_CACHE !== 'off';
     const returning = visitorSummary.trim().length > 0;
     const genericInstruction = returning
@@ -621,7 +633,7 @@ export async function runVoiceSession(
         const raw = await redis().get(greetKey);
         if (raw) {
           const g = JSON.parse(raw) as { text?: string; pcm?: string };
-          if (g.text && g.pcm) cachedGreeting = { text: g.text, pcm: Buffer.from(g.pcm, 'base64') };
+          if (g.text && g.pcm && greetingOk(g.text)) cachedGreeting = { text: g.text, pcm: Buffer.from(g.pcm, 'base64') };
         }
       } catch (err) {
         log.warn({ err: (err as Error).message }, 'greeting cache read failed');
@@ -677,6 +689,8 @@ export async function runVoiceSession(
     // when the visitor never literally said "checkout". Declared before the
     // bridge so its publishData closure can set it safely.
     const flowState = { checkoutReached: false };
+    // A consultation has been saved on this call (by either path) — never twice.
+    let consultBooked = false;
     // The visitor actually has saved details on file only if the returning-
     // visitor brief carries them; anything else Gemini says about "saved
     // details" is invented and must be corrected.
@@ -729,8 +743,11 @@ export async function runVoiceSession(
         }
       },
       submitCase: (c) => submitSupportCase(c),
-      submitConsultation: (req) =>
-        submitConsultationRequest({
+      submitConsultation: async (req) => {
+        // One consultation per call: the deterministic flow below may already
+        // have booked it (or vice versa).
+        if (consultBooked) return { ok: true };
+        const r = await submitConsultationRequest({
           merchantId: req.merchantId,
           sessionId: req.sessionId,
           name: req.name,
@@ -738,7 +755,10 @@ export async function runVoiceSession(
           condition: req.condition,
           phoneCountryCode: req.phoneCountryCode,
           phone: req.phone,
-        }),
+        });
+        if (r.ok) consultBooked = true;
+        return r;
+      },
       loadAdapter: (m) =>
         getAdapter(m, {
           transport: new NoOpWSTransport(),
@@ -878,6 +898,12 @@ export async function runVoiceSession(
     // turns; nudgeState rate-limits the (flag-gated) spoken nudge.
     let liveTurn = 0;
     const nudgeState = { lastNudgeTurn: 0 };
+    // Doctor consultation (Calmosis): booked deterministically by the server —
+    // live 2026-10-14 Olivia said "our practitioner will reach out" but nothing
+    // was ever saved (the executor never saw the saved details).
+    let consultMode = false;
+    let bookingConsult = false;
+    const consultMerchantId = merchant.id;
     // Contact-us / inquiry form (separate from checkout + consultation).
     let contactMode = false;
     let contactFilled = false;
@@ -907,6 +933,75 @@ export async function runVoiceSession(
       }
       return fill;
     };
+
+    // Book the doctor consultation from what was actually said (+ saved profile),
+    // and tell Gemini the REAL outcome — she must not claim it's booked first.
+    async function completeConsultation() {
+      if (consultBooked || bookingConsult) return;
+      bookingConsult = true;
+      try {
+        const transcript = recorder
+          .snapshot()
+          .map((t) => `${t.role === 'user' ? 'Visitor' : 'Assistant'}: ${t.content}`)
+          .join('\n');
+        const saved = [savedIdentity.name ? `name: ${savedIdentity.name}` : '', savedIdentity.phone ? `phone: ${savedIdentity.phone}` : '']
+          .filter(Boolean)
+          .join(', ');
+        const res = await extractChat([
+          {
+            role: 'system',
+            content:
+              'Extract a doctor-consultation request from a voice call. Return ONLY JSON: {"name": string|null, "age": number|null, "phone": string|null, "country_code": string, "condition": string|null}. Use the SAVED PROFILE name/phone only if the visitor agreed to use their saved details or did not give new ones. age ONLY if the visitor actually said it. phone = 10 digits. country_code "+91" unless the visitor said otherwise. condition = their concern in a few words, or null.',
+          },
+          { role: 'user', content: `SAVED PROFILE: ${saved || 'none'}\n\nTRANSCRIPT:\n${transcript}` },
+        ]);
+        const j = JSON.parse(res.text) as { name?: string | null; age?: number | null; phone?: string | null; country_code?: string; condition?: string | null };
+        const name = (j.name ?? '').trim();
+        const age = Number(j.age);
+        const phone = String(j.phone ?? '').replace(/\D/g, '').replace(/^(91|0)(?=\d{10}$)/, '');
+        const missing = [
+          name.length < 2 ? 'their name' : '',
+          !(age >= 1 && age <= 120) ? 'their age' : '',
+          !/^\d{10}$/.test(phone) ? 'their 10-digit phone number' : '',
+        ].filter(Boolean);
+        if (missing.length) {
+          log.info({ sessionId, missing }, 'consultation: details incomplete');
+          ground(
+            `SYSTEM: To book the consultation we still need ${missing.join(' and ')}. Ask for that now, briefly, in their language. Do NOT say it's booked.`,
+          );
+          return;
+        }
+        const r = await submitConsultationRequest({
+          merchantId: consultMerchantId,
+          sessionId,
+          name,
+          age,
+          condition: j.condition?.trim() || null,
+          phoneCountryCode: (j.country_code || '+91').trim(),
+          phone,
+        });
+        void recordMetric('agent.tool.invoked', {
+          sessionId,
+          toolName: 'consultation.request',
+          ok: r.ok,
+          channel: 'host',
+        }).catch(() => {});
+        log.info({ sessionId, ok: r.ok }, 'consultation: submit result');
+        if (!r.ok) {
+          ground("SYSTEM: The consultation request did NOT go through. Tell the visitor honestly and offer to try again. Don't say it's booked.");
+          return;
+        }
+        consultBooked = true;
+        ground(
+          `SYSTEM: The consultation is booked. Warmly tell the visitor our practitioner will call them on the number ending ${phone.slice(-4)}. Keep it to one sentence; don't repeat their other details.`,
+        );
+      } catch (err) {
+        log.warn({ err: (err as Error).message, sessionId }, 'consultation: booking failed');
+        ground("SYSTEM: The consultation request did NOT go through. Tell the visitor honestly and offer to try again. Don't say it's booked.");
+      } finally {
+        bookingConsult = false;
+      }
+    }
 
     async function completeOrder() {
       const dispatch = bridge.dispatchHostAction;
@@ -1181,13 +1276,22 @@ export async function runVoiceSession(
         // The visitor wants to send a Contact-us / inquiry message → fill that
         // form instead of checkout (and instead of the doctor consultation).
         if (merchant.siteGraphEnabled && wantsContactForm(e.text)) contactMode = true;
-        // Deterministic, state-grounded completion on a confirmation. Route to
-        // the contact form if we're in contact mode, else to checkout. Safe to
-        // over-trigger: incomplete details just ask for what's missing.
-        if (
+        // Doctor consultation (Calmosis only — the CALMOSIS_CONSULT_RULE flow).
+        if (merchant.domain?.includes('calmosis') && CONSULT_INTENT.test(e.text)) consultMode = true;
+        if (consultMode && !consultBooked) {
+          // They agreed / confirmed (incl. "use my saved details") → book now.
+          // Safe to over-trigger: incomplete details just ask for what's missing.
+          if (wantsOrderConfirmation(e.text) || wantsDetailsFilled(e.text) || CONSULT_CONFIRM.test(e.text)) {
+            log.info({ sessionId, text: e.text }, 'consultation: confirmation detected → booking');
+            void completeConsultation();
+          }
+        } else if (
           merchant.siteGraphEnabled &&
           (wantsOrderConfirmation(e.text) || wantsDetailsFilled(e.text))
         ) {
+          // Deterministic, state-grounded completion on a confirmation. Route to
+          // the contact form if we're in contact mode, else to checkout. Safe to
+          // over-trigger: incomplete details just ask for what's missing.
           if (contactMode && !contactFilled) {
             log.info({ sessionId, text: e.text }, 'contact fill: confirmation detected → filling');
             void completeContactForm();
@@ -1216,7 +1320,7 @@ export async function runVoiceSession(
           const g = greetCapture;
           greetCapture = null;
           const pcm = Buffer.concat(g.chunks);
-          if (clean.trim() && pcm.length > 24_000 && pcm.length < 3_000_000) {
+          if (clean.trim() && greetingOk(clean.trim()) && pcm.length > 24_000 && pcm.length < 3_000_000) {
             redis()
               .set(greetKey, JSON.stringify({ text: clean.trim(), pcm: pcm.toString('base64') }), 'EX', 30 * 86_400)
               .then(() => log.info({ sessionId, bytes: pcm.length }, 'greeting cached'))
@@ -1278,7 +1382,11 @@ export async function runVoiceSession(
               'SYSTEM: Correction — this visitor has NO saved details on file (no saved phone, email or address). Apologize briefly for the mix-up, then ask for their full name, phone number, email, delivery address and pincode. Never mention saved details again, and do NOT say anything is filled.',
             );
           }
-          if (merchant.siteGraphEnabled && geminiSignalsPlacement(clean)) {
+          // Olivia says she's booking the consultation → book it for real now.
+          if (consultMode && !consultBooked && CONSULT_NARRATION.test(clean)) {
+            log.info({ sessionId }, 'consultation: booking narration detected → booking');
+            void completeConsultation();
+          } else if (merchant.siteGraphEnabled && geminiSignalsPlacement(clean)) {
             if (contactMode && !contactFilled) {
               log.info({ sessionId }, 'contact fill: placement narration detected → filling');
               void completeContactForm();
