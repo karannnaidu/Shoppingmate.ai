@@ -225,6 +225,8 @@ class WidgetElement extends HTMLElement {
     // Shrink the resting launcher to just the avatar when the visitor isn't
     // using it, so it stops covering the page's own buttons.
     this.stopCollapse = this.setupAutoCollapse(root, this.pillHost);
+    document.addEventListener('visibilitychange', this.onPageHidden);
+    window.addEventListener('pagehide', this.onPageHidden);
     // Hide the launcher while the storefront's cart drawer/page is open.
     this.setupCartVisibility(root);
     // Warm the livekit-client ESM import now (it's ~120KB lazy-loaded from a
@@ -275,7 +277,20 @@ class WidgetElement extends HTMLElement {
     if (s !== 'medium') root.classList.add(`size-${s}`);
   }
 
+  // Karan 2026-10-27: switching tabs/apps on a phone left the call running with
+  // the mic open, streaming background noise. Leaving the page ends the call
+  // and releases the mic, same as tapping End.
+  private onPageHidden = () => {
+    if (document.visibilityState === 'visible') return;
+    if (this.voiceMode.getState() === 'idle') return;
+    this.voiceMode.stop();
+    this.ambience.stop();
+    this.store.dispatch({ type: 'set_mode', mode: 'pill' });
+  };
+
   disconnectedCallback() {
+    document.removeEventListener('visibilitychange', this.onPageHidden);
+    window.removeEventListener('pagehide', this.onPageHidden);
     this.socket?.close();
     this.voiceMode.stop();
     this.ambience.stop();
