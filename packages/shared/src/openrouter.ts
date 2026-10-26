@@ -40,7 +40,9 @@ export function cleanKey(v: string | undefined): string | undefined {
 
 /** Should this OpenRouter failure be retried on the fallback provider? */
 export function shouldFallback(status: number | null): boolean {
-  return status === null || status === 402 || status === 429 || status >= 500;
+  // 401/403: the OpenRouter key is invalid/revoked (live 2026-10-26: "User not
+  // found" on every service) — keep brands answering on Gemini until it's replaced.
+  return status === null || status === 401 || status === 402 || status === 403 || status === 429 || status >= 500;
 }
 
 /** Gemini's compat layer rejects null assistant content and wants ids on
