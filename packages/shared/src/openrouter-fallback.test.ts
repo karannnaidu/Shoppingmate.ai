@@ -108,8 +108,8 @@ describe('LLM fallback', () => {
   });
 
   it('classifies fallback-worthy failures', () => {
-    expect([402, 429, 500, 503, null].every((s) => shouldFallback(s))).toBe(true);
-    expect([400, 401, 404].some((s) => shouldFallback(s))).toBe(false);
+    expect([401, 402, 403, 429, 500, 503, null].every((s) => shouldFallback(s))).toBe(true);
+    expect([400, 404].some((s) => shouldFallback(s))).toBe(false);
     expect(toGeminiMessages([{ role: 'assistant', content: null }])).toEqual([{ role: 'assistant', content: '' }]);
   });
 });

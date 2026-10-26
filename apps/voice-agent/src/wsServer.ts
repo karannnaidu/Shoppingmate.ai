@@ -23,11 +23,29 @@ export function createWsVoiceRoom(ws: WebSocket, sessionId: string): VoiceRoom {
   const shutdownCbs: Array<() => Promise<void>> = [];
   let closed = false;
 
+  // Per-call mic diagnostics (logged on close): did the visitor's audio arrive,
+  // and was any of it actually speech? (Live 2026-10-26: calls where Gemini
+  // never heard the visitor at all.)
+  const mic = { frames: 0, speechFrames: 0, silentFrames: 0, peak: 0, first: 0 };
   ws.on('message', (data, isBinary) => {
     const buf = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer);
     if (isBinary) {
       if (buf.length === 0 || buf.length > MAX_MIC_FRAME || buf.length % 2 !== 0) return;
       const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+      const s = new Int16Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+      let sum = 0;
+      let pk = 0;
+      for (let i = 0; i < s.length; i++) {
+        const v = s[i] as number;
+        sum += v * v;
+        if (Math.abs(v) > pk) pk = Math.abs(v);
+      }
+      const rms = Math.sqrt(sum / Math.max(1, s.length));
+      if (!mic.first) mic.first = Date.now();
+      mic.frames++;
+      if (rms > 1200) mic.speechFrames++;
+      if (pk === 0) mic.silentFrames++;
+      if (pk > mic.peak) mic.peak = pk;
       for (const cb of micCbs) cb(bytes);
     } else {
       const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
@@ -37,6 +55,17 @@ export function createWsVoiceRoom(ws: WebSocket, sessionId: string): VoiceRoom {
   ws.on('close', () => {
     if (closed) return;
     closed = true;
+    log.info(
+      {
+        sessionId,
+        micFrames: mic.frames,
+        speechFrames: mic.speechFrames,
+        allZeroFrames: mic.silentFrames,
+        peak: mic.peak,
+        micSeconds: Math.round((mic.frames * 0.04) * 10) / 10,
+      },
+      'voice ws mic stats',
+    );
     for (const cb of closeCbs) {
       try {
         cb();
