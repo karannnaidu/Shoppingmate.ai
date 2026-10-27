@@ -51,6 +51,8 @@ describe('buildVoiceSystemInstruction', () => {
     });
     expect(out).toMatch(/language/i);
     expect(out).toMatch(/same language|match their language|reply in (that|the same)/i);
+    // A lone "hello" once got a Spanish reply (gemini-3.8-live, 2026-10-27).
+    expect(out).toMatch(/single word[\s\S]*"hello"[\s\S]*are English/i);
     expect(out).toMatch(/switch/i);
   });
 
@@ -134,6 +136,8 @@ describe('buildVoiceSystemInstruction', () => {
   it('demo mode also mirrors the visitor language and does not force English-only', () => {
     const out = buildVoiceSystemInstruction(PERSONAS.concierge!, undefined, { demoMode: true });
     expect(out).toMatch(/same language|match their language|reply in (that|the same)/i);
+    // A lone "hello" once got a Spanish reply (gemini-3.8-live, 2026-10-27).
+    expect(out).toMatch(/single word[\s\S]*"hello"[\s\S]*are English/i);
     expect(out).toMatch(/switch/i);
     // The old "Speak natural conversational English only" line forced English
     // even when the founder spoke another language — must be gone.
