@@ -2,6 +2,7 @@ import { EndSensitivity, GoogleGenAI, Modality, StartSensitivity } from '@google
 import { childLogger } from '@shoppingmate/shared';
 import { voiceEnv } from './env.js';
 import { createInputFlusher } from './inputFlusher.js';
+import { createTurnDetector } from './turnDetector.js';
 import type { GeminiTransport, GeminiTransportEvent } from './geminiSession.js';
 
 const log = childLogger({ mod: 'gemini-sdk' });
@@ -22,10 +23,48 @@ const MAX_RECONNECTS = 3;
 const MIC_SPEECH_RMS = Number(process.env.MIC_SPEECH_RMS ?? 1200);
 const MIC_SPEECH_HOLD_MS = 300;
 const HEALTHY_RESET_MS = 60_000;
+// No reply this long after the visitor's turn ended = the session stalled.
+const STALL_MS = Number(process.env.GEMINI_STALL_MS ?? 4_000);
+
+// The 2.5 native-audio models are the legacy path: Gemini's own VAD, thinking
+// forced off. Newer live models (gemini-3.8-live, gemini-3.1-flash-live-*) use our turn
+// detector, and must NOT get thinkingBudget 0 — measured 2026-10-27 it made
+// 4 of 5 sessions stop answering after ~4 turns (0 of 5 without it, same speed).
+export function isLegacyLiveModel(model: string): boolean {
+  return /gemini-2\.5|gemini-live-2\.5/.test(model);
+}
+
+export function liveModelOptions(
+  model: string,
+  e: Record<string, string | undefined> = process.env,
+): { manualTurns: boolean; thinking: { thinkingBudget: number } | null } {
+  const legacy = isLegacyLiveModel(model);
+  const mode = e.GEMINI_TURN_DETECTION;
+  const manualTurns = mode === 'manual' ? true : mode === 'auto' ? false : !legacy;
+  const t = e.GEMINI_THINKING_BUDGET;
+  const thinking =
+    t === 'default' ? null : t !== undefined && t !== '' ? { thinkingBudget: Number(t) } : legacy ? { thinkingBudget: 0 } : null;
+  return { manualTurns, thinking };
+}
 
 export function createGeminiSdkTransport(): GeminiTransport {
   const env = voiceEnv();
   const client = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+  // The newer live models share a small per-key quota (measured 2026-10-27:
+  // ~2 concurrent Calmosis calls before turns get silently dropped). When the
+  // primary stalls or reports a quota error, the call moves to the fallback
+  // model (own quota, the long-proven 2.5) for the rest of the call.
+  let model = env.GEMINI_LIVE_MODEL;
+  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL ?? 'gemini-2.5-flash-native-audio-latest';
+  let { manualTurns, thinking } = liveModelOptions(model);
+  const useFallback = (why: string): boolean => {
+    if (!fallbackModel || model === fallbackModel) return false;
+    log.warn({ from: model, to: fallbackModel, why }, 'switching this call to the fallback live model');
+    model = fallbackModel;
+    ({ manualTurns, thinking } = liveModelOptions(model));
+    turns.reset();
+    return true;
+  };
   let session: LiveSession | null = null;
   const listeners: ((e: GeminiTransportEvent) => void)[] = [];
   const emit = (e: GeminiTransportEvent) => {
@@ -45,6 +84,79 @@ export function createGeminiSdkTransport(): GeminiTransport {
   });
   let outputBuf = '';
 
+  // ---- our turn detection (manual activity) ---------------------------------
+  // Olivia's audio is sent faster than real time; this estimates when it ends
+  // playing so the detector's echo guard knows she is still talking.
+  let botUntil = 0;
+  let turnEndedAt = 0;
+  let lastUserText = '';
+  let stallTimer: ReturnType<typeof setTimeout> | null = null;
+  let stallStrikes = 0;
+  // A stalled reply to re-ask after a forced reconnect.
+  let pendingAnswer = '';
+  let captionTimer: ReturnType<typeof setTimeout> | null = null;
+  const clearStall = () => {
+    if (stallTimer) clearTimeout(stallTimer);
+    stallTimer = null;
+  };
+  const gotReply = () => {
+    clearStall();
+    stallStrikes = 0;
+    if (turnEndedAt) {
+      log.info({ ms_reply: Date.now() - turnEndedAt, model }, 'turn → first reply');
+      turnEndedAt = 0;
+    }
+  };
+  const armStall = () => {
+    clearStall();
+    stallTimer = setTimeout(() => {
+      stallTimer = null;
+      // No words heard (a cough, a door): Olivia staying quiet is correct.
+      if (!session || intentionalClose || !lastUserText) return;
+      // Seen on the 3.x live previews (2026-10-27): mid-call, the model takes
+      // a turn and never answers it — nor anything after. Re-asking in the
+      // same session never helped; a fresh session (recent conversation in its
+      // instruction) answers the same question in ~1.5s. So reconnect and
+      // re-ask there (onclose path). Bounded by the reconnect budget.
+      stallStrikes += 1;
+      log.warn({ strike: stallStrikes, model, text: lastUserText.slice(0, 80) }, 'gemini stalled after the visitor spoke — reconnecting');
+      // Stalls track the key's quota for this model: retrying the same model
+      // tends to stall again, so continue on the fallback.
+      useFallback('stall');
+      pendingAnswer = lastUserText;
+      try {
+        session.close();
+      } catch {
+        /* already closing */
+      }
+    }, STALL_MS);
+  };
+  const turns = createTurnDetector({
+    endSilenceMs: Number(process.env.VOICE_END_SILENCE_MS ?? 500),
+    minRms: Number(process.env.VOICE_VAD_MIN_RMS ?? 250),
+    isBotSpeaking: () => Date.now() < botUntil + 200,
+    onStart: (preroll) => {
+      if (!session) return;
+      clearStall();
+      turnEndedAt = 0;
+      session.sendRealtimeInput({ activityStart: {} });
+      for (const f of preroll) sendFrame(f);
+    },
+    onAudio: (f) => sendFrame(f),
+    onEnd: (reason) => {
+      if (!session) return;
+      session.sendRealtimeInput({ activityEnd: {} });
+      turnEndedAt = Date.now();
+      if (reason === 'max') log.warn('visitor turn hit the max length — closed it');
+      if (model !== fallbackModel) armStall();
+    },
+  });
+  const sendFrame = (frame: Uint8Array) => {
+    session?.sendRealtimeInput({
+      audio: { data: Buffer.from(frame).toString('base64'), mimeType: 'audio/pcm;rate=16000' },
+    });
+  };
+
   // Reconnect state.
   let voiceId = '';
   let baseInstruction = '';
@@ -61,7 +173,7 @@ export function createGeminiSdkTransport(): GeminiTransport {
 
   async function connect(instruction: string): Promise<void> {
     session = await client.live.connect({
-      model: env.GEMINI_LIVE_MODEL,
+      model,
       config: {
         responseModalities: [Modality.AUDIO],
         systemInstruction: { parts: [{ text: instruction }] },
@@ -75,7 +187,9 @@ export function createGeminiSdkTransport(): GeminiTransport {
         // VAD tuning: START sensitivity LOW so ambient chatter doesn't register
         // as the visitor speaking; END HIGH + 500ms silence so the turn still
         // commits promptly once they actually finish.
-        realtimeInputConfig: {
+        realtimeInputConfig: manualTurns
+          ? { automaticActivityDetection: { disabled: true } }
+          : {
           automaticActivityDetection: {
             disabled: false,
             // START = HIGH so the bot reliably HEARS the visitor (esp. softer /
@@ -93,14 +207,11 @@ export function createGeminiSdkTransport(): GeminiTransport {
             silenceDurationMs: Number(process.env.GEMINI_SILENCE_MS ?? 600),
           },
         },
-        // Thinking OFF by default: measured 2026-10-13 it added 3–4s before
-        // EVERY reply (reply 4.0–5.3s → 1.4s after the visitor stops talking).
-        // Tools/cart/checkout reasoning runs in the side-channel executor, not
-        // here — Gemini only has to talk. GEMINI_THINKING_BUDGET=default restores
-        // the model's own thinking; a number sets a budget.
-        ...(process.env.GEMINI_THINKING_BUDGET === 'default'
-          ? {}
-          : { thinkingConfig: { thinkingBudget: Number(process.env.GEMINI_THINKING_BUDGET ?? 0) } }),
+        // 2.5 native audio: thinking OFF (measured 2026-10-13 it added 3–4s
+        // before every reply). Newer live models: left at their default — see
+        // liveModelOptions. Tools/cart/checkout reasoning runs in the
+        // side-channel executor, not here. GEMINI_THINKING_BUDGET overrides.
+        ...(thinking ? { thinkingConfig: thinking } : {}),
         // Sliding-window context compression lets long conversations run without
         // hitting Gemini's session context limit (which otherwise terminates the
         // session mid-call: ws close 1008 "Operation is not implemented..."). It
@@ -117,13 +228,31 @@ export function createGeminiSdkTransport(): GeminiTransport {
           // turn interrupted and stops generating. Surface it so the bridge can
           // flush any locally-buffered bot audio.
           if (msg.serverContent?.interrupted) {
+            botUntil = 0;
             emit({ type: 'interrupted' });
           }
           const inputXcript = msg.serverContent?.inputTranscription?.text;
-          if (inputXcript) input.push(inputXcript);
+          if (inputXcript) {
+            input.push(inputXcript);
+            lastUserText = `${lastUserText} ${inputXcript}`.replace(/\s+/g, ' ').trim();
+            if (manualTurns && !turns.active()) {
+              // Our detector already ended the turn, so this transcript is the
+              // whole utterance (it arrives ~0.2s after): caption it now rather
+              // than waiting for Olivia's first word.
+              if (captionTimer) clearTimeout(captionTimer);
+              captionTimer = setTimeout(() => {
+                captionTimer = null;
+                if (!turns.active()) input.flushNow();
+              }, 150);
+            }
+          }
           const outputXcript = msg.serverContent?.outputTranscription?.text;
           // Olivia started answering → the visitor's turn is over: act on it now.
-          if (outputXcript || msg.serverContent?.modelTurn?.parts?.length) input.flushNow();
+          if (outputXcript || msg.serverContent?.modelTurn?.parts?.length) {
+            input.flushNow();
+            gotReply();
+            lastUserText = '';
+          }
           if (outputXcript) {
             outputBuf += outputXcript;
             // Stream the running bot transcript so the widget caption keeps sync
@@ -135,7 +264,9 @@ export function createGeminiSdkTransport(): GeminiTransport {
             (p) => p.inlineData?.mimeType?.startsWith('audio/'),
           );
           if (audioPart?.inlineData?.data) {
-            emit({ type: 'audio_out', bytes: Buffer.from(audioPart.inlineData.data, 'base64') });
+            const bytes = Buffer.from(audioPart.inlineData.data, 'base64');
+            botUntil = Math.max(botUntil, Date.now()) + (bytes.length / 2 / 24_000) * 1000;
+            emit({ type: 'audio_out', bytes });
           }
           if (msg.serverContent?.turnComplete) {
             input.flushNow(); // anything said late in the turn
@@ -161,10 +292,14 @@ export function createGeminiSdkTransport(): GeminiTransport {
         },
         onclose: (ev: unknown) => {
           const c = ev as { code?: number; reason?: string };
-          log.info({ code: c?.code, reason: c?.reason }, 'gemini live ws closed');
+          log.info({ code: c?.code, reason: c?.reason, model }, 'gemini live ws closed');
           clearHealthyTimer();
+          clearStall();
           if (intentionalClose) return;
           session = null;
+          if (/quota|resource.?exhausted|rate.?limit/i.test(c?.reason ?? '')) useFallback('quota');
+          // Frames of a half-sent turn went to the dead session; start clean.
+          turns.reset();
           if (reconnects >= MAX_RECONNECTS) {
             log.error({ reconnects }, 'gemini reconnect budget exhausted — giving up');
             emit({
@@ -189,7 +324,17 @@ export function createGeminiSdkTransport(): GeminiTransport {
             const resumeNote = ctx
               ? `${baseInstruction}\n\nCALL IN PROGRESS — you briefly reconnected. Do NOT greet, re-introduce yourself, or restart. Here is the recent conversation so you can continue seamlessly:\n${ctx}\nContinue naturally from where you left off; if you were collecting details, pick up at the next field.`
               : `${baseInstruction}\n\n(NOTE: this call is ALREADY IN PROGRESS after a brief reconnection — do NOT greet, re-introduce yourself, or restart; just continue helping the visitor from where you left off.)`;
-            connect(resumeNote).catch((err) => {
+            connect(resumeNote)
+              .then(() => {
+                // Recovering from a stall: ask the unanswered message again.
+                if (pendingAnswer && session) {
+                  session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: pendingAnswer }] }] });
+                  pendingAnswer = '';
+                  // Only the primary is watched; the fallback is the last resort.
+                  if (manualTurns && model !== fallbackModel) armStall();
+                }
+              })
+              .catch((err) => {
               log.error({ err }, 'gemini reconnect failed');
               emit({ type: 'error', error: err as Error });
             });
@@ -221,6 +366,10 @@ export function createGeminiSdkTransport(): GeminiTransport {
       // than throw — otherwise the worker's `for await` audio loop ends and the
       // mic goes dead even after the session comes back.
       if (!session) return;
+      if (manualTurns) {
+        turns.push(frame);
+        return;
+      }
       session.sendRealtimeInput({
         media: {
           data: Buffer.from(frame).toString('base64'),
@@ -242,6 +391,8 @@ export function createGeminiSdkTransport(): GeminiTransport {
     async close() {
       intentionalClose = true;
       clearHealthyTimer();
+      clearStall();
+      if (captionTimer) clearTimeout(captionTimer);
       input.dispose(); // never act on words after the visitor has hung up
       if (!session) return;
       session.close();

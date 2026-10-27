@@ -615,8 +615,10 @@ export async function runVoiceSession(
           },
         ).systemInstruction
       : voice.systemInstruction;
+    // The model is part of the key: a voice name sounds different per model, so
+    // a greeting cached from the old model must not play before the new one.
     const greetKey = `sm:greet:v1:${merchant.id}:${voice.voiceId}:${createHash('sha1')
-      .update(`${genericInstruction}\n${kickoff}`)
+      .update(`${voiceEnv().GEMINI_LIVE_MODEL}\n${genericInstruction}\n${kickoff}`)
       .digest('hex')}`;
     let cachedGreeting: { text: string; pcm: Buffer } | null = null;
     // While the cached greeting is playing (epoch ms it ends), for barge-in.
