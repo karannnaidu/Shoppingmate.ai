@@ -20,6 +20,8 @@ export type TurnDetector = {
   active(): boolean;
   /** Forget the open turn (e.g. the Gemini session is reconnecting). */
   reset(): void;
+  /** Pause tolerance for the current/next turn (dictation gets longer). */
+  setEndSilenceMs(ms: number): void;
 };
 
 export function createTurnDetector(opts: {
@@ -44,7 +46,8 @@ export function createTurnDetector(opts: {
   maxTurnMs?: number;
 }): TurnDetector {
   const startMs = opts.startMs ?? 80;
-  const endSilenceMs = opts.endSilenceMs ?? 500;
+  const baseEndSilenceMs = opts.endSilenceMs ?? 500;
+  let endSilenceMs = baseEndSilenceMs;
   const prerollMs = opts.prerollMs ?? 300;
   const minRms = opts.minRms ?? 250;
   const floorMult = opts.floorMult ?? 3;
@@ -115,6 +118,9 @@ export function createTurnDetector(opts: {
       }
     },
     active: () => open,
+    setEndSilenceMs(ms) {
+      endSilenceMs = ms > 0 ? ms : baseEndSilenceMs;
+    },
     reset() {
       open = false;
       speechRunMs = 0;

@@ -19,6 +19,13 @@ export function liveToolDeclarations(tools: ToolDef[]): {
   return { declarations: [{ functionDeclarations }], toCanonical: (wire) => map.get(wire) ?? null };
 }
 
+// Tools the voice model must never hold. checkout.place submits a real order;
+// voice fills the checkout and the visitor taps Place Order.
+const VOICE_EXCLUDED = new Set(['checkout.place']);
+export function voiceToolSurface<T extends ToolDef>(tools: T[]): T[] {
+  return tools.filter((t) => !VOICE_EXCLUDED.has(t.function.name));
+}
+
 const MAX_RESULT_CHARS = 4_000;
 
 /** Compact tool result for the voice model: what happened, in few tokens. */

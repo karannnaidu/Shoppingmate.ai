@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { liveToolDeclarations, summarizeForLive } from './liveTools.js';
+import { liveToolDeclarations, summarizeForLive, voiceToolSurface } from './liveTools.js';
 
 const tools = [
   { type: 'function' as const, function: { name: 'products.search', description: 'search', parameters: { type: 'object', properties: { query: { type: 'string' } } } } },
@@ -35,5 +35,15 @@ describe('summarizeForLive', () => {
   it('caps any large value', () => {
     const r = summarizeForLive('page.read', { ok: true, value: { text: 'y'.repeat(20_000) } });
     expect(JSON.stringify(r).length).toBeLessThan(4_200);
+  });
+});
+
+describe('voiceToolSurface', () => {
+  it('never gives the voice model checkout.place (the visitor taps Place Order)', () => {
+    const all = [
+      { type: 'function' as const, function: { name: 'checkout.fill', description: '', parameters: {} } },
+      { type: 'function' as const, function: { name: 'checkout.place', description: '', parameters: {} } },
+    ];
+    expect(voiceToolSurface(all).map((t) => t.function.name)).toEqual(['checkout.fill']);
   });
 });

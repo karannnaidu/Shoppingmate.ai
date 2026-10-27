@@ -88,6 +88,20 @@ describe('turnDetector', () => {
     expect(h.events[0]).toMatch(/^start/);
   });
 
+  it('dictation gets a longer pause window', () => {
+    const h = harness({ endSilenceMs: 500 });
+    h.d.setEndSilenceMs(900);
+    h.feed(3000, 600);
+    h.feed(0, 720); // a pause between digit groups
+    expect(h.events.filter((e) => e.startsWith('end'))).toHaveLength(0);
+    h.feed(0, 240);
+    expect(h.events.at(-1)).toBe('end:silence');
+    h.d.setEndSilenceMs(0); // back to the default
+    h.feed(3000, 400);
+    h.feed(0, 520);
+    expect(h.events.filter((e) => e === 'end:silence')).toHaveLength(2);
+  });
+
   it('caps a runaway turn', () => {
     const h = harness({ maxTurnMs: 2000 });
     h.feed(3000, 3000);

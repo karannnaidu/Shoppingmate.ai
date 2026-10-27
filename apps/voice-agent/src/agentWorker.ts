@@ -48,7 +48,7 @@ import { createDataChannel } from './dataChannel.js';
 import { type VoiceRoom, createLiveKitVoiceRoom } from './voiceRoom.js';
 import { voiceEnv } from './env.js';
 import { createGeminiSdkTransport, liveModelOptions } from './geminiSdkTransport.js';
-import { ONE_BRAIN_RULE, liveToolDeclarations, summarizeForLive } from './liveTools.js';
+import { ONE_BRAIN_RULE, liveToolDeclarations, summarizeForLive, voiceToolSurface } from './liveTools.js';
 import { createGeminiSession } from './geminiSession.js';
 import { createMetricsLedger, defaultSink } from './metrics.js';
 import { alertExecutorExhausted } from './opsAlert.js';
@@ -665,7 +665,10 @@ export async function runVoiceSession(
     const oneBrain =
       (oneBrainList.includes('*') || oneBrainList.includes(merchant.id)) &&
       liveModelOptions(voiceEnv().GEMINI_LIVE_MODEL).manualTurns;
-    const liveTools = oneBrain ? liveToolDeclarations(buildToolSurface(merchant)) : null;
+    // Voice never submits an order: the visitor taps Place Order themselves
+    // (CALMOSIS_CHECKOUT_RULE). In testing, Gemini called checkout.place on
+    // "yes, that's correct" — so the tool isn't offered to the voice model.
+    const liveTools = oneBrain ? liveToolDeclarations(voiceToolSurface(buildToolSurface(merchant))) : null;
     const oneBrainNote = oneBrain
       ? `\n\n${ONE_BRAIN_RULE}${
           siteGraphText.trim() ? `\n\nSITE MAP (pages you can open, by path):\n${siteGraphText.trim().slice(0, 6_000)}` : ''

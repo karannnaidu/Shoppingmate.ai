@@ -239,6 +239,35 @@ export function createGeminiSdkTransport(): GeminiTransport {
       }
     }, STALL_MS);
   };
+  // END CONFIRMATION: Gemini sometimes loses the transcript of an activity that
+  // starts within a few hundred ms of the previous one ending (prod 2026-10-27:
+  // "…Bangalore. [pause] Pincode 560038" — the pincode never arrived). So the
+  // end of a turn is only sent after a further VOICE_END_CONFIRM_MS of quiet;
+  // if the visitor resumes inside it, the turn simply continues.
+  const END_CONFIRM_MS = Number(process.env.VOICE_END_CONFIRM_MS ?? 250);
+  let pendingEnd: ReturnType<typeof setTimeout> | null = null;
+  // While Olivia waits for a phone number / address / email / pincode, people
+  // pause between digit groups and address parts: allow a longer pause.
+  const DICTATION_END_SILENCE_MS = Number(process.env.VOICE_DICTATION_SILENCE_MS ?? 900);
+  const finishTurn = (reason: 'silence' | 'max', info: { turnMs: number; peakRms: number }) => {
+    pendingEnd = null;
+    if (!session || !manualTurns) return;
+    session.sendRealtimeInput({ activityEnd: {} });
+    turnEndedAt = Date.now();
+    log.info({ reason, ms: Math.round(info.turnMs), peakRms: Math.round(info.peakRms) }, 'turn end');
+    if (reason === 'max') log.warn('visitor turn hit the max length — closed it');
+    if (discardOutput) {
+      discardOutput = false;
+      outputBuf = '';
+    }
+    if (smartTurns) {
+      holding = true;
+      clearHoldTimer();
+      // No transcript at all (a cough): don't hold Olivia back for long.
+      holdTimer = setTimeout(() => release('no transcript'), 900);
+    }
+    if (model !== fallbackModel) armStall();
+  };
   const turns = createTurnDetector({
     endSilenceMs: Number(process.env.VOICE_END_SILENCE_MS ?? 500),
     minRms: Number(process.env.VOICE_VAD_MIN_RMS ?? 150),
@@ -249,6 +278,14 @@ export function createGeminiSdkTransport(): GeminiTransport {
     isBotSpeaking: () => Date.now() < botUntil + 200,
     onStart: (preroll, info) => {
       if (!session) return;
+      if (pendingEnd) {
+        // Resumed before the end was confirmed: same turn, no new activity.
+        clearTimeout(pendingEnd);
+        pendingEnd = null;
+        log.info({ rms: Math.round(info.rms) }, 'visitor resumed — turn continues');
+        for (const f of preroll) sendFrame(f);
+        return;
+      }
       clearStall();
       turnEndedAt = 0;
       const botSpeaking = Date.now() < botUntil + 200;
@@ -266,6 +303,8 @@ export function createGeminiSdkTransport(): GeminiTransport {
       } else {
         questionLine = lastBotLine;
       }
+      const slot = expectedSlot(questionLine);
+      turns.setEndSilenceMs(slot && slot !== 'age' ? DICTATION_END_SILENCE_MS : 0);
       log.info({ rms: Math.round(info.rms), botSpeaking }, botSpeaking ? 'visitor barge-in (turn start while Olivia talks)' : 'turn start');
       session.sendRealtimeInput({ activityStart: {} });
       for (const f of preroll) sendFrame(f);
@@ -273,21 +312,9 @@ export function createGeminiSdkTransport(): GeminiTransport {
     onAudio: (f) => sendFrame(f),
     onEnd: (reason, info) => {
       if (!session) return;
-      session.sendRealtimeInput({ activityEnd: {} });
-      turnEndedAt = Date.now();
-      log.info({ reason, ms: Math.round(info.turnMs), peakRms: Math.round(info.peakRms) }, 'turn end');
-      if (reason === 'max') log.warn('visitor turn hit the max length — closed it');
-      if (discardOutput) {
-        discardOutput = false;
-        outputBuf = '';
-      }
-      if (smartTurns) {
-        holding = true;
-        clearHoldTimer();
-        // No transcript at all (a cough): don't hold Olivia back for long.
-        holdTimer = setTimeout(() => release('no transcript'), 900);
-      }
-      if (model !== fallbackModel) armStall();
+      if (pendingEnd) clearTimeout(pendingEnd);
+      if (reason === 'max' || END_CONFIRM_MS <= 0) return finishTurn(reason, info);
+      pendingEnd = setTimeout(() => finishTurn(reason, info), END_CONFIRM_MS);
     },
   });
   const sendFrame = (frame: Uint8Array) => {
@@ -483,6 +510,8 @@ export function createGeminiSdkTransport(): GeminiTransport {
           if (/quota|resource.?exhausted|rate.?limit/i.test(c?.reason ?? '')) useFallback('quota');
           // Frames of a half-sent turn went to the dead session; start clean.
           turns.reset();
+          if (pendingEnd) clearTimeout(pendingEnd);
+          pendingEnd = null;
           if (reconnects >= MAX_RECONNECTS) {
             log.error({ reconnects }, 'gemini reconnect budget exhausted — giving up');
             emit({
@@ -576,6 +605,8 @@ export function createGeminiSdkTransport(): GeminiTransport {
       intentionalClose = true;
       clearHealthyTimer();
       clearStall();
+      if (pendingEnd) clearTimeout(pendingEnd);
+      pendingEnd = null;
       if (captionTimer) clearTimeout(captionTimer);
       input.dispose(); // never act on words after the visitor has hung up
       if (!session) return;
