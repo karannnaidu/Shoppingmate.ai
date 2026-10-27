@@ -42,6 +42,25 @@ describe('store reducer', () => {
     expect(s.get().thinking).toBe(true);
   });
 
+  it('cards landing mid-reply do not duplicate the streaming caption', () => {
+    // Live calmosis.com 2026-10-27: partial → cards → final "say" left two
+    // copies of Olivia's reply (the final appended instead of finalizing).
+    const s = createStore({ sessionId: 'ws_a' });
+    const card = { image: null, title: 'A', priceFormatted: 'INR 1', variantId: null, sku: 'A-1', productUrl: 'https://x' };
+    s.dispatch({ type: 'agent_event', event: { type: 'user_text', text: 'something for sleep?' } });
+    s.dispatch({ type: 'agent_event', event: { type: 'say_partial', text: 'For better sleep' } });
+    s.dispatch({ type: 'agent_event', event: { type: 'cards', items: [card] } });
+    s.dispatch({ type: 'agent_event', event: { type: 'say_partial', text: 'For better sleep, try Sleep' } });
+    s.dispatch({ type: 'agent_event', event: { type: 'say', text: 'For better sleep, try Sleep Mantra.' } });
+    const agentTexts = s.get().transcript.filter((i) => i.role === 'agent' && i.kind === 'text');
+    expect(agentTexts).toHaveLength(1);
+    expect(agentTexts[0]).toMatchObject({ text: 'For better sleep, try Sleep Mantra.', partial: false });
+    // The next turn still gets its own bubble.
+    s.dispatch({ type: 'agent_event', event: { type: 'user_text', text: 'price?' } });
+    s.dispatch({ type: 'agent_event', event: { type: 'say', text: 'On the card.' } });
+    expect(s.get().transcript.filter((i) => i.role === 'agent' && i.kind === 'text')).toHaveLength(2);
+  });
+
   it('appends inline cards row', () => {
     const s = createStore({ sessionId: 'ws_a' });
     s.dispatch({

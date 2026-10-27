@@ -117,18 +117,14 @@ function reduce(state: WidgetState, a: Action): WidgetState {
           return { ...state, thinking: false };
         case 'say': {
           // Final caption for the current turn. If we've been streaming
-          // partials into the last agent bubble, finalize it in place;
-          // otherwise append a fresh bubble.
-          const last = state.transcript[state.transcript.length - 1];
-          if (last && last.role === 'agent' && last.kind === 'text' && last.partial) {
-            return {
-              ...state,
-              thinking: false,
-              transcript: [
-                ...state.transcript.slice(0, -1),
-                { ...last, text: ev.text, partial: false, ts: Date.now() },
-              ],
-            };
+          // partials into an agent bubble this turn, finalize it in place
+          // (cards may have landed under it meanwhile); otherwise append.
+          const i = openPartialIndex(state.transcript);
+          const open = i >= 0 ? (state.transcript[i] as AgentText) : undefined;
+          if (open) {
+            const transcript = state.transcript.slice();
+            transcript[i] = { ...open, text: ev.text, partial: false, ts: Date.now() };
+            return { ...state, thinking: false, transcript };
           }
           return {
             ...state,
@@ -142,16 +138,12 @@ function reduce(state: WidgetState, a: Action): WidgetState {
         case 'say_partial': {
           // Streaming caption update. Replace the active partial agent bubble
           // in place; create one if this is the first chunk of the turn.
-          const last = state.transcript[state.transcript.length - 1];
-          if (last && last.role === 'agent' && last.kind === 'text' && last.partial) {
-            return {
-              ...state,
-              thinking: false,
-              transcript: [
-                ...state.transcript.slice(0, -1),
-                { ...last, text: ev.text, ts: Date.now() },
-              ],
-            };
+          const i = openPartialIndex(state.transcript);
+          const open = i >= 0 ? (state.transcript[i] as AgentText) : undefined;
+          if (open) {
+            const transcript = state.transcript.slice();
+            transcript[i] = { ...open, text: ev.text, ts: Date.now() };
+            return { ...state, thinking: false, transcript };
           }
           return {
             ...state,
@@ -238,6 +230,19 @@ function reduce(state: WidgetState, a: Action): WidgetState {
     default:
       return state;
   }
+}
+
+type AgentText = Extract<TranscriptItem, { role: 'agent'; kind: 'text' }>;
+
+// The agent bubble still streaming this turn: the latest partial agent text,
+// looking past cards/receipts but never past the visitor's last message.
+function openPartialIndex(transcript: TranscriptItem[]): number {
+  for (let i = transcript.length - 1; i >= 0; i--) {
+    const it = transcript[i] as TranscriptItem;
+    if (it.role === 'user') return -1;
+    if (it.role === 'agent' && it.kind === 'text') return it.partial ? i : -1;
+  }
+  return -1;
 }
 
 export function createStore(opts: { sessionId: string }): Store {
