@@ -471,10 +471,6 @@ export async function* runTurn(
     });
     for (const call of response.toolCalls) {
       toolCallsThisTurn += 1;
-      // Which channel served this call + the host action type, for the
-      // per-action telemetry on `agent.tool.invoked` (nav PRD Phase 0).
-      let channel: 'adapter' | 'host' | 'server' = 'adapter';
-      let hostActionType: string | undefined;
       const key = `${call.name}:${call.argumentsJson}`;
       const prev = toolCallCounts.get(key) ?? 0;
       toolCallCounts.set(key, prev + 1);
@@ -487,219 +483,12 @@ export async function* runTurn(
           toolName: call.name,
         });
       } else {
-        let args: Record<string, unknown> = {};
-        try {
-          args = JSON.parse(call.argumentsJson) as Record<string, unknown>;
-        } catch {
-          // bad arguments JSON from the model — surface as unsupported via dispatchTool
-        }
-        const start = Date.now();
-        // Storefront-bridge cart tools (Calmosis OR Shopify) dispatch as HOST
-        // ACTIONS so the widget drives the shopper's REAL cart.
-        const isBridgeCart =
-          usesStorefrontBridge(merchant) &&
-          (call.name === 'cart.add' ||
-            call.name === 'cart.open' ||
-            call.name === 'cart.update' ||
-            call.name === 'cart.clear' ||
-            call.name === 'cart.get' ||
-            call.name === 'products.live' ||
-            call.name === 'coupon.apply');
-        // Checkout-fill / page-control host actions are Calmosis-bespoke (Shopify
-        // uses native checkout via checkout.url, no custom form fill).
-        const isCalmosisCheckout =
-          isCalmosisStitch(merchant) &&
-          (call.name === 'checkout.fill' ||
-            call.name === 'checkout.place' ||
-            call.name === 'checkout.state' ||
-            call.name === 'page.fill' ||
-            call.name === 'page.read' ||
-            call.name === 'page.click');
-        // Nav PRD Phase 1: snapshot page control for any site-graph merchant.
-        const snapshotNav = navSnapshotEnabled(merchant) && merchant.siteGraphEnabled === true;
-        const isPageControl =
-          snapshotNav &&
-          (call.name === 'page.read' || call.name === 'page.click' || call.name === 'page.fill');
-        const isCalmosisCart = isBridgeCart || isCalmosisCheckout || isPageControl;
-        if (CHECKOUT_FLOW_TOOLS.has(call.name)) usedCheckoutFlowTool = true;
-        if (call.name === 'case.open') {
-          channel = 'server';
-          // Fill contact from the session-held record when the model left it
-          // empty or only had the redacted form.
-          const c = (
-            args.contact && typeof args.contact === 'object' ? args.contact : {}
-          ) as Record<string, unknown>;
-          const usable = (v: unknown) =>
-            typeof v === 'string' && v.trim() !== '' && !v.includes('redacted');
-          const contact = {
-            ...c,
-            phone: usable(c.phone) ? c.phone : transientContact?.phone,
-            email: usable(c.email) ? c.email : transientContact?.email,
-          };
-          const v = validateCaseOpen({ ...args, contact }, isCalmosisStitch(merchant) ? '+91' : '');
-          if (!v.ok) {
-            envelope = { ok: false, kind: 'unsupported', reason: v.reason };
-          } else if (!deps.submitCase) {
-            envelope = { ok: false, kind: 'unsupported', reason: 'case_capture_not_wired' };
-          } else {
-            const res = await deps.submitCase({
-              ...v.value,
-              merchantId: merchant.id,
-              sessionId: session.sessionId,
-              visitorId: session.visitorId ?? null,
-            });
-            envelope = res.ok
-              ? { ok: true, value: { opened: true, reference: `#${res.id}` } }
-              : { ok: false, kind: 'unsupported', reason: res.reason };
-            if (res.ok) {
-              await deps.recordMetric('case.opened', {
-                merchantId: merchant.id,
-                sessionId: session.sessionId,
-                caseType: v.value.type,
-                urgency: v.value.urgency,
-                sentiment: v.value.sentiment,
-              });
-            }
-          }
-        } else if (call.name === 'consultation.request') {
-          channel = 'server';
-          const v = validateConsultationRequest(args);
-          if (!v.ok) {
-            envelope = { ok: false, kind: 'unsupported', reason: v.reason };
-          } else if (!deps.submitConsultation) {
-            envelope = { ok: false, kind: 'unsupported', reason: 'consultation_not_wired' };
-          } else {
-            const res = await deps.submitConsultation({
-              ...v.value,
-              merchantId: merchant.id,
-              sessionId: session.sessionId,
-            });
-            envelope = res.ok
-              ? { ok: true, value: { submitted: true } }
-              : { ok: false, kind: 'unsupported', reason: res.reason };
-            if (res.ok) {
-              await deps.recordMetric('consultation.requested', {
-                merchantId: merchant.id,
-                sessionId: session.sessionId,
-              });
-            }
-          }
-          // NOTE: the shared `agent.tool.invoked` emit below fires for this tool too.
-        } else if (
-          call.name === 'site.navigate' ||
-          call.name === 'site.scroll_to' ||
-          call.name === 'site.highlight' ||
-          call.name === 'site.click' ||
-          call.name === 'site.point_at' ||
-          call.name === 'site.demo_click' ||
-          isCalmosisCart
-        ) {
-          channel = 'host';
-          if (!deps.dispatchHostAction) {
-            envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
-          } else {
-            let action = toHostAction(call.name, args, { snapshot: snapshotNav });
-            hostActionType = action.type;
-            // Hard-validate checkout details/fields before anything is written to
-            // the real page: a malformed phone/pincode/email is rejected (the bot
-            // relays the reason and re-asks) and valid values are normalized. On
-            // rejection we skip the dispatch and fall through to the shared
-            // tool-result/history handling so the model sees the reason.
-            let fillError: string | null = null;
-            if (action.type === 'form_fill') {
-              const v = validateCheckoutFill(action.fields);
-              if (!v.ok) fillError = v.reason;
-              else action = { ...action, fields: v.fields };
-            } else if (action.type === 'checkout_fill') {
-              const v = validateCheckoutDetails(action.details);
-              if (!v.ok) fillError = v.reason;
-              else action = { ...action, details: { ...action.details, ...v.details } };
-            } else if (
-              (action.type === 'cart_add' || action.type === 'cart_set_qty') &&
-              isCalmosisStitch(merchant)
-            ) {
-              // The model often emits a loose SKU ("green", "Green Mantra") that the
-              // storefront hook rejects outright, silently failing the add. Coerce
-              // it to the exact canonical SKU before dispatch so the cart actually
-              // updates.
-              action = { ...action, sku: normalizeCalmosisSku(action.sku) };
-            } else if (action.type === 'cart_add' && isShopify(merchant)) {
-              // Shopify Cart AJAX keys by NUMERIC variant id. The model should
-              // pass one (products.search/get now expose it top-level), but if it
-              // sent a handle/title/sku instead, resolve it against the synced
-              // catalog so the add actually lands on a real variant. A value that
-              // is already a numeric variant id passes straight through.
-              const resolvedId = await resolveShopifyVariantId(deps, merchant, session, action.sku);
-              if (resolvedId) action = { ...action, sku: resolvedId };
-            }
-            if (fillError) {
-              envelope = { ok: false, kind: 'unsupported', reason: fillError };
-            } else {
-              const result = await deps.dispatchHostAction(action);
-              envelope = result.ok
-                ? { ok: true, value: result }
-                : { ok: false, kind: 'unsupported', reason: result.reason };
-              // Funnel metrics — emitted at the shared dispatch chokepoint so both
-              // the text WS and the voice bridge inherit them. Only on success so
-              // the funnel reflects real bot-driven cart/checkout progress.
-              if (result.ok) {
-                if (action.type === 'cart_add') {
-                  await deps.recordMetric('cart.add', {
-                    merchantId: merchant.id,
-                    sessionId: session.sessionId,
-                    sku: action.sku,
-                    qty: action.qty,
-                  });
-                }
-                if (action.type === 'navigate' && action.path.includes('/checkout')) {
-                  await deps.recordMetric('checkout.reached', {
-                    merchantId: merchant.id,
-                    sessionId: session.sessionId,
-                    source: 'navigate',
-                  });
-                }
-                if (action.type === 'checkout_place') {
-                  await deps.recordMetric('checkout.placed', {
-                    merchantId: merchant.id,
-                    sessionId: session.sessionId,
-                  });
-                }
-              }
-            }
-          }
-        } else {
-          envelope = await dispatchTool(adapter, ctx, call.name, args);
-        }
-        if (envelope.ok && call.name === 'pricing.quote') {
-          const v = envelope.value as { speech?: string };
-          if (typeof v.speech === 'string') {
-            accumulatedAllowedTokens.push(v.speech);
-          }
-        }
-        if (call.name === 'pricing.quote') {
-          await deps.recordMetric('pricing.quote.called', {
-            merchantId: merchant.id,
-            sessionId: session.sessionId,
-            planId: String(args.plan_id ?? 'unknown'),
-          });
-        }
-        // Log recommendation_events on intent (not outcome): the model named
-        // a SKU to the visitor whether or not the envelope succeeded. Fire-
-        // and-forget so a DB hiccup never blocks the tool loop — observability
-        // for these losses lands in Task 18.
-        const rec = extractSkuFromToolCall(call.name, args);
-        if (rec && deps.recommendationStore) {
-          void deps.recommendationStore
-            .recordRecommendation({ sessionId: session.sessionId, sku: rec.sku, kind: rec.kind })
-            .catch(() => {});
-        }
-        await deps.recordMetric('agent.tool.invoked', {
-          merchantId: merchant.id,
-          sessionId: session.sessionId,
-          toolName: call.name,
-          ok: envelope.ok,
-          latencyMs: Date.now() - start,
-          ...toolTelemetryTags(envelope, channel, hostActionType),
+        envelope = await executeToolCall(deps, merchant, session, adapter, ctx, call, {
+          transientContact,
+          allowedTokens: accumulatedAllowedTokens,
+          onCheckoutFlowTool: () => {
+            usedCheckoutFlowTool = true;
+          },
         });
       }
       yield { type: 'tool_result', toolName: call.name, ok: envelope.ok };
@@ -886,6 +675,261 @@ export function toolTelemetryTags(
   return tags;
 }
 
+/** Per-turn state a tool call reads or contributes to. */
+export type ToolCallState = {
+  transientContact?: SessionState['transientContact'];
+  allowedTokens: string[];
+  onCheckoutFlowTool?: () => void;
+};
+
+/**
+ * Execute ONE tool call with the real implementations (adapter, host actions,
+ * consultation, cases) — the body of runTurn's tool loop, shared with voice so
+ * Gemini Live can call the same tools directly ("one brain").
+ */
+export async function executeToolCall(
+  deps: RunTurnDeps,
+  merchant: Merchant,
+  session: SessionState,
+  adapter: Adapter,
+  ctx: AdapterContext,
+  call: { name: string; argumentsJson: string },
+  st: ToolCallState,
+): Promise<ToolResultEnvelope> {
+  // Which channel served this call + the host action type, for the
+  // per-action telemetry on `agent.tool.invoked` (nav PRD Phase 0).
+  let channel: 'adapter' | 'host' | 'server' = 'adapter';
+  let hostActionType: string | undefined;
+  let envelope: ToolResultEnvelope;
+  let args: Record<string, unknown> = {};
+  try {
+    args = JSON.parse(call.argumentsJson) as Record<string, unknown>;
+  } catch {
+    // bad arguments JSON from the model — surface as unsupported via dispatchTool
+  }
+  const start = Date.now();
+  // Storefront-bridge cart tools (Calmosis OR Shopify) dispatch as HOST
+  // ACTIONS so the widget drives the shopper's REAL cart.
+  const isBridgeCart =
+    usesStorefrontBridge(merchant) &&
+    (call.name === 'cart.add' ||
+      call.name === 'cart.open' ||
+      call.name === 'cart.update' ||
+      call.name === 'cart.clear' ||
+      call.name === 'cart.get' ||
+      call.name === 'products.live' ||
+      call.name === 'coupon.apply');
+  // Checkout-fill / page-control host actions are Calmosis-bespoke (Shopify
+  // uses native checkout via checkout.url, no custom form fill).
+  const isCalmosisCheckout =
+    isCalmosisStitch(merchant) &&
+    (call.name === 'checkout.fill' ||
+      call.name === 'checkout.place' ||
+      call.name === 'checkout.state' ||
+      call.name === 'page.fill' ||
+      call.name === 'page.read' ||
+      call.name === 'page.click');
+  // Nav PRD Phase 1: snapshot page control for any site-graph merchant.
+  const snapshotNav = navSnapshotEnabled(merchant) && merchant.siteGraphEnabled === true;
+  const isPageControl =
+    snapshotNav &&
+    (call.name === 'page.read' || call.name === 'page.click' || call.name === 'page.fill');
+  const isCalmosisCart = isBridgeCart || isCalmosisCheckout || isPageControl;
+  if (CHECKOUT_FLOW_TOOLS.has(call.name)) st.onCheckoutFlowTool?.();
+  if (call.name === 'case.open') {
+    channel = 'server';
+    // Fill contact from the session-held record when the model left it
+    // empty or only had the redacted form.
+    const c = (
+      args.contact && typeof args.contact === 'object' ? args.contact : {}
+    ) as Record<string, unknown>;
+    const usable = (v: unknown) =>
+      typeof v === 'string' && v.trim() !== '' && !v.includes('redacted');
+    const contact = {
+      ...c,
+      phone: usable(c.phone) ? c.phone : st.transientContact?.phone,
+      email: usable(c.email) ? c.email : st.transientContact?.email,
+    };
+    const v = validateCaseOpen({ ...args, contact }, isCalmosisStitch(merchant) ? '+91' : '');
+    if (!v.ok) {
+      envelope = { ok: false, kind: 'unsupported', reason: v.reason };
+    } else if (!deps.submitCase) {
+      envelope = { ok: false, kind: 'unsupported', reason: 'case_capture_not_wired' };
+    } else {
+      const res = await deps.submitCase({
+        ...v.value,
+        merchantId: merchant.id,
+        sessionId: session.sessionId,
+        visitorId: session.visitorId ?? null,
+      });
+      envelope = res.ok
+        ? { ok: true, value: { opened: true, reference: `#${res.id}` } }
+        : { ok: false, kind: 'unsupported', reason: res.reason };
+      if (res.ok) {
+        await deps.recordMetric('case.opened', {
+          merchantId: merchant.id,
+          sessionId: session.sessionId,
+          caseType: v.value.type,
+          urgency: v.value.urgency,
+          sentiment: v.value.sentiment,
+        });
+      }
+    }
+  } else if (call.name === 'consultation.request') {
+    channel = 'server';
+    const v = validateConsultationRequest(args);
+    if (!v.ok) {
+      envelope = { ok: false, kind: 'unsupported', reason: v.reason };
+    } else if (!deps.submitConsultation) {
+      envelope = { ok: false, kind: 'unsupported', reason: 'consultation_not_wired' };
+    } else {
+      const res = await deps.submitConsultation({
+        ...v.value,
+        merchantId: merchant.id,
+        sessionId: session.sessionId,
+      });
+      envelope = res.ok
+        ? { ok: true, value: { submitted: true } }
+        : { ok: false, kind: 'unsupported', reason: res.reason };
+      if (res.ok) {
+        await deps.recordMetric('consultation.requested', {
+          merchantId: merchant.id,
+          sessionId: session.sessionId,
+        });
+      }
+    }
+    // NOTE: the shared `agent.tool.invoked` emit below fires for this tool too.
+  } else if (
+    call.name === 'site.navigate' ||
+    call.name === 'site.scroll_to' ||
+    call.name === 'site.highlight' ||
+    call.name === 'site.click' ||
+    call.name === 'site.point_at' ||
+    call.name === 'site.demo_click' ||
+    isCalmosisCart
+  ) {
+    channel = 'host';
+    if (!deps.dispatchHostAction) {
+      envelope = { ok: false, kind: 'unsupported', reason: 'host_action_dispatcher_missing' };
+    } else {
+      let action = toHostAction(call.name, args, { snapshot: snapshotNav });
+      hostActionType = action.type;
+      // Hard-validate checkout details/fields before anything is written to
+      // the real page: a malformed phone/pincode/email is rejected (the bot
+      // relays the reason and re-asks) and valid values are normalized. On
+      // rejection we skip the dispatch and fall through to the shared
+      // tool-result/history handling so the model sees the reason.
+      let fillError: string | null = null;
+      if (action.type === 'form_fill') {
+        const v = validateCheckoutFill(action.fields);
+        if (!v.ok) fillError = v.reason;
+        else action = { ...action, fields: v.fields };
+      } else if (action.type === 'checkout_fill') {
+        const v = validateCheckoutDetails(action.details);
+        if (!v.ok) fillError = v.reason;
+        else action = { ...action, details: { ...action.details, ...v.details } };
+      } else if (
+        (action.type === 'cart_add' || action.type === 'cart_set_qty') &&
+        isCalmosisStitch(merchant)
+      ) {
+        // The model often emits a loose SKU ("green", "Green Mantra") that the
+        // storefront hook rejects outright, silently failing the add. Coerce
+        // it to the exact canonical SKU before dispatch so the cart actually
+        // updates.
+        action = { ...action, sku: normalizeCalmosisSku(action.sku) };
+      } else if (action.type === 'cart_add' && isShopify(merchant)) {
+        // Shopify Cart AJAX keys by NUMERIC variant id. The model should
+        // pass one (products.search/get now expose it top-level), but if it
+        // sent a handle/title/sku instead, resolve it against the synced
+        // catalog so the add actually lands on a real variant. A value that
+        // is already a numeric variant id passes straight through.
+        const resolvedId = await resolveShopifyVariantId(deps, merchant, session, action.sku);
+        if (resolvedId) action = { ...action, sku: resolvedId };
+      }
+      if (fillError) {
+        envelope = { ok: false, kind: 'unsupported', reason: fillError };
+      } else {
+        const result = await deps.dispatchHostAction(action);
+        envelope = result.ok
+          ? { ok: true, value: result }
+          : { ok: false, kind: 'unsupported', reason: result.reason };
+        // Funnel metrics — emitted at the shared dispatch chokepoint so both
+        // the text WS and the voice bridge inherit them. Only on success so
+        // the funnel reflects real bot-driven cart/checkout progress.
+        if (result.ok) {
+          if (action.type === 'cart_add') {
+            await deps.recordMetric('cart.add', {
+              merchantId: merchant.id,
+              sessionId: session.sessionId,
+              sku: action.sku,
+              qty: action.qty,
+            });
+          }
+          if (action.type === 'navigate' && action.path.includes('/checkout')) {
+            await deps.recordMetric('checkout.reached', {
+              merchantId: merchant.id,
+              sessionId: session.sessionId,
+              source: 'navigate',
+            });
+          }
+          if (action.type === 'checkout_place') {
+            await deps.recordMetric('checkout.placed', {
+              merchantId: merchant.id,
+              sessionId: session.sessionId,
+            });
+          }
+        }
+      }
+    }
+  } else {
+    envelope = await dispatchTool(adapter, ctx, call.name, args);
+  }
+  if (envelope.ok && call.name === 'pricing.quote') {
+    const v = envelope.value as { speech?: string };
+    if (typeof v.speech === 'string') {
+      st.allowedTokens.push(v.speech);
+    }
+  }
+  if (call.name === 'pricing.quote') {
+    await deps.recordMetric('pricing.quote.called', {
+      merchantId: merchant.id,
+      sessionId: session.sessionId,
+      planId: String(args.plan_id ?? 'unknown'),
+    });
+  }
+  // Log recommendation_events on intent (not outcome): the model named
+  // a SKU to the visitor whether or not the envelope succeeded. Fire-
+  // and-forget so a DB hiccup never blocks the tool loop — observability
+  // for these losses lands in Task 18.
+  const rec = extractSkuFromToolCall(call.name, args);
+  if (rec && deps.recommendationStore) {
+    void deps.recommendationStore
+      .recordRecommendation({ sessionId: session.sessionId, sku: rec.sku, kind: rec.kind })
+      .catch(() => {});
+  }
+  await deps.recordMetric('agent.tool.invoked', {
+    merchantId: merchant.id,
+    sessionId: session.sessionId,
+    toolName: call.name,
+    ok: envelope.ok,
+    latencyMs: Date.now() - start,
+    ...toolTelemetryTags(envelope, channel, hostActionType),
+  });
+  return envelope;
+}
+
+/** Run one tool call outside the LLM loop (voice one-brain). */
+export async function runToolCall(
+  deps: RunTurnDeps,
+  merchant: Merchant,
+  session: SessionState,
+  call: { name: string; argumentsJson: string },
+  st: ToolCallState,
+): Promise<ToolResultEnvelope> {
+  const adapter = deps.loadAdapter(merchant, session.sessionId);
+  return executeToolCall(deps, merchant, session, adapter, makeCtx(merchant, session), call, st);
+}
+
 function makeCtx(merchant: Merchant, session: SessionState): AdapterContext {
   return { merchant, cartToken: session.cartToken, sessionId: session.sessionId };
 }
@@ -975,7 +1019,7 @@ function gracefulCloseText(reason: 'turns' | 'voice_ms' | 'duration_ms'): string
   return 'I want to wrap up before we run too long — sending you to checkout.';
 }
 
-function toCards(value: unknown): CardItem[] {
+export function toCards(value: unknown): CardItem[] {
   if (Array.isArray(value)) {
     return value.map(productToCard).filter((c): c is CardItem => c !== null);
   }

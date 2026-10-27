@@ -26,7 +26,7 @@ export function createWsVoiceRoom(ws: WebSocket, sessionId: string): VoiceRoom {
   // Per-call mic diagnostics (logged on close): did the visitor's audio arrive,
   // and was any of it actually speech? (Live 2026-10-26: calls where Gemini
   // never heard the visitor at all.)
-  const mic = { frames: 0, speechFrames: 0, silentFrames: 0, peak: 0, first: 0 };
+  const mic = { frames: 0, speechFrames: 0, silentFrames: 0, peak: 0, first: 0, lastAt: 0, maxGapMs: 0, stalls: 0 };
   ws.on('message', (data, isBinary) => {
     const buf = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer);
     if (isBinary) {
@@ -41,7 +41,16 @@ export function createWsVoiceRoom(ws: WebSocket, sessionId: string): VoiceRoom {
         if (Math.abs(v) > pk) pk = Math.abs(v);
       }
       const rms = Math.sqrt(sum / Math.max(1, s.length));
-      if (!mic.first) mic.first = Date.now();
+      const now = Date.now();
+      if (!mic.first) mic.first = now;
+      // Mic frames should arrive every ~40ms; a long gap means the page's main
+      // thread (or the network) stalled and the audio then lands in a burst.
+      if (mic.lastAt) {
+        const gap = now - mic.lastAt;
+        if (gap > mic.maxGapMs) mic.maxGapMs = gap;
+        if (gap > 500) mic.stalls++;
+      }
+      mic.lastAt = now;
       mic.frames++;
       if (rms > 1200) mic.speechFrames++;
       if (pk === 0) mic.silentFrames++;
@@ -62,6 +71,8 @@ export function createWsVoiceRoom(ws: WebSocket, sessionId: string): VoiceRoom {
         speechFrames: mic.speechFrames,
         allZeroFrames: mic.silentFrames,
         peak: mic.peak,
+        maxGapMs: mic.maxGapMs,
+        stalls: mic.stalls,
         micSeconds: Math.round((mic.frames * 0.04) * 10) / 10,
       },
       'voice ws mic stats',

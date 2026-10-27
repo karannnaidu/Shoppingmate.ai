@@ -16,6 +16,10 @@ import {
   saveSession as saveSessionAgent,
   stripToolSyntax,
   lookupPersona,
+  buildToolSurface,
+  runToolCall,
+  toCards,
+  type RunTurnDeps,
 } from '@shoppingmate/agent';
 import {
   type ChatFn,
@@ -43,7 +47,8 @@ import { createSessionCaps } from './caps.js';
 import { createDataChannel } from './dataChannel.js';
 import { type VoiceRoom, createLiveKitVoiceRoom } from './voiceRoom.js';
 import { voiceEnv } from './env.js';
-import { createGeminiSdkTransport } from './geminiSdkTransport.js';
+import { createGeminiSdkTransport, liveModelOptions } from './geminiSdkTransport.js';
+import { ONE_BRAIN_RULE, liveToolDeclarations, summarizeForLive } from './liveTools.js';
 import { createGeminiSession } from './geminiSession.js';
 import { createMetricsLedger, defaultSink } from './metrics.js';
 import { alertExecutorExhausted } from './opsAlert.js';
@@ -651,13 +656,30 @@ export async function runVoiceSession(
             : ''
         }`
       : voice.systemInstruction;
+    // ONE BRAIN (2026-10-27, Karan: "2-3 models talking in between, it loses
+    // context"): for merchants in VOICE_ONE_BRAIN the voice model calls the
+    // shop tools itself — no side-channel executor guessing from transcripts.
+    // Needs a manual-turn live model; falls back to the executor path if the
+    // call moves to the 2.5 fallback model (no tools there).
+    const oneBrainList = (process.env.VOICE_ONE_BRAIN ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    const oneBrain =
+      (oneBrainList.includes('*') || oneBrainList.includes(merchant.id)) &&
+      liveModelOptions(voiceEnv().GEMINI_LIVE_MODEL).manualTurns;
+    const liveTools = oneBrain ? liveToolDeclarations(buildToolSurface(merchant)) : null;
+    const oneBrainNote = oneBrain
+      ? `\n\n${ONE_BRAIN_RULE}${
+          siteGraphText.trim() ? `\n\nSITE MAP (pages you can open, by path):\n${siteGraphText.trim().slice(0, 6_000)}` : ''
+        }`
+      : '';
+    if (oneBrain) log.info({ sessionId, tools: liveTools?.declarations[0]?.functionDeclarations.length }, 'voice one-brain: tools on the live model');
     const tGeminiOpenStart = Date.now();
 
     const transport = createGeminiSdkTransport();
     const gemini = createGeminiSession({
       transport,
       voiceId: voice.voiceId,
-      systemInstruction: geminiInstruction,
+      systemInstruction: geminiInstruction + oneBrainNote,
+      ...(liveTools ? { tools: liveTools.declarations } : {}),
       // On an unexpected Gemini reconnect, hand the fresh session the LAST ~12
       // turns so it resumes the conversation seamlessly. Capped on purpose — the
       // full transcript is what overflowed and triggered the reconnect.
@@ -698,6 +720,22 @@ export async function runVoiceSession(
     // details" is invented and must be corrected.
     const hasSavedDetails = /\b(phone|address|pincode|saved checkout)\b/i.test(visitorSummary);
     let savedClaimCorrected = false;
+    // One consultation per call: the deterministic flow, the executor or the
+    // voice model's own tool call may each try — only the first books it.
+    const submitConsultationOnce: NonNullable<RunTurnDeps['submitConsultation']> = async (req) => {
+      if (consultBooked) return { ok: true };
+      const r = await submitConsultationRequest({
+        merchantId: req.merchantId,
+        sessionId: req.sessionId,
+        name: req.name,
+        age: req.age,
+        condition: req.condition,
+        phoneCountryCode: req.phoneCountryCode,
+        phone: req.phone,
+      });
+      if (r.ok) consultBooked = true;
+      return r;
+    };
     const bridge = createBridge({
       sessionId,
       merchantId: merchant.id,
@@ -745,22 +783,7 @@ export async function runVoiceSession(
         }
       },
       submitCase: (c) => submitSupportCase(c),
-      submitConsultation: async (req) => {
-        // One consultation per call: the deterministic flow below may already
-        // have booked it (or vice versa).
-        if (consultBooked) return { ok: true };
-        const r = await submitConsultationRequest({
-          merchantId: req.merchantId,
-          sessionId: req.sessionId,
-          name: req.name,
-          age: req.age,
-          condition: req.condition,
-          phoneCountryCode: req.phoneCountryCode,
-          phone: req.phone,
-        });
-        if (r.ok) consultBooked = true;
-        return r;
-      },
+      submitConsultation: (req) => submitConsultationOnce(req),
       loadAdapter: (m) =>
         getAdapter(m, {
           transport: new NoOpWSTransport(),
@@ -942,6 +965,8 @@ export async function runVoiceSession(
     // Book the doctor consultation from what was actually said (+ saved profile),
     // and tell Gemini the REAL outcome — she must not claim it's booked first.
     async function completeConsultation() {
+      // One brain: the voice model fills / books through its own tool calls.
+      if (toolsOn()) return;
       if (consultBooked || bookingConsult) return;
       bookingConsult = true;
       try {
@@ -1012,6 +1037,8 @@ export async function runVoiceSession(
     }
 
     async function completeOrder() {
+      // One brain: the voice model fills / books through its own tool calls.
+      if (toolsOn()) return;
       const dispatch = bridge.dispatchHostAction;
       if (completingOrder || orderPlaced || !dispatch) return;
       completingOrder = true;
@@ -1112,6 +1139,8 @@ export async function runVoiceSession(
     // Deterministic "Contact us" / inquiry form fill — same page.fill approach as
     // checkout, different fields. The visitor reviews + taps Send Message.
     async function completeContactForm() {
+      // One brain: the voice model fills / books through its own tool calls.
+      if (toolsOn()) return;
       const dispatch = bridge.dispatchHostAction;
       if (completingOrder || contactFilled || !dispatch) return;
       completingOrder = true;
@@ -1178,7 +1207,69 @@ export async function runVoiceSession(
       }
     }
 
+    // One brain: run the voice model's tool calls with the same executor the
+    // text chat uses, publish cards / redirects, and hand back a compact result.
+    const cancelledTools = new Set<string>();
+    const toolDeps: RunTurnDeps = {
+      loadAdapter: (m) => getAdapter(m, { transport: new NoOpWSTransport(), state: new InMemorySessionState() }),
+      saveSession: (s) => saveSessionAgent(redis(), s),
+      recordMetric,
+      ...(bridge.dispatchHostAction ? { dispatchHostAction: bridge.dispatchHostAction } : {}),
+      recommendationStore,
+      submitConsultation: submitConsultationOnce,
+      submitCase: (c) => submitSupportCase(c),
+    };
+    let toolChain: Promise<void> = Promise.resolve();
+    const handleToolCalls = (calls: { id: string; name: string; args: Record<string, unknown> }[]) => {
+      toolChain = toolChain
+        .then(async () => {
+          const responses: { id: string; name: string; response: Record<string, unknown> }[] = [];
+          for (const c of calls) {
+            const name = liveTools?.toCanonical(c.name) ?? null;
+            const t0 = Date.now();
+            let env: Parameters<typeof summarizeForLive>[1];
+            if (!name) {
+              env = { ok: false, reason: 'unknown tool' };
+            } else {
+              try {
+                const sess = await loadSession(redis(), sessionId);
+                if (!sess) throw new Error('session not found');
+                env = await runToolCall(toolDeps, merchant, sess, { name, argumentsJson: JSON.stringify(c.args ?? {}) }, {
+                  transientContact: sess.transientContact,
+                  allowedTokens: [],
+                });
+                if (env.ok && (name === 'products.search' || name === 'products.get')) {
+                  const cards = toCards(env.value);
+                  if (cards.length > 0) dataChannel.publish({ type: 'cards', items: cards });
+                }
+                if (env.ok && name === 'checkout.url' && typeof env.value === 'string') {
+                  dataChannel.publish({ type: 'checkout_redirect', url: env.value });
+                }
+              } catch (err) {
+                env = { ok: false, reason: (err as Error).message };
+              }
+            }
+            log.info({ sessionId, tool: name ?? c.name, ok: env.ok, ms: Date.now() - t0 }, 'one-brain tool');
+            if (cancelledTools.has(c.id)) continue;
+            responses.push({ id: c.id, name: c.name, response: summarizeForLive(name ?? c.name, env) });
+          }
+          if (responses.length > 0) gemini.respondTool(responses);
+        })
+        .catch((err) => log.warn({ err, sessionId }, 'one-brain tool handling failed'));
+    };
+    // The voice model holds the tools right now (false after a 2.5 fallback,
+    // where the executor side-channel takes over again).
+    const toolsOn = () => oneBrain && gemini.toolsActive();
+
     gemini.onEvent((e) => {
+      if (e.type === 'tool_call') {
+        handleToolCalls(e.calls);
+        return;
+      }
+      if (e.type === 'tool_cancel') {
+        for (const id of e.ids) cancelledTools.add(id);
+        return;
+      }
       if (e.type === 'visitor_paused') {
         // The visitor paused and Olivia hasn't started answering: a soft
         // "mm-hmm" so the gap reads as listening (and as a backchannel if they
@@ -1216,9 +1307,12 @@ export async function runVoiceSession(
         // so host_action tools can navigate / scroll / quote pricing while
         // Gemini speaks naturally over the top. The bridge's `say` events
         // are suppressed (Gemini's transcript is the canonical caption).
-        const turnDone = bridge
-          .handleUserText(e.text, { continues: e.continues })
-          .catch((err) => log.warn({ err }, 'bridge.handleUserText failed'));
+        // One brain: the voice model acts itself — no second model guessing.
+        const turnDone = toolsOn()
+          ? Promise.resolve()
+          : bridge
+              .handleUserText(e.text, { continues: e.continues })
+              .catch((err) => log.warn({ err }, 'bridge.handleUserText failed'));
         // Demo tour: when Sage is on shoppingmate.ai itself and the visitor
         // names a vertical, surface 3 showcase cards directly. Belt-and-
         // suspenders next to the bridge tool-loop in case Sonnet picks a
@@ -1345,6 +1439,8 @@ export async function runVoiceSession(
           // the spoken conversation-so-far, steer the NEXT runTurn's prompt, and
           // (only when LIVE_NUDGE_ENABLED=1) optionally speak one proactive nudge.
           void (async () => {
+            // Steers the executor's next turn — nothing to steer in one-brain.
+            if (toolsOn()) return;
             try {
               liveTurn += 1;
               const snap = recorder.snapshot();

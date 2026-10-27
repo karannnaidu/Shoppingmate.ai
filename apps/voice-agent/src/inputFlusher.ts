@@ -76,7 +76,9 @@ export function createInputFlusher(opts: {
   };
   return {
     push(text) {
-      buf += text;
+      // A merged continuation ("…98450." + "1 2 3") needs a space; mid-word
+      // pieces from the 2.5 model ("pri" + "ce") must not get one.
+      buf += /[.?!,;:]$/.test(buf) && !/^\s/.test(text) ? ` ${text}` : text;
       clear();
       armPause();
       armFlush();

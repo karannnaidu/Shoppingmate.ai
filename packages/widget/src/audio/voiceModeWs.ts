@@ -30,24 +30,26 @@ class SmCap extends AudioWorkletProcessor {
   // Decimate to 16 kHz, then a speech gate (like Krisp gives LiveKit): only
   // speech passes, everything else becomes true silence so Gemini sees clean
   // pauses and ends the turn. 10 ms frames, adaptive noise floor, 100 ms
-  // look-back so the first syllable isn't clipped, 400 ms hold so a normal
+  // look-back so the first syllable isn't clipped, 600 ms hold so a normal
   // pause between words never reads as the end of the turn (200 ms felt like
-  // being cut off — Karan, 2026-10-14).
+  // being cut off — Karan, 2026-10-14). Thresholds loosened 2026-10-27: on
+  // Karan's phone 91% of frames were gated to silence and soft word endings
+  // were dropped; the server's turn detector now decides what is speech.
   constructor(){super();this.r=sampleRate/16000;this.acc=0;this.n=0;this.pos=0;
     this.f=new Float32Array(160);this.fi=0;this.hist=[];this.floor=0.01;this.run=0;this.hold=0;this.open=false;this.duck=false;
     // Echo guard: while Olivia is speaking, require louder input to open the gate.
     this.port.onmessage=(e)=>{if(e.data&&typeof e.data.duck==='boolean')this.duck=e.data.duck;};}
   frame(fr){let s=0;for(let i=0;i<160;i++)s+=fr[i]*fr[i];const rms=Math.sqrt(s/160);
     if(rms<this.floor)this.floor=this.floor*0.9+rms*0.1;else this.floor=this.floor*0.9995+rms*0.0005;
-    const thr=Math.max(0.012,this.floor*3.5);const speech=rms>thr;
+    const thr=Math.max(0.006,this.floor*2.5);const speech=rms>thr;
     // Echo guard applies to OPENING only: once the visitor is talking, a
     // "mm-hmm" or reply starting must never swallow their next words.
     const opens=rms>thr*(this.duck?3:1);
     this.run=opens?this.run+1:0;
     if(!this.open&&this.run>=2){this.open=true;
       const out=new Float32Array(160*(this.hist.length+1));let o=0;for(const h of this.hist){out.set(h,o);o+=160;}out.set(fr,o);
-      this.hist=[];this.hold=40;this.port.postMessage(out);return;}
-    if(this.open){if(speech)this.hold=40;else if(--this.hold<=0)this.open=false;}
+      this.hist=[];this.hold=60;this.port.postMessage(out);return;}
+    if(this.open){if(speech)this.hold=60;else if(--this.hold<=0)this.open=false;}
     if(this.open){this.port.postMessage(fr);}
     else{this.hist.push(fr);if(this.hist.length>10)this.hist.shift();this.port.postMessage(new Float32Array(160));}}
   process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;

@@ -3,6 +3,7 @@ import { childLogger } from '@shoppingmate/shared';
 import { voiceEnv } from './env.js';
 import { createInputFlusher } from './inputFlusher.js';
 import { createTurnDetector } from './turnDetector.js';
+import { type Hold, expectedSlot, utteranceHold } from './utteranceComplete.js';
 import type { GeminiTransport, GeminiTransportEvent } from './geminiSession.js';
 
 const log = childLogger({ mod: 'gemini-sdk' });
@@ -67,8 +68,112 @@ export function createGeminiSdkTransport(): GeminiTransport {
   };
   let session: LiveSession | null = null;
   const listeners: ((e: GeminiTransportEvent) => void)[] = [];
-  const emit = (e: GeminiTransportEvent) => {
+  const emitNow = (e: GeminiTransportEvent) => {
+    // Olivia is audible from here (held audio isn't): drives the echo guard.
+    if (e.type === 'audio_out') botUntil = Math.max(botUntil, Date.now()) + (e.bytes.length / 2 / 24_000) * 1000;
     for (const cb of listeners) cb(e);
+  };
+  // ---- smart end-of-turn hold (manual turns) ---------------------------------
+  // The turn ends after a short pause and Gemini starts answering, but Olivia's
+  // reply (audio + captions) is held until the visitor's transcript shows they
+  // sounded finished. A finished sentence is released at once (the transcript
+  // lands ~0.3s after the turn ends, well before her first audio at ~1s), so it
+  // costs nothing. An unfinished one is held a little longer; if they carry on
+  // talking, the held reply is dropped and both parts become one turn — for
+  // Gemini and for the action layer. VOICE_SMART_TURNS=off disables it.
+  const smartTurns = process.env.VOICE_SMART_TURNS !== 'off';
+  const HOLD_MS: Record<Exclude<Hold, 'none'>, number> = {
+    short: Number(process.env.VOICE_HOLD_SHORT_MS ?? 700),
+    long: Number(process.env.VOICE_HOLD_LONG_MS ?? 1500),
+    dictation: Number(process.env.VOICE_HOLD_DICTATION_MS ?? 2200),
+  };
+  let holding = false;
+  // A turn that sounds finished is released at Olivia's first words (which
+  // land with her first audio) — unless those words are her asking to repeat
+  // ("sorry, I didn't catch that"): Gemini itself heard a fragment, so give
+  // the visitor a moment to carry on before she says it.
+  let awaitFirstWords = false;
+  const CLARIFY = /^\W*(i'?m )?sorry[^.?!]{0,30}(didn'?t|did not|couldn'?t|could not|missed)|^\W*(could|can) you (please )?(repeat|say (that|it))|^\W*pardon/i;
+  let held: GeminiTransportEvent[] = [];
+  let holdTimer: ReturnType<typeof setTimeout> | null = null;
+  let turnText = '';
+  // Olivia's latest words, and the line she'd said when the visitor started
+  // answering (what she asked for: phone, pincode…).
+  let lastBotLine = '';
+  let questionLine = '';
+  // A dropped held reply makes Gemini send "interrupted"; that's not a real
+  // barge-in and must not cancel the action layer's work on the last turn.
+  let ignoreInterruptUntil = 0;
+  const clearHoldTimer = () => {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+  };
+  const release = (why: string) => {
+    if (!holding) return;
+    clearHoldTimer();
+    holding = false;
+    awaitFirstWords = false;
+    log.info({ why, text: turnText.slice(0, 120), heldEvents: held.length }, 'turn settled');
+    turnText = '';
+    // The visitor's whole (possibly merged) utterance goes to captions + the
+    // action layer first, then Olivia's reply plays.
+    input.flushNow();
+    const evs = held;
+    held = [];
+    for (const e of evs) emitNow(e);
+  };
+  // After the visitor carries on mid-thought, Gemini can still send a chunk of
+  // its abandoned reply before it handles the interruption ("Sure! Here's our
+  // full…" leaked between the halves in testing). Drop it until their
+  // continued turn ends.
+  let discardOutput = false;
+  // Gemini blocks until every tool call gets a response — a dropped call froze
+  // a test call ("OK, take me to checkout": calls made for "OK" were discarded
+  // as the visitor carried on, and Gemini waited forever). Never drop one:
+  // answer "skipped" so it re-decides with the visitor's full sentence.
+  const skipTools = (calls: { id: string; name: string }[]) => {
+    if (!session || calls.length === 0) return;
+    log.info({ calls: calls.map((c) => c.name) }, 'tool calls skipped — visitor kept talking');
+    session.sendToolResponse({
+      functionResponses: calls.map((c) => ({
+        id: c.id,
+        name: c.name,
+        response: {
+          ok: false,
+          skipped: true,
+          reason: 'The visitor kept talking before this ran. Listen to everything they said, then call the tool again if it is still wanted.',
+        },
+      })),
+    });
+  };
+  const emit = (e: GeminiTransportEvent) => {
+    // Tool calls are part of Olivia's reply: a call made on a half-sentence is
+    // held (and dropped if they carry on) like her audio.
+    const output =
+      e.type === 'audio_out' || e.type === 'bot_text_partial' || e.type === 'bot_text' || e.type === 'speech_ended' || e.type === 'tool_call';
+    if (discardOutput && output) {
+      if (e.type === 'tool_call') skipTools(e.calls);
+      return;
+    }
+    if (holding && output) {
+      held.push(e);
+      if (awaitFirstWords) {
+        if (e.type === 'tool_call') {
+          release('acting');
+        } else if (e.type === 'bot_text_partial' && e.text.trim().length >= 12) {
+          if (CLARIFY.test(e.text)) {
+            awaitFirstWords = false;
+            log.info({ reply: e.text.slice(0, 60), text: turnText.slice(0, 120) }, 'olivia would ask to repeat — waiting for more');
+            clearHoldTimer();
+            holdTimer = setTimeout(() => release('waited after clarify'), HOLD_MS.long);
+          } else {
+            release('sounds finished');
+          }
+        }
+      }
+      return;
+    }
+    emitNow(e);
   };
 
   // Olivia's transcript accumulates across her turn (flushed on turnComplete).
@@ -78,7 +183,10 @@ export function createGeminiSdkTransport(): GeminiTransport {
   // Last moment the visitor's mic carried clear speech (see pushAudio).
   let lastLoudAt = 0;
   const input = createInputFlusher({
-    stillSpeaking: () => Date.now() - lastLoudAt < MIC_SPEECH_HOLD_MS,
+    // A held turn (still deciding if they're finished) must not be flushed by
+    // the quiet fallback either — it goes out whole when it settles.
+    stillSpeaking: () =>
+      Date.now() - lastLoudAt < MIC_SPEECH_HOLD_MS || holding || discardOutput || (manualTurns && turns.active()),
     onPause: () => emit({ type: 'visitor_paused' }),
     emit: (text, meta) => emit({ type: 'final_transcript', text, ...meta }),
   });
@@ -133,21 +241,52 @@ export function createGeminiSdkTransport(): GeminiTransport {
   };
   const turns = createTurnDetector({
     endSilenceMs: Number(process.env.VOICE_END_SILENCE_MS ?? 500),
-    minRms: Number(process.env.VOICE_VAD_MIN_RMS ?? 250),
+    minRms: Number(process.env.VOICE_VAD_MIN_RMS ?? 150),
+    // Barge-in over Olivia: 2× the speech level (was 3×: a quiet visitor
+    // talking over her went unheard in testing) for 200ms.
+    duckMult: Number(process.env.VOICE_BARGE_MULT ?? 2),
+    startMsWhileBot: Number(process.env.VOICE_BARGE_MS ?? 200),
     isBotSpeaking: () => Date.now() < botUntil + 200,
-    onStart: (preroll) => {
+    onStart: (preroll, info) => {
       if (!session) return;
       clearStall();
       turnEndedAt = 0;
+      const botSpeaking = Date.now() < botUntil + 200;
+      if (holding) {
+        // They carried on mid-thought: drop the reply Gemini started for the
+        // fragment; the next activity interrupts it and both parts merge.
+        log.info({ dropped: held.length, text: turnText.slice(0, 120) }, 'visitor continued — held reply dropped');
+        skipTools(held.flatMap((h) => (h.type === 'tool_call' ? h.calls : [])));
+        clearHoldTimer();
+        holding = false;
+        held = [];
+        discardOutput = true;
+        outputBuf = '';
+        ignoreInterruptUntil = Date.now() + 1500;
+      } else {
+        questionLine = lastBotLine;
+      }
+      log.info({ rms: Math.round(info.rms), botSpeaking }, botSpeaking ? 'visitor barge-in (turn start while Olivia talks)' : 'turn start');
       session.sendRealtimeInput({ activityStart: {} });
       for (const f of preroll) sendFrame(f);
     },
     onAudio: (f) => sendFrame(f),
-    onEnd: (reason) => {
+    onEnd: (reason, info) => {
       if (!session) return;
       session.sendRealtimeInput({ activityEnd: {} });
       turnEndedAt = Date.now();
+      log.info({ reason, ms: Math.round(info.turnMs), peakRms: Math.round(info.peakRms) }, 'turn end');
       if (reason === 'max') log.warn('visitor turn hit the max length — closed it');
+      if (discardOutput) {
+        discardOutput = false;
+        outputBuf = '';
+      }
+      if (smartTurns) {
+        holding = true;
+        clearHoldTimer();
+        // No transcript at all (a cough): don't hold Olivia back for long.
+        holdTimer = setTimeout(() => release('no transcript'), 900);
+      }
       if (model !== fallbackModel) armStall();
     },
   });
@@ -161,6 +300,7 @@ export function createGeminiSdkTransport(): GeminiTransport {
   let voiceId = '';
   let baseInstruction = '';
   let getResumeContext: (() => string) | undefined;
+  let tools: unknown[] | undefined;
   let intentionalClose = false;
   let reconnects = 0;
   let healthyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -178,6 +318,9 @@ export function createGeminiSdkTransport(): GeminiTransport {
         responseModalities: [Modality.AUDIO],
         systemInstruction: { parts: [{ text: instruction }] },
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceId } } },
+        // One-brain mode only — and never on the 2.5 fallback, which keeps the
+        // old talk-only path (its executor side-channel isn't running then).
+        ...(tools && manualTurns ? { tools: tools as never } : {}),
         // Opt-in transcripts: without these the server returns no transcripts
         // at all, so the widget never sees the visitor's words or Sage's reply
         // text. The API rejects a `languageCodes` field here, so we pass empty
@@ -229,13 +372,52 @@ export function createGeminiSdkTransport(): GeminiTransport {
           // flush any locally-buffered bot audio.
           if (msg.serverContent?.interrupted) {
             botUntil = 0;
-            emit({ type: 'interrupted' });
+            if (Date.now() < ignoreInterruptUntil) {
+              ignoreInterruptUntil = 0;
+              log.info('interrupted a held (unheard) reply — not a barge-in');
+            } else {
+              log.info({ heard: true }, 'olivia interrupted by the visitor');
+              emit({ type: 'interrupted' });
+            }
+          }
+          if (msg.toolCall?.functionCalls?.length) {
+            gotReply();
+            const calls = msg.toolCall.functionCalls.map((f) => ({
+              id: String(f.id ?? ''),
+              name: String(f.name ?? ''),
+              args: (f.args ?? {}) as Record<string, unknown>,
+            }));
+            log.info({ calls: calls.map((c) => c.name), held: holding }, 'gemini tool call');
+            emit({ type: 'tool_call', calls });
+          }
+          if (msg.toolCallCancellation?.ids?.length) {
+            log.info({ ids: msg.toolCallCancellation.ids }, 'gemini tool call cancelled');
+            emitNow({ type: 'tool_cancel', ids: msg.toolCallCancellation.ids.map(String) });
           }
           const inputXcript = msg.serverContent?.inputTranscription?.text;
           if (inputXcript) {
             input.push(inputXcript);
             lastUserText = `${lastUserText} ${inputXcript}`.replace(/\s+/g, ' ').trim();
-            if (manualTurns && !turns.active()) {
+            if (holding) {
+              // Judge once the transcript for this turn has landed (it can come
+              // in a couple of pieces).
+              turnText = `${turnText} ${inputXcript}`.replace(/\s+/g, ' ').trim();
+              clearHoldTimer();
+              holdTimer = setTimeout(() => {
+                const slot = expectedSlot(questionLine);
+                const verdict = utteranceHold(turnText, slot);
+                if (verdict === 'none') {
+                  // Release at Olivia's first words (see awaitFirstWords).
+                  awaitFirstWords = true;
+                  clearHoldTimer();
+                  holdTimer = setTimeout(() => release('sounds finished (timeout)'), 1_500);
+                  return;
+                }
+                log.info({ verdict, slot, holdMs: HOLD_MS[verdict], text: turnText.slice(0, 120) }, 'turn sounds unfinished — holding reply');
+                clearHoldTimer();
+                holdTimer = setTimeout(() => release(`waited ${verdict}`), HOLD_MS[verdict]);
+              }, 120);
+            } else if (manualTurns && !turns.active()) {
               // Our detector already ended the turn, so this transcript is the
               // whole utterance (it arrives ~0.2s after): caption it now rather
               // than waiting for Olivia's first word.
@@ -249,12 +431,14 @@ export function createGeminiSdkTransport(): GeminiTransport {
           const outputXcript = msg.serverContent?.outputTranscription?.text;
           // Olivia started answering → the visitor's turn is over: act on it now.
           if (outputXcript || msg.serverContent?.modelTurn?.parts?.length) {
-            input.flushNow();
+            // While a turn is held, its words go out when it settles instead.
+            if (!holding && !discardOutput && !turns.active()) input.flushNow();
             gotReply();
             lastUserText = '';
           }
           if (outputXcript) {
             outputBuf += outputXcript;
+            lastBotLine = outputBuf;
             // Stream the running bot transcript so the widget caption keeps sync
             // with the audio instead of waiting for turnComplete.
             emit({ type: 'bot_text_partial', text: outputBuf });
@@ -265,11 +449,10 @@ export function createGeminiSdkTransport(): GeminiTransport {
           );
           if (audioPart?.inlineData?.data) {
             const bytes = Buffer.from(audioPart.inlineData.data, 'base64');
-            botUntil = Math.max(botUntil, Date.now()) + (bytes.length / 2 / 24_000) * 1000;
             emit({ type: 'audio_out', bytes });
           }
           if (msg.serverContent?.turnComplete) {
-            input.flushNow(); // anything said late in the turn
+            if (!holding && !discardOutput && !turns.active()) input.flushNow(); // anything said late in the turn
             if (outputBuf.trim()) emit({ type: 'bot_text', text: outputBuf.trim() });
             outputBuf = '';
             emit({ type: 'speech_ended' });
@@ -345,8 +528,9 @@ export function createGeminiSdkTransport(): GeminiTransport {
   }
 
   return {
-    async open({ voiceId: vId, systemInstruction, getResumeContext: grc }) {
+    async open({ voiceId: vId, systemInstruction, getResumeContext: grc, tools: t }) {
       voiceId = vId;
+      tools = t;
       baseInstruction = systemInstruction;
       getResumeContext = grc;
       intentionalClose = false;
@@ -401,6 +585,11 @@ export function createGeminiSdkTransport(): GeminiTransport {
     },
     onEvent(cb) {
       listeners.push(cb);
+    },
+    toolsActive: () => Boolean(tools) && manualTurns,
+    respondTool(responses) {
+      if (!session) return;
+      session.sendToolResponse({ functionResponses: responses });
     },
   };
 }

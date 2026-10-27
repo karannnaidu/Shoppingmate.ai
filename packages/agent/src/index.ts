@@ -3,6 +3,10 @@
 
 export {
   runTurn,
+  executeToolCall,
+  runToolCall,
+  toCards,
+  type ToolCallState,
   type RunTurnDeps,
   type SessionStore,
   type RecommendationStore,

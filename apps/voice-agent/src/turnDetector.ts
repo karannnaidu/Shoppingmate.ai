@@ -23,9 +23,9 @@ export type TurnDetector = {
 };
 
 export function createTurnDetector(opts: {
-  onStart: (preroll: Uint8Array[]) => void;
+  onStart: (preroll: Uint8Array[], info: { rms: number }) => void;
   onAudio: (frame: Uint8Array) => void;
-  onEnd: (reason: TurnEndReason) => void;
+  onEnd: (reason: TurnEndReason, info: { turnMs: number; peakRms: number }) => void;
   isBotSpeaking?: () => boolean;
   /** Speech needed to open a turn. */
   startMs?: number;
@@ -38,6 +38,9 @@ export function createTurnDetector(opts: {
   floorMult?: number;
   /** Extra factor to OPEN a turn while Olivia is speaking. */
   duckMult?: number;
+  /** Speech needed to open a turn while Olivia is speaking (echo guard: her
+   *  own voice leaking back through a phone speaker comes in short bursts). */
+  startMsWhileBot?: number;
   maxTurnMs?: number;
 }): TurnDetector {
   const startMs = opts.startMs ?? 80;
@@ -46,6 +49,7 @@ export function createTurnDetector(opts: {
   const minRms = opts.minRms ?? 250;
   const floorMult = opts.floorMult ?? 3;
   const duckMult = opts.duckMult ?? 3;
+  const startMsWhileBot = opts.startMsWhileBot ?? 240;
   const maxTurnMs = opts.maxTurnMs ?? 30_000;
   // Floor rises toward steady noise with this time constant; falls fast.
   const riseTauMs = 4_000;
@@ -57,6 +61,7 @@ export function createTurnDetector(opts: {
   let turnMs = 0;
   let ring: { f: Uint8Array; ms: number }[] = [];
   let ringMs = 0;
+  let peakRms = 0;
 
   const rmsOf = (frame: Uint8Array) => {
     const aligned = frame.byteOffset % 2 === 0 ? frame : frame.slice();
@@ -81,9 +86,10 @@ export function createTurnDetector(opts: {
         while (ring.length > 1 && ringMs - (ring[0] as { ms: number }).ms >= prerollMs + startMs) {
           ringMs -= (ring.shift() as { ms: number }).ms;
         }
-        const opens = rms > thr * (opts.isBotSpeaking?.() ? duckMult : 1);
+        const bot = opts.isBotSpeaking?.() ?? false;
+        const opens = rms > thr * (bot ? duckMult : 1);
         speechRunMs = opens ? speechRunMs + ms : 0;
-        if (speechRunMs >= startMs) {
+        if (speechRunMs >= (bot ? Math.max(startMs, startMsWhileBot) : startMs)) {
           open = true;
           silenceMs = 0;
           turnMs = speechRunMs;
@@ -91,18 +97,20 @@ export function createTurnDetector(opts: {
           ring = [];
           ringMs = 0;
           speechRunMs = 0;
-          opts.onStart(preroll);
+          peakRms = rms;
+          opts.onStart(preroll, { rms });
         }
         return;
       }
 
       opts.onAudio(frame);
       turnMs += ms;
+      if (rms > peakRms) peakRms = rms;
       silenceMs = speech ? 0 : silenceMs + ms;
       if (silenceMs >= endSilenceMs || turnMs >= maxTurnMs) {
         open = false;
         silenceMs = 0;
-        opts.onEnd(turnMs >= maxTurnMs ? 'max' : 'silence');
+        opts.onEnd(turnMs >= maxTurnMs ? 'max' : 'silence', { turnMs, peakRms });
         turnMs = 0;
       }
     },
