@@ -34,7 +34,7 @@ import {
   submitSupportCase,
   upsertVisitorProfile,
 } from '@shoppingmate/db';
-import { chat, childLogger, env as sharedEnv } from '@shoppingmate/shared';
+import { chat, childLogger, simpleChat, env as sharedEnv } from '@shoppingmate/shared';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 import { getAckClips } from './ackClips.js';
@@ -917,6 +917,9 @@ export async function runVoiceSession(
       // Tiny structured reply (7 short fields) — cap output so OpenRouter doesn't
       // reserve credit for the model's 64K default and 402 on a low balance.
       chat({ model: checkoutModel, messages, responseFormat: 'json', maxTokens: 512 });
+    // Tool-free background classification (live signal, session-end profile):
+    // the cheap open-model tier. Checkout/contact/consult PII stays on Claude.
+    const simpleJsonChat: ChatFn = (messages) => simpleChat({ messages, responseFormat: 'json', maxTokens: 512 });
     // Inject a one-shot grounding message Gemini will voice to the visitor. It's
     // sent as a turn Gemini responds to (same channel as the kickoff greeting).
     const ground = (instruction: string) =>
@@ -1347,7 +1350,7 @@ export async function runVoiceSession(
               const snap = recorder.snapshot();
               if (snap.filter((t) => t.role === 'user').length < 2) return;
               const transcript = snap.map((t) => `${t.role}: ${t.content}`).join('\n');
-              const sig = await classifyLiveSignal(transcript, extractChat);
+              const sig = await classifyLiveSignal(transcript, simpleJsonChat);
               const steer = signalSteerLine(sig);
               bridge.setLiveSignal(steer || undefined);
               if (steer) log.info({ sessionId, steer }, 'live signal (voice)');
@@ -1506,9 +1509,10 @@ export async function runVoiceSession(
               purchased: tags.outcome === 'purchased',
               mode: 'voice',
             },
-            extractChat,
+            simpleJsonChat,
           ),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+          // 6s: the open model's p90 is ~4s; this runs after hang-up.
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
         ]);
         if (profiled) tags.intent = profiled.record;
       } catch (err) {

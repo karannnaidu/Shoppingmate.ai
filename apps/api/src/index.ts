@@ -10,7 +10,7 @@ import {
   upsertVisitorProfile,
 } from '@shoppingmate/db';
 import { mountWs } from '@shoppingmate/dom-harness';
-import { chat, env, logger } from '@shoppingmate/shared';
+import { env, logger, simpleChat } from '@shoppingmate/shared';
 import { and, asc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -123,17 +123,13 @@ const pendingHostActions = new Map<
 >();
 let hostActionCounter = 0;
 
-// Session-end intent profiler model (mirrors the voice worker's checkoutModel).
-const profileModel =
-  process.env.OPENROUTER_CHECKOUT_MODEL ??
-  process.env.OPENROUTER_MODEL ??
-  'anthropic/claude-sonnet-4.6';
-const profileChat: ChatFn = (messages) =>
-  chat({ model: profileModel, messages, responseFormat: 'json', maxTokens: 512 });
-// Phase 4 — live in-session signal classifier (cheaper/smaller cap than the
-// profiler; reuses the same model). Used per-turn to steer the NEXT prompt.
-const classifierChat: ChatFn = (messages) =>
-  chat({ model: profileModel, messages, responseFormat: 'json', maxTokens: 256 });
+// Session-end intent profiler.
+// Both run on the cheap open-model tier (simpleChat; Claude is its backup):
+// tool-free JSON, measured as accurate as Haiku on real conversations.
+const profileChat: ChatFn = (messages) => simpleChat({ messages, responseFormat: 'json', maxTokens: 512 });
+// Phase 4 — live in-session signal classifier (smaller cap than the profiler).
+// Used per-turn to steer the NEXT prompt.
+const classifierChat: ChatFn = (messages) => simpleChat({ messages, responseFormat: 'json', maxTokens: 256 });
 
 // Per-session conversation recorders. Accumulate visitor/bot turns + funnel
 // flags across a session so we can emit one conversationCompleted metric (with

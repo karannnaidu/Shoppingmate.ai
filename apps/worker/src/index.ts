@@ -7,7 +7,7 @@ import {
 } from '@shoppingmate/jobs';
 import { db, hasFeature, schema } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
-import { chat, logger } from '@shoppingmate/shared';
+import { chat, logger, simpleChat } from '@shoppingmate/shared';
 import { Queue, Worker } from 'bullmq';
 import { onboardingHandler } from './handlers/onboarding.js';
 import { ingestKbDoc } from './jobs/ingestKbDoc.js';
@@ -209,9 +209,9 @@ insightsWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: er
 
 // Nightly brand selling-playbook refresh cron: distils each merchant's last-90d
 // conversation outcomes into a fresh selling playbook at 4am UTC.
+// Internal steer text, nightly for every merchant: the cheap open-model tier.
 const playbookChat = (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) =>
-  chat({
-    model: process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.6',
+  simpleChat({
     messages,
     responseFormat: 'text',
     maxTokens: 700,

@@ -94,11 +94,13 @@ async function completion(
     throw new Error(`openrouter http ${status ?? 'network'}: ${detail.slice(0, 200)}`);
   }
   let last = '';
+  // `models` (OpenRouter's fallback list) means nothing to Gemini.
+  const { models: _orModels, ...geminiBody } = body;
   const send = (model: string) =>
     fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${geminiKey}` },
-      body: JSON.stringify({ ...body, model, messages: toGeminiMessages(body.messages as unknown[]) }),
+      body: JSON.stringify({ ...geminiBody, model, messages: toGeminiMessages(body.messages as unknown[]) }),
       signal: opts.signal,
     });
   for (const model of FALLBACK_MODELS()) {
@@ -123,8 +125,29 @@ export type ChatResult = {
   outputTokens: number;
 };
 
+// Cheap tier for simple, tool-free background work (per-turn live-signal
+// classifier, session-end profiler, playbook/insights summaries). Measured
+// 2026-10-27 on 25 real Calmosis conversations vs Sonnet 4.6: Qwen3-235B agreed
+// on mode 23/25, profile intent 20/25 (Haiku: 19, 18) at ~1/25 the cost; the
+// :nitro route keeps p90 ~4s. Customer-facing tool turns and PII extraction
+// stay on Claude. OPENROUTER_SIMPLE_MODEL overrides (set a Claude id to revert).
+export const SIMPLE_MODEL_DEFAULT = 'qwen/qwen3-235b-a22b-2507:nitro';
+export function simpleModel(): string {
+  return process.env.OPENROUTER_SIMPLE_MODEL?.trim() || SIMPLE_MODEL_DEFAULT;
+}
+
+/** chat() on the cheap tier; if that model errors, OpenRouter retries on
+ *  Claude (OPENROUTER_MODEL) before anything falls back to Gemini. */
+export function simpleChat(opts: Omit<Parameters<typeof chat>[0], 'model' | 'fallbackModels'>): Promise<ChatResult> {
+  const backup = process.env.OPENROUTER_MODEL?.trim() || 'anthropic/claude-haiku-4.5';
+  const model = simpleModel();
+  return chat({ ...opts, model, fallbackModels: backup === model ? [] : [backup] });
+}
+
 export async function chat(opts: {
   model: string;
+  /** OpenRouter model fallbacks, tried in order if `model` fails. */
+  fallbackModels?: string[];
   messages: ChatMessage[];
   responseFormat?: 'json' | 'text';
   timeoutMs?: number;
@@ -141,6 +164,7 @@ export async function chat(opts: {
     const { json } = await completion(
       {
         model: opts.model,
+        ...(opts.fallbackModels?.length ? { models: [opts.model, ...opts.fallbackModels] } : {}),
         messages: opts.messages,
         ...(opts.responseFormat === 'json' ? { response_format: { type: 'json_object' } } : {}),
         ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
