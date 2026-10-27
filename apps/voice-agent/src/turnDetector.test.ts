@@ -102,9 +102,22 @@ describe('turnDetector', () => {
     expect(h.events.filter((e) => e === 'end:silence')).toHaveLength(2);
   });
 
+  it('steady room noise from the very first frame never opens a turn', () => {
+    const h = harness();
+    h.feed(400, 3000); // noise above the absolute floor, right from call start
+    expect(h.events).toEqual([]);
+    h.feed(3000, 400); // then the visitor speaks
+    expect(h.events[0]).toMatch(/^start/);
+  });
+
   it('caps a runaway turn', () => {
     const h = harness({ maxTurnMs: 2000 });
-    h.feed(3000, 3000);
+    // Speech-like: loud syllables with short dips (a constant tone would read
+    // as noise to the adaptive floor).
+    for (let t = 0; t < 3000; t += 240) {
+      h.feed(3000, 200);
+      h.feed(100, 40);
+    }
     expect(h.events).toContain('end:max');
   });
 

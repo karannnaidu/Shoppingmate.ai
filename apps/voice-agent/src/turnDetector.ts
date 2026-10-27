@@ -58,6 +58,7 @@ export function createTurnDetector(opts: {
   const riseTauMs = 4_000;
 
   let floor = 0;
+  let seeded = false;
   let open = false;
   let speechRunMs = 0;
   let silenceMs = 0;
@@ -78,6 +79,13 @@ export function createTurnDetector(opts: {
     push(frame) {
       const { rms, ms } = rmsOf(frame);
       if (ms <= 0) return;
+      // Seed the noise floor from the first frame: starting at 0 let steady
+      // room noise at call start read as speech (prod: noise → "¿Qué?" → a
+      // Spanish reply before the visitor said a word).
+      if (!seeded) {
+        seeded = true;
+        floor = Math.min(rms, minRms * 2);
+      }
       if (rms < floor) floor = floor * 0.7 + rms * 0.3;
       else floor += (rms - floor) * Math.min(1, ms / riseTauMs);
       const thr = Math.max(minRms, floor * floorMult);
