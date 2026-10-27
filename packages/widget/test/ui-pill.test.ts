@@ -77,10 +77,10 @@ describe('renderPill — incoming call (proactive invite)', () => {
 });
 
 describe('renderPill — connecting (requesting mic)', () => {
-  it('shows THINKING caption, a spinner, and a disabled mic + end', () => {
+  it('shows CONNECTING caption, a spinner, and a disabled mic + end', () => {
     const root = document.createElement('div');
     renderPill(root, { ...baseProps, mode: 'call', voiceState: 'connecting' });
-    expect(root.textContent).toContain('THINKING');
+    expect(root.textContent).toContain('CONNECTING');
     expect(root.querySelector('.tray-spinner')).toBeTruthy();
     const mic = root.querySelector('[data-action="mic"]');
     expect(mic).toBeTruthy();

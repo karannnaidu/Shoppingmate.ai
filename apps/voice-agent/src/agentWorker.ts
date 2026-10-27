@@ -652,7 +652,10 @@ export async function runVoiceSession(
     const geminiInstruction = cachedGreeting
       ? `${voice.systemInstruction}\n\nCALL ALREADY STARTED: you opened this call by saying exactly: "${cachedGreeting.text}" — the visitor has heard it. Do NOT greet or introduce yourself again; reply directly to what they say next.${
           returning
-            ? ' They are a RETURNING VISITOR (see above): in your next reply, briefly and warmly show you remember them (by name if known) — without greeting again.'
+            ? // Karan 2026-10-27: "the greeting is overruled by the previous memory" —
+              // a "welcome back, Karan…" reply instead of an answer felt like a
+              // second greeting. Use the memory, don't announce it.
+              ' They are a RETURNING VISITOR (see above). The greeting is DONE: never say "welcome back", "good to have you back", "great to hear from you again" or their name as an opener. If they only say hello/hi, reply exactly like: "Hi! What can I help you with today?" Otherwise just answer what they ask. Use what you know about them only when it helps (their saved details at checkout, products they liked before).'
             : ''
         }`
       : voice.systemInstruction;

@@ -35,11 +35,20 @@ class SmCap extends AudioWorkletProcessor {
   // being cut off — Karan, 2026-10-14). Thresholds loosened 2026-10-27: on
   // Karan's phone 91% of frames were gated to silence and soft word endings
   // were dropped; the server's turn detector now decides what is speech.
-  constructor(){super();this.r=sampleRate/16000;this.acc=0;this.n=0;this.pos=0;
+  constructor(){super();this.r=sampleRate/16000;this.pos=0;
+    // Anti-alias low-pass (windowed sinc, ~7 kHz) before dropping to 16 kHz: the old
+    // 3-sample average folded the 8–24 kHz content of real phone mics back into
+    // the speech band as distortion (TTS tests never showed it — little HF energy).
+    this.N=63;this.taps=new Float32Array(this.N);{const fc=7000/sampleRate,M=this.N-1;let sum=0;
+      for(let k=0;k<this.N;k++){const x=k-M/2;const sinc=x===0?2*fc:Math.sin(2*Math.PI*fc*x)/(Math.PI*x);
+        const w=0.42-0.5*Math.cos(2*Math.PI*k/M)+0.08*Math.cos(4*Math.PI*k/M);this.taps[k]=sinc*w;sum+=this.taps[k];}
+      for(let k=0;k<this.N;k++)this.taps[k]/=sum;}
+    this.ring=new Float32Array(this.N);this.ri=0;
     this.f=new Float32Array(160);this.fi=0;this.hist=[];this.floor=0.01;this.run=0;this.hold=0;this.open=false;this.duck=false;
     // Echo guard: while Olivia is speaking, require louder input to open the gate.
-    this.port.onmessage=(e)=>{if(e.data&&typeof e.data.duck==='boolean')this.duck=e.data.duck;};}
-  frame(fr){let s=0;for(let i=0;i<160;i++)s+=fr[i]*fr[i];const rms=Math.sqrt(s/160);
+    this.bypass=false;
+    this.port.onmessage=(e)=>{if(e.data&&typeof e.data.duck==='boolean')this.duck=e.data.duck;if(e.data&&typeof e.data.bypass==='boolean')this.bypass=e.data.bypass;};}
+  frame(fr){if(this.bypass){this.port.postMessage(fr);return;}let s=0;for(let i=0;i<160;i++)s+=fr[i]*fr[i];const rms=Math.sqrt(s/160);
     if(rms<this.floor)this.floor=this.floor*0.9+rms*0.1;else this.floor=this.floor*0.9995+rms*0.0005;
     const thr=Math.max(0.006,this.floor*2.5);const speech=rms>thr;
     // Echo guard applies to OPENING only: once the visitor is talking, a
@@ -53,8 +62,9 @@ class SmCap extends AudioWorkletProcessor {
     if(this.open){this.port.postMessage(fr);}
     else{this.hist.push(fr);if(this.hist.length>10)this.hist.shift();this.port.postMessage(new Float32Array(160));}}
   process(inputs){const ch=inputs[0]&&inputs[0][0];if(!ch)return true;
-    for(let i=0;i<ch.length;i++){this.acc+=ch[i];this.n++;this.pos+=1;
-      if(this.pos>=this.r){this.f[this.fi++]=this.acc/this.n;this.acc=0;this.n=0;this.pos-=this.r;
+    for(let i=0;i<ch.length;i++){this.ring[this.ri]=ch[i];this.ri=(this.ri+1)%this.N;this.pos+=1;
+      if(this.pos>=this.r){let y=0;for(let k=0;k<this.N;k++)y+=this.taps[k]*this.ring[(this.ri+k)%this.N];
+        this.f[this.fi++]=y;this.pos-=this.r;
         if(this.fi===160){this.frame(this.f.slice());this.fi=0;}}}
     return true;}}registerProcessor('sm-cap',SmCap);
 class SmPlay extends AudioWorkletProcessor {
@@ -97,6 +107,8 @@ export type WsVoiceStats = {
   /** Olivia is sounding right now (for timing tests). */
   playing: boolean;
 };
+
+const voiceFlag = (k: string): string | undefined => (globalThis as Record<string, unknown>)[k] as string | undefined;
 
 export function createVoiceModeWs(opts: {
   sessionId: string;
@@ -234,6 +246,7 @@ export function createVoiceModeWs(opts: {
       // CSP blocks the CDN just gets the browser's own noise suppression.
       let ns: AudioWorkletNode | null = null;
       try {
+        if (voiceFlag('__SM_VOICE_NS__') === 'off') throw new Error('noise suppression off');
         const lib = (await import(/* @vite-ignore */ `${NS_LIB}/+esm`)) as NsLib;
         const [wasmBinary] = await Promise.all([
           lib.loadRnnoise({ url: `${NS_LIB}/dist/rnnoise.wasm`, simdUrl: `${NS_LIB}/dist/rnnoise_simd.wasm` }),
@@ -283,6 +296,8 @@ export function createVoiceModeWs(opts: {
     mic = stream;
     const source = c.createMediaStreamSource(stream);
     const cap = new AudioWorkletNode(c, 'sm-cap');
+    // Gate off: send the mic as-is and let the server's turn detector decide.
+    if (voiceFlag('__SM_VOICE_GATE__') === 'off') cap.port.postMessage({ bypass: true });
     capNode = cap;
     cap.port.onmessage = (e: MessageEvent<Float32Array>) => sendPcm(e.data);
     if (ns) {

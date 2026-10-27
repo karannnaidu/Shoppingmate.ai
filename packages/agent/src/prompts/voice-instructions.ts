@@ -114,7 +114,7 @@ export function buildVoiceSystemInstruction(
   ];
   if (opts.visitorSummary && opts.visitorSummary.trim().length > 0) {
     sections.push(
-      `RETURNING VISITOR — personalize warmly, greet them by name if known, and do NOT re-ask what you already know. Treat as known ONLY the specific facts written below — if a phone number, city, or address is not listed here, you do NOT have it on file, so ask for it normally and never invent one:\n${opts.visitorSummary.trim()}`,
+      `RETURNING VISITOR — use what you know to help (never re-greet them or open with "welcome back"), and do NOT re-ask what you already know. Treat as known ONLY the specific facts written below — if a phone number, city, or address is not listed here, you do NOT have it on file, so ask for it normally and never invent one:\n${opts.visitorSummary.trim()}`,
     );
   }
   if (opts.liveSignal && opts.liveSignal.trim().length > 0) {

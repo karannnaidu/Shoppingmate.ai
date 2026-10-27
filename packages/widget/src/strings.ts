@@ -4,7 +4,9 @@ export const STRINGS = {
   // connection health now.
   captionResting: 'AI ASSISTANT',
   captionIncoming: 'INCOMING CALL',
-  captionThinking: 'THINKING',
+  // Shown while the call is loading (Karan: "THINKING" read as the bot
+  // working on an answer, not the call starting).
+  captionThinking: 'CONNECTING…',
   captionConnected: 'CONNECTED',
   captionRetry: 'TAP TO RETRY',
   captionOffline: 'OFFLINE',

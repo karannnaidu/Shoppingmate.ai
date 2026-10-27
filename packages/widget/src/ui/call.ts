@@ -32,7 +32,7 @@ function errorHint(code: string): string {
 
 function statusText(props: CallProps): string {
   if (props.muted) return "you're muted";
-  if (props.voiceState === 'connecting') return `connecting to ${props.personaName}…`;
+  if (props.voiceState === 'connecting') return `connecting to ${props.personaName} · takes 1–3 seconds…`;
   if (props.voiceState === 'speaking') return `${props.personaName} is speaking…`;
   if (props.voiceState === 'listening') return `${props.personaName} is listening…`;
   return `${props.personaName} is ready`;

@@ -28,7 +28,7 @@ export type PillProps = TrayProps;
 // map Karan's reference screenshots (landinghero.ai) 1:1:
 //   resting    → small "Talk to {P}" + AI ASSISTANT + green Call button
 //   incoming   → "{P}" + INCOMING CALL (magenta) + green Accept + chat
-//   connecting → "{P}" + THINKING + spinner + mic(disabled) + End
+//   connecting → "{P}" + CONNECTING… + spinner + mic(disabled) + End
 //   connected  → "{P}" + CONNECTED + waveform + mic(mute) + End
 //   error      → "{P}" + TAP TO RETRY + Call(retry) + End  (panel shows why)
 type CallPhase = 'resting' | 'incoming' | 'connecting' | 'connected' | 'error';
