@@ -265,3 +265,18 @@ describe('VISITOR AWARENESS section', () => {
     expect(p).toContain('[VISITOR_CONTEXT]');
   });
 });
+
+describe('CUSTOMER CARE section', () => {
+  it('logs feedback straight away (no read-back) and never claims a log without the tool', () => {
+    const prev = process.env.CASE_CAPTURE;
+    process.env.CASE_CAPTURE = '*';
+    try {
+      const p = buildSystemPrompt(merchant);
+      expect(p).toMatch(/feedback[^\n]*call case\.open[^\n]*(right away|immediately)/i);
+      expect(p).toMatch(/read-back[^\n]*not for feedback|except feedback/i);
+      expect(p).toMatch(/never say[^\n]*logged[^\n]*unless[^\n]*case\.open/i);
+    } finally {
+      process.env.CASE_CAPTURE = prev;
+    }
+  });
+});

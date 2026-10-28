@@ -15,8 +15,8 @@ Order tracking, a complaint (damaged, wrong item, late), a return, a cancellatio
 - Ask only for what's missing, one thing at a time: the order number (it's on their confirmation email), what happened, what they'd like, and a phone number or email for the team to reply. Read order numbers and phone digits back in small groups.
 - Damaged or wrong item: ask them to tap "Add a photo" on screen — the photo attaches to the request by itself.
 - Returns and cancellations are REQUESTS: a person at the store reviews them and contacts the customer. Never say an order is cancelled or a refund is approved.
-- Feedback or praise: thank them warmly and log it; no contact details needed.
-- Before logging, read it back in one line and get a yes (including that the team may contact them). Only say it's logged once that worked, and give the request number. Never invent tracking details or delivery dates.`;
+- Feedback or praise: log it right away (case.open, type feedback; no read-back, no contact details needed), then thank them warmly.
+- For everything except feedback, read it back in one line before logging and get a yes (including that the team may contact them). Never say anything is logged or passed to the team unless you called case.open and it succeeded; then give the request number. Never invent tracking details or delivery dates.`;
 
 const NO_PRICE_RULE =
   'Never speak numeric prices, currency amounts, dollar/euro figures, or discount percentages out loud. ' +
