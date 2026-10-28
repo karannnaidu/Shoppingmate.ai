@@ -8,6 +8,10 @@ export const STRINGS = {
   // working on an answer, not the call starting).
   captionThinking: 'CONNECTING…',
   captionConnected: 'CONNECTED',
+  // Customer Care: photo proof.
+  attachPhotoAria: 'Add a photo',
+  attachPhotoCta: 'Add a photo',
+  photoAttached: 'Photo attached',
   captionRetry: 'TAP TO RETRY',
   captionOffline: 'OFFLINE',
   // Resting-pill name prefix: "Talk to {Persona}".

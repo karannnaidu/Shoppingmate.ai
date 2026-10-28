@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { Inbox, MessageCircle, Phone } from 'lucide-react';
+import { Camera, Inbox, MessageCircle, Package, Phone } from 'lucide-react';
 import { getDashboardSession } from '@/lib/session';
-import { type CaseFilter, caseCounts, listCases } from '@/lib/cases-repo';
+import { type CaseFilter, caseCounts, caseExtras, listCases } from '@/lib/cases-repo';
+import { ReplyForm } from './reply-form';
 import { CaseStatusButton } from './case-status-button';
 import { timeAgo } from '@/components/site-templates-card';
 import { setCaseStatus } from './actions';
@@ -19,6 +20,8 @@ const TYPE: Record<string, { label: string; tone: Tone }> = {
   order_tracking: { label: 'Where is my order?', tone: 'violet' },
   complaint: { label: 'Complaint', tone: 'amber' },
   return_refund: { label: 'Return / refund', tone: 'amber' },
+  cancellation_request: { label: 'Cancellation request', tone: 'amber' },
+  feedback: { label: 'Feedback', tone: 'signal' },
   bad_review: { label: 'Unhappy customer', tone: 'rose' },
   product_question: { label: 'Question we couldn’t answer', tone: 'violet' },
   consult: { label: 'Consultation', tone: 'signal' },
@@ -47,6 +50,8 @@ export default async function CasesPage({
     listCases({ merchantId: session.merchant.id, filter }),
     caseCounts(session.merchant.id),
   ]);
+  const extras = await caseExtras(session.merchant.id, rows.map((r) => r.id));
+  const NEEDS_APPROVAL = new Set(['return_refund', 'cancellation_request']);
 
   return (
     <div className="flex flex-col gap-6">
@@ -101,6 +106,9 @@ export default async function CasesPage({
             const details = Object.entries(c.details ?? {});
             const resolved = c.status === 'resolved';
             const contact = [c.contactPhone, c.contactEmail].filter(Boolean).join(' · ');
+            const photos = extras.photos.get(c.id) ?? [];
+            const timeline = (extras.events.get(c.id) ?? []).filter((e) => e.kind === 'reply_to_customer' || e.kind === 'note');
+            const inProgress = c.status === 'in_progress';
             return (
               <li
                 key={c.id}
@@ -115,11 +123,19 @@ export default async function CasesPage({
                   <Badge tone={t.tone}>{t.label}</Badge>
                   {c.urgency === 'high' && !resolved && <Badge tone="rose">Reply first</Badge>}
                   {resolved && <Badge tone="signal">Handled</Badge>}
+                  {inProgress && <Badge tone="violet">In progress</Badge>}
+                  {NEEDS_APPROVAL.has(c.type) && !resolved && <Badge tone="neutral">Needs your approval</Badge>}
                   <span className="text-xs text-text-muted">
                     #{c.id} · {timeAgo(c.createdAt)}
                   </span>
                 </div>
                 <p className="mt-3 text-[15px] font-medium leading-snug text-text-primary">{c.summary}</p>
+                {c.orderId && (
+                  <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-text-secondary">
+                    <Package className="h-3.5 w-3.5 text-text-muted" />
+                    Order <span className="font-medium text-text-primary">#{c.orderId}</span>
+                  </p>
+                )}
                 {details.length > 0 && (
                   <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 rounded-xl bg-surface-muted/60 p-3 text-sm sm:grid-cols-2">
                     {details.map(([k, v]) => (
@@ -136,12 +152,46 @@ export default async function CasesPage({
                   {c.contactName && contact ? <span className="text-text-muted">·</span> : null}
                   <span>{contact || (c.contactName ? '' : 'No contact shared')}</span>
                 </div>
+                {photos.length > 0 && (
+                  <div className="mt-3">
+                    <p className="mb-2 inline-flex items-center gap-1.5 text-xs text-text-muted">
+                      <Camera className="h-3.5 w-3.5" /> {photos.length} {photos.length === 1 ? 'photo' : 'photos'} from the customer
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {photos.map((pid) => (
+                        <a key={pid} href={`/app/cases/photo/${pid}`} target="_blank" rel="noopener" className="block overflow-hidden rounded-lg border border-border">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- private signed redirect, not optimisable */}
+                          <img src={`/app/cases/photo/${pid}`} alt={`Customer photo for request ${c.id}`} className="h-24 w-24 object-cover" loading="lazy" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {timeline.length > 0 && (
+                  <ul className="mt-3 flex flex-col gap-2 border-l-2 border-border pl-3">
+                    {timeline.map((e, i) => (
+                      <li key={i} className="text-sm">
+                        <span className="text-xs text-text-muted">
+                          {e.kind === 'reply_to_customer' ? 'Replied to customer' : 'Note'} · {timeAgo(e.createdAt)}
+                        </span>
+                        <p className="whitespace-pre-line text-text-secondary">{e.body}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
                   <form action={setCaseStatus}>
                     <input type="hidden" name="id" value={c.id} />
                     <input type="hidden" name="status" value={resolved ? 'open' : 'resolved'} />
-                    <CaseStatusButton resolved={resolved} />
+                    <CaseStatusButton to={resolved ? 'open' : 'resolved'} />
                   </form>
+                  {c.status === 'open' && (
+                    <form action={setCaseStatus}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <input type="hidden" name="status" value="in_progress" />
+                      <CaseStatusButton to="in_progress" />
+                    </form>
+                  )}
                   {c.sessionId && (
                     <Link
                       href={`/app/conversations/${c.sessionId}`}
@@ -151,6 +201,7 @@ export default async function CasesPage({
                       Read the conversation
                     </Link>
                   )}
+                  {!resolved && <ReplyForm caseId={c.id} toEmail={c.contactEmail} />}
                 </div>
               </li>
             );

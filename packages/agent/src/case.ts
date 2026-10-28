@@ -13,6 +13,10 @@ export const CASE_TYPES = [
   // visit request, and a price-estimate request.
   'booking',
   'quote',
+  // Customer Care PRD 2026-10-28: praise / suggestions, and a request to cancel
+  // an order (a person at the brand approves it and reaches out).
+  'feedback',
+  'cancellation_request',
   'other',
 ] as const;
 export type CaseOpenType = (typeof CASE_TYPES)[number];
@@ -27,6 +31,8 @@ export type CaseOpen = {
   consent: boolean;
   urgency: 'low' | 'normal' | 'high';
   sentiment: 'positive' | 'neutral' | 'negative' | 'angry';
+  /** The order this is about (from details.order_number), when given. */
+  orderId: string | null;
 };
 
 export type CaseValidation = { ok: true; value: CaseOpen } | { ok: false; reason: string };
@@ -64,8 +70,12 @@ export function validateCaseOpen(args: Record<string, unknown>, defaultCc = '+91
       if (s) details[k.slice(0, 40)] = s;
     }
   }
-  if (type === 'order_tracking' && !details.order_number && !details.orderNumber) {
+  const orderId = (details.order_number ?? details.orderNumber ?? details.order_id ?? '').replace(/^#/, '').trim() || null;
+  if (type === 'order_tracking' && !orderId) {
     return { ok: false, reason: 'ask for their order number before opening a tracking request' };
+  }
+  if ((type === 'cancellation_request' || type === 'return_refund') && !orderId) {
+    return { ok: false, reason: 'ask for their order number (it is on their confirmation email) before raising this request' };
   }
   if (type === 'booking') {
     const when = details.date ?? details.preferred_date ?? details.time ?? details.preferred_time ?? details.when;
@@ -84,10 +94,12 @@ export function validateCaseOpen(args: Record<string, unknown>, defaultCc = '+91
   const contactEmail = rawEmail ? (EMAIL_RE.test(rawEmail) ? rawEmail : null) : null;
   if (rawEmail && !contactEmail)
     return { ok: false, reason: 'that email address looks wrong — ask them to spell it' };
-  if (!contactPhone && !contactEmail) {
+  // Feedback needs no follow-up, so contact details are optional.
+  const needsContact = type !== 'feedback';
+  if (needsContact && !contactPhone && !contactEmail) {
     return { ok: false, reason: 'ask for a phone number or email so the team can follow up' };
   }
-  if (args.consent !== true) {
+  if ((needsContact || contactPhone || contactEmail) && args.consent !== true) {
     return {
       ok: false,
       reason: 'confirm the customer is happy to be contacted, then set consent to true',
@@ -109,7 +121,8 @@ export function validateCaseOpen(args: Record<string, unknown>, defaultCc = '+91
       contactName: str(contact.name ?? args.name, 80) || null,
       contactPhone,
       contactEmail,
-      consent: true,
+      consent: args.consent === true,
+      orderId,
       // Unhappy customers are always at least normal urgency; bad reviews high.
       urgency:
         type === 'bad_review'

@@ -20,6 +20,7 @@ export type { SubmitConsultationArgs } from './notify/submitConsultation.js';
 
 export const repos = { catalog, selectorCache: selectorCacheRepo };
 export { submitSupportCase, caseEmail, ownerEmails, emailOwners, emailTeam } from './notify/submitCase.js';
+export { careFrom, shopperCaseEmail, brandReplyTo, linkSessionPhotos, latestSessionCase, recordCaseEvent, sendCareEmail, caseLink, caseReplyEmail, sendCaseReply } from './notify/care.js';
 export { buildInsightFacts, purgeQaInsights, FUNNEL_STEPS } from './insights/facts.js';
 export type { InsightFacts, Leak, FunnelStep } from './insights/facts.js';
 export type { SubmitCaseArgs } from './notify/submitCase.js';

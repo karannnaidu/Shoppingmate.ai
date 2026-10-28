@@ -44,6 +44,7 @@ import { createInsightsRoute } from './routes/insights.js';
 import { createSiteTemplatesRoute } from './routes/siteTemplates.js';
 import { shopifyWebhookRoute } from './routes/webhooks/shopify.js';
 import { voiceTokenRoute } from './routes/voice-token.js';
+import { careRoute } from './routes/care.js';
 import { mountAgentWs } from './ws/agent.js';
 
 const app = new Hono();
@@ -77,6 +78,7 @@ app.route(
 // Nav Phase 8: Store Insights beacons (entitled merchants, INSIGHTS_TRACKING=1).
 app.route('/v1/insights', createInsightsRoute(new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })));
 app.route('/v1/voice/token', voiceTokenRoute);
+app.route('/v1/care', careRoute);
 app.route('/webhooks/shopify', shopifyWebhookRoute);
 
 // Without an explicit error handler, Hono turns any unhandled exception in a

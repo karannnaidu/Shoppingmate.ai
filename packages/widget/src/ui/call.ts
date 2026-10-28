@@ -1,6 +1,6 @@
 import type { TranscriptItem } from '../state/store.js';
 import { STRINGS } from '../strings.js';
-import { ICON_MINUS } from './icons.js';
+import { ICON_CAMERA, ICON_MINUS } from './icons.js';
 import { renderTranscript } from './transcript.js';
 
 export type CallProps = {
@@ -13,6 +13,9 @@ export type CallProps = {
   onClose: () => void;
   onCardTap: (p: { sku: string; variantId: string | null }) => void;
   onCheckout: () => void;
+  /** Customer Care: photo proof during a call. */
+  photosEnabled?: boolean;
+  onAttach?: () => void;
 };
 
 function errorHint(code: string): string {
@@ -53,7 +56,7 @@ function bodyFor(props: CallProps): Body {
 }
 
 function chromeKey(props: CallProps): string {
-  return `${bodyFor(props)}|${props.checkoutUrl ?? ''}|${props.personaName}|${props.voiceError?.code ?? ''}`;
+  return `${bodyFor(props)}|${props.photosEnabled ? 'p' : ''}|${props.checkoutUrl ?? ''}|${props.personaName}|${props.voiceError?.code ?? ''}`;
 }
 
 export function renderCall(host: HTMLElement, props: CallProps): void {
@@ -90,10 +93,12 @@ export function renderCall(host: HTMLElement, props: CallProps): void {
         <div class="status-line ${body === 'error' ? 'hidden' : ''}" data-region="status">${statusText(props)}</div>
         <div class="transcript ${transcriptHidden ? 'hidden' : ''}" data-region="transcript" aria-live="polite"></div>
         ${props.checkoutUrl ? `<a class="checkout-cta" data-action="checkout" href="${props.checkoutUrl}" target="_blank" rel="noopener">${STRINGS.payNow}</a>` : ''}
+        ${props.photosEnabled && body !== 'error' ? `<button class="call-attach" type="button" data-action="attach">${ICON_CAMERA}<span>${STRINGS.attachPhotoCta}</span></button>` : ''}
         <div class="panel-footer">${STRINGS.poweredBy}</div>
       </div>
     `;
     host.querySelector('[data-action="close"]')?.addEventListener('click', props.onClose);
+    host.querySelector('[data-action="attach"]')?.addEventListener('click', () => props.onAttach?.());
     host.querySelector('[data-action="checkout"]')?.addEventListener('click', props.onCheckout);
     host.dataset.chromeKey = key;
   }

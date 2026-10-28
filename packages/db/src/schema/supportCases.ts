@@ -14,6 +14,10 @@ export const caseTypes = [
   'consult',
   'booking',
   'quote',
+  // Customer Care PRD 2026-10-28: praise / suggestions, and a shopper asking to
+  // cancel (a person at the brand approves and reaches out).
+  'feedback',
+  'cancellation_request',
   'other',
 ] as const;
 export type CaseType = (typeof caseTypes)[number];
@@ -46,6 +50,10 @@ export const supportCases = pgTable(
     urgency: text('urgency').$type<CaseUrgency>().notNull().default('normal'),
     sentiment: text('sentiment').$type<CaseSentiment>().notNull().default('neutral'),
     status: text('status').$type<CaseStatus>().notNull().default('open'),
+    // The order this request is about, and what we knew of it when it was
+    // raised (status, items) so the brand needn't look it up.
+    orderId: text('order_id'),
+    orderSnapshot: jsonb('order_snapshot').$type<Record<string, unknown>>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),

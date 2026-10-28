@@ -1,6 +1,6 @@
 import { db } from './db';
-import { supportCases } from '@shoppingmate/db/schema';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { caseAttachments, caseEvents, supportCases } from '@shoppingmate/db/schema';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 // Nav PRD Phase 4 — the merchant's "Customer requests" inbox.
 
@@ -52,4 +52,31 @@ export async function bookingCounts(
     .from(supportCases)
     .where(and(eq(supportCases.merchantId, merchantId), inArray(supportCases.type, ['booking', 'quote'])));
   return { requests: row?.requests ?? 0, requestsPrev: row?.requestsPrev ?? 0, handled: row?.handled ?? 0 };
+}
+
+// Customer Care PRD: photo proof + the request's timeline (owner replies, notes).
+export type CaseExtras = {
+  photos: Map<number, number[]>;
+  events: Map<number, Array<{ kind: string; body: string | null; actor: string | null; createdAt: Date }>>;
+};
+
+export async function caseExtras(merchantId: string, caseIds: number[]): Promise<CaseExtras> {
+  const photos = new Map<number, number[]>();
+  const events: CaseExtras['events'] = new Map();
+  if (caseIds.length === 0) return { photos, events };
+  const [atts, evs] = await Promise.all([
+    db
+      .select({ id: caseAttachments.id, caseId: caseAttachments.caseId })
+      .from(caseAttachments)
+      .where(and(eq(caseAttachments.merchantId, merchantId), inArray(caseAttachments.caseId, caseIds)))
+      .orderBy(asc(caseAttachments.createdAt)),
+    db
+      .select({ caseId: caseEvents.caseId, kind: caseEvents.kind, body: caseEvents.body, actor: caseEvents.actor, createdAt: caseEvents.createdAt })
+      .from(caseEvents)
+      .where(inArray(caseEvents.caseId, caseIds))
+      .orderBy(asc(caseEvents.createdAt)),
+  ]);
+  for (const a of atts) if (a.caseId != null) photos.set(a.caseId, [...(photos.get(a.caseId) ?? []), a.id]);
+  for (const e of evs) events.set(e.caseId, [...(events.get(e.caseId) ?? []), e]);
+  return { photos, events };
 }

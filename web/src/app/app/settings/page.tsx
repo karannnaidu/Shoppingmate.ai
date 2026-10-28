@@ -9,6 +9,7 @@ import { DangerZone } from '@/components/dashboard/DangerZone';
 import { DashHeader } from '@/components/dashboard/v2';
 import { DomainsManager } from '@/components/dashboard/OnboardingWizard';
 import { BusinessTypeForm } from '@/components/dashboard/BusinessTypeForm';
+import { CustomerCareForm } from '@/components/dashboard/CustomerCareForm';
 import { db } from '@/lib/db';
 import { merchants } from '@shoppingmate/db/schema';
 import { eq } from 'drizzle-orm';
@@ -26,6 +27,7 @@ export default async function SettingsPage() {
       brandSummary: merchants.brandSummary,
       brandCategories: merchants.brandCategories,
       businessType: merchants.businessType,
+      supportEmail: merchants.supportEmail,
     })
     .from(merchants)
     .where(eq(merchants.id, session.merchant.id))
@@ -46,6 +48,11 @@ export default async function SettingsPage() {
         initialAccent={session.merchant.widgetAccent}
         initialLabel={session.merchant.widgetLabel}
         initialGreeting={session.merchant.widgetGreeting}
+      />
+      <CustomerCareForm
+        initialEmail={profile?.supportEmail ?? null}
+        ownerEmail={session.user.email}
+        brand={profile?.name ?? profile?.domain ?? 'Your store'}
       />
       <WebhookForm initial={session.merchant.leadWebhookUrl} />
       <InstallSnippet merchantId={session.merchant.id} lastPing={session.merchant.lastWidgetPing} />

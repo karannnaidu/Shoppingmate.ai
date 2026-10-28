@@ -1,6 +1,6 @@
 # PRD — Customer Care in the assistant: order tracking, complaints, feedback, photo proof
 
-**Date:** 2026-10-28 · **Owner:** Karan · **Status:** Draft for decision
+**Date:** 2026-10-28 · **Owner:** Karan · **Status:** Decided 2026-10-28 — Phase 1 in build
 **Builds on:** `2026-10-06-smart-site-navigation-and-case-capture-prd.md` (case capture is live; its Phase 7 "order lookup" was blocked).
 
 ## 1. Problem
@@ -149,10 +149,15 @@ Each phase ships behind a per-merchant flag and is verified the same way as voic
 - Brand time-to-first-reply on cases (dashboard) — track; target < 24h.
 - Zero order details shown to a shopper who failed the ownership check.
 
-## 11. Decisions needed from Karan
+## 11. Decisions (Karan, 2026-10-28)
 
-1. **Sender for shopper emails:** our domain with the brand's name + brand reply-to (recommended, zero setup), or require each brand to verify their own domain?
-2. **Aggregator:** start with **Shiprocket** (India, covers Calmosis) and add AfterShip later?
-3. **Shopify `read_all_orders`:** request it now (needs Shopify approval; covers orders older than 60 days) or ship with 60 days first?
-4. **Photo retention:** 180 days default?
-5. Should the bot be allowed to **start** a return/cancellation request in v1 (still human-approved), or tracking + complaints only?
+1. **Shopper email sender:** our domain with the brand's name, reply-to = brand support email. ✅
+2. **Shipping service:** **Shiprocket** first. **Plus a brand Order Data API**: brands' IT teams can *push* order + shipment updates to us (REST + webhook, signed with a per-brand key) — no endpoint on their side needed. We store the latest status and answer lookups from it. This replaces the "custom endpoint spec" as the default for custom backends (the pull endpoint stays optional).
+3. **Shopify history:** launch with the last **60 days**; the brand dashboard says "Order tracking covers orders from the last 60 days". Request `read_all_orders` later.
+4. **Photo retention:** **180 days**.
+5. **Returns & cancellations:** Olivia **can start** return and cancellation requests (new type `cancellation_request`; `return_refund` already exists). A person at the brand approves and contacts the shopper themselves; Olivia never promises approval.
+
+### 11.1 Brand Order Data API (from decision 2)
+- `POST /v1/orders` (upsert) and `POST /v1/orders/{orderNumber}/shipments` — JSON in the standard order shape (§6), auth `Authorization: Bearer <brand order key>` (created in Settings → Customer care). Idempotent on `orderNumber`.
+- Or point their system's webhook at `https://api.shoppingmate.ai/v1/orders/webhook/<merchantId>` with an HMAC signature header.
+- Stored in a new `orders` table (merchant_id, order_number, customer email/phone hash + last4, status, items, fulfillment, updated_at); lookups verify ownership against it.

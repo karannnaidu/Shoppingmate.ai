@@ -17,6 +17,7 @@ import {
   stripToolSyntax,
   lookupPersona,
   buildToolSurface,
+  caseCaptureEnabled,
   runToolCall,
   toCards,
   type RunTurnDeps,
@@ -461,6 +462,7 @@ export async function runVoiceSession(
       {
         kbText,
         demoMode,
+            customerCare: caseCaptureEnabled(merchant),
         brandSummary: merchant.brandSummary ?? undefined,
         brandCategories: merchant.brandCategories ?? undefined,
         visitorSummary,
@@ -514,6 +516,8 @@ export async function runVoiceSession(
     // We use mutable refs because the bridge is created in Phase B, but the
     // listener must be installed early to avoid missing start_voice events.
     let bridgeRef: import('./bridge.js').Bridge | null = null;
+    // Set once Gemini is open: a photo the shopper added mid-call.
+    let onCarePhoto: ((count: number) => void) | null = null;
     let resolveStartVoice: (() => void) | null = null;
     const startVoiceP = new Promise<void>((resolve) => {
       resolveStartVoice = resolve;
@@ -545,6 +549,10 @@ export async function runVoiceSession(
       }
       if (msg.type === 'host_action_result' && bridgeRef) {
         bridgeRef.deliverHostActionResult?.({ callId: msg.callId, result: msg.result });
+      }
+      if (msg.type === 'care_photo') {
+        log.info({ sessionId, count: msg.count }, 'care photo added during the call');
+        onCarePhoto?.(msg.count);
       }
     });
 
@@ -614,6 +622,7 @@ export async function runVoiceSession(
           {
             kbText,
             demoMode,
+            customerCare: caseCaptureEnabled(merchant),
             brandSummary: merchant.brandSummary ?? undefined,
             brandCategories: merchant.brandCategories ?? undefined,
             brandPlaybook: pb?.playbook,
@@ -1262,6 +1271,16 @@ export async function runVoiceSession(
           if (responses.length > 0) gemini.respondTool(responses);
         })
         .catch((err) => log.warn({ err, sessionId }, 'one-brain tool handling failed'));
+    };
+    // The shopper added photo proof from the call panel. Words, not digits:
+    // gemini.speak refuses digits (no-spoken-prices guard).
+    onCarePhoto = (count) => {
+      const n = count > 1 ? (count === 2 ? 'two photos' : 'three photos') : 'a photo';
+      gemini
+        .speak(
+          `SYSTEM: the visitor just added ${n} on screen. They are saved and will be attached to their request automatically (or already are). Briefly thank them and continue with the next step of their request.`,
+        )
+        .catch((err) => log.warn({ err }, 'care photo note failed'));
     };
     // The voice model holds the tools right now (false after a 2.5 fallback,
     // where the executor side-channel takes over again).

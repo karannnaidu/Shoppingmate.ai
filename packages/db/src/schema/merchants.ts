@@ -80,6 +80,13 @@ export const merchants = pgTable('merchants', {
     toneValue: number;
   } | null>(),
   leadWebhookUrl: text('lead_webhook_url'),
+  // Customer Care (PRD 2026-10-28): where shopper replies go (reply-to), care
+  // options (enabled types, photo retention), the brand's Order Data API key
+  // (sha256 hash) and its Shiprocket login (encrypted like the Shopify token).
+  supportEmail: text('support_email'),
+  careSettings: jsonb('care_settings').$type<Record<string, unknown>>(),
+  orderApiKeyHash: text('order_api_key_hash'),
+  shiprocketEnc: text('shiprocket_enc'),
   knowledgeBaseStatus: text('knowledge_base_status').notNull().default('empty'),
   lastWidgetPing: timestamp('last_widget_ping', { withTimezone: true }),
   /** Owner-chosen business type (clinic, restaurant, salon, services, fashion,

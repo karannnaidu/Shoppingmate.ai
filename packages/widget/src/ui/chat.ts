@@ -1,6 +1,6 @@
 import type { TranscriptItem } from '../state/store.js';
 import { STRINGS } from '../strings.js';
-import { ICON_SEND, ICON_X } from './icons.js';
+import { ICON_CAMERA, ICON_SEND, ICON_X } from './icons.js';
 import { renderTranscript } from './transcript.js';
 
 export type ChatProps = {
@@ -14,6 +14,9 @@ export type ChatProps = {
   onClose: () => void;
   onCardTap: (p: { sku: string; variantId: string | null }) => void;
   closed: boolean;
+  /** Customer Care: show the camera button (photo proof). */
+  photosEnabled?: boolean;
+  onAttach?: () => void;
 };
 
 // Chrome key captures everything in the panel shell except the transcript
@@ -22,7 +25,7 @@ export type ChatProps = {
 // input focus, and cause visible flicker.
 function chromeKey(props: ChatProps): string {
   const empty = props.transcript.length === 0 ? '1' : '0';
-  return `${empty}|${props.checkoutUrl ?? ''}|${props.closed ? '1' : '0'}|${props.personaName}|${props.personaInitial}|${props.personaAvatarUrl}`;
+  return `${empty}|${props.photosEnabled ? 'p' : ''}|${props.checkoutUrl ?? ''}|${props.closed ? '1' : '0'}|${props.personaName}|${props.personaInitial}|${props.personaAvatarUrl}`;
 }
 
 export function renderChat(host: HTMLElement, props: ChatProps): void {
@@ -60,6 +63,7 @@ export function renderChat(host: HTMLElement, props: ChatProps): void {
         <div class="transcript ${empty ? 'transcript-empty' : ''}" data-region="transcript" aria-live="polite"></div>
         ${props.checkoutUrl ? `<a class="checkout-cta" href="${props.checkoutUrl}" target="_blank" rel="noopener">${STRINGS.payNow}</a>` : ''}
         <form class="input-row">
+          ${props.photosEnabled ? `<button class="attach" type="button" data-action="attach" aria-label="${STRINGS.attachPhotoAria}" title="${STRINGS.attachPhotoAria}" ${props.closed ? 'disabled' : ''}>${ICON_CAMERA}</button>` : ''}
           <input type="text" placeholder="${STRINGS.chatPlaceholder}" ${props.closed ? 'disabled' : ''} />
           <button class="send" type="submit" aria-label="Send" ${props.closed ? 'disabled' : ''}>${ICON_SEND}</button>
         </form>
@@ -68,6 +72,7 @@ export function renderChat(host: HTMLElement, props: ChatProps): void {
     `;
 
     host.querySelector('[data-action="close"]')?.addEventListener('click', props.onClose);
+    host.querySelector('[data-action="attach"]')?.addEventListener('click', () => props.onAttach?.());
     // Welcome quick-start chips → send the matching starter prompt.
     host.querySelectorAll('.welcome-bullet').forEach((el) => {
       el.addEventListener('click', () => {

@@ -10,6 +10,14 @@ If the visitor's words come through as noise, mumbling, or gibberish — a stray
 const MULTILINGUAL_RULE = `LANGUAGE
 Detect the language and dialect the visitor speaks and reply in that same language. If they speak Hindi, reply in Hindi; if they mix languages (e.g. Hinglish), mirror that mix naturally; the same goes for any other language. Switch the moment the visitor switches — never force the conversation back to English. You may open in English, but from the visitor's first words onward, match their language. Judge the language from a real phrase, not a single word or sound: "hello", "hi", "okay", "yes" and the like are English — never answer them in Spanish or any other language; until the visitor actually speaks a phrase in another language, stay in English. Every rule below (no spoken prices, no invented facts, the guardrails) applies in every language.`;
 
+const VOICE_CARE_RULE = `CUSTOMER CARE (when they need the store team, not a product)
+Order tracking, a complaint (damaged, wrong item, late), a return, a cancellation, or feedback: help them raise a request for the team.
+- Ask only for what's missing, one thing at a time: the order number (it's on their confirmation email), what happened, what they'd like, and a phone number or email for the team to reply. Read order numbers and phone digits back in small groups.
+- Damaged or wrong item: ask them to tap "Add a photo" on screen — the photo attaches to the request by itself.
+- Returns and cancellations are REQUESTS: a person at the store reviews them and contacts the customer. Never say an order is cancelled or a refund is approved.
+- Feedback or praise: thank them warmly and log it; no contact details needed.
+- Before logging, read it back in one line and get a yes (including that the team may contact them). Only say it's logged once that worked, and give the request number. Never invent tracking details or delivery dates.`;
+
 const NO_PRICE_RULE =
   'Never speak numeric prices, currency amounts, dollar/euro figures, or discount percentages out loud. ' +
   'Do NOT invent or estimate prices ("a few hundred dollars", "around fifty bucks", etc) — those are hallucinations, not paraphrases. ' +
@@ -72,6 +80,8 @@ export type VoiceInstructionOpts = {
    *  WHAT'S WORKING FOR THIS BRAND section AFTER the brand summary / KB sections
    *  (so it can steer but never contradict the brand facts); omitted when empty. */
   brandPlaybook?: string;
+  /** Customer Care PRD: complaints / returns / cancellations / feedback / tracking via case.open. */
+  customerCare?: boolean;
 };
 
 export function buildVoiceSystemInstruction(
@@ -120,6 +130,7 @@ export function buildVoiceSystemInstruction(
   if (opts.liveSignal && opts.liveSignal.trim().length > 0) {
     sections.push(`LIVE SIGNAL (act on it): ${opts.liveSignal.trim()}`);
   }
+  if (opts.customerCare) sections.push(VOICE_CARE_RULE);
   if (brand?.domain?.includes('calmosis')) {
     sections.push(CALMOSIS_SELLING_RULE);
     sections.push(CALMOSIS_CHECKOUT_RULE);

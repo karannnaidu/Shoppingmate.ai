@@ -87,6 +87,9 @@ export function decodeWidgetMessage(raw: string): WidgetMessage | null {
     case 'start_voice':
       if (typeof obj.sessionId !== 'string') return null;
       return { type: 'start_voice', sessionId: obj.sessionId };
+    case 'care_photo':
+      if (typeof obj.sessionId !== 'string') return null;
+      return { type: 'care_photo', sessionId: obj.sessionId, count: Math.max(1, Math.min(3, Number(obj.count) || 1)) };
     case 'voice_timing': {
       if (typeof obj.sessionId !== 'string' || typeof obj.timings !== 'object' || obj.timings === null) return null;
       const timings: Record<string, number> = {};

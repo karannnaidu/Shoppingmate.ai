@@ -24,6 +24,8 @@ export type VoiceContextOpts = {
   /** Data-driven brand selling-playbook (from loadBrandPlaybook). Spread into
    *  buildVoiceSystemInstruction's opts; omitted when the brand has no playbook. */
   brandPlaybook?: string;
+  /** Customer Care rules (case.open) in the voice prompt. */
+  customerCare?: boolean;
 };
 
 export function resolveVoiceContext(

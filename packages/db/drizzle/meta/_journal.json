@@ -183,6 +183,13 @@
       "when": 1791403736607,
       "tag": "0025_tough_magik",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793179634426,
+      "tag": "0026_aromatic_archangel",
+      "breakpoints": true
     }
   ]
 }

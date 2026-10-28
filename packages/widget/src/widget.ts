@@ -12,6 +12,8 @@ import { receiptFor } from './host/receipts.js';
 import { setNavContext } from './host/templates.js';
 import { getOrCreateVisitorId } from './identity.js';
 import { markBotEngaged, startInsights } from './insights/tracker.js';
+import { MAX_PHOTOS, type UploadResult, pickPhotos, preparePhoto, uploadPhoto } from './care.js';
+import { STRINGS } from './strings.js';
 import { type PersonaDisplay, getPersonaDisplay, getPersonaPlaceholder } from './persona.js';
 import { type Store, createStore } from './state/store.js';
 import { SHADOW_CSS } from './styles/shadow.css.js';
@@ -155,6 +157,9 @@ class WidgetElement extends HTMLElement {
   private heldCaptions: import('./transport/codec.js').AgentEvent[] = [];
   private apiBase = '';
   private merchantId = '';
+  // Customer Care PRD: camera button for photo proof (merchant has care on).
+  private carePhotos = false;
+  private attaching = false;
   private domain = window.location.host;
   private stopActivityTracker: (() => void) | null = null;
   private inviteTimer: ReturnType<typeof setTimeout> | null = null;
@@ -464,6 +469,7 @@ class WidgetElement extends HTMLElement {
       });
     }
     this.voice = result.voice;
+    this.carePhotos = result.care?.photos === true;
     this.persona = getPersonaDisplay(result.personaId ?? result.voice?.personaId ?? null);
     // Apply the dashboard-configured launcher placement (unless the visitor has
     // dragged it somewhere, in which case their choice wins).
@@ -697,6 +703,8 @@ class WidgetElement extends HTMLElement {
         onClose: () => this.store.dispatch({ type: 'set_mode', mode: 'pill' }),
         onCardTap: (p) => this.cardTap(p),
         onCheckout: () => {},
+        photosEnabled: this.carePhotos,
+        onAttach: () => void this.attachPhotos(),
       });
     } else if (s.mode === 'chat' || s.mode === 'expanded') {
       renderChat(this.panelHost, {
@@ -710,6 +718,8 @@ class WidgetElement extends HTMLElement {
         onClose: () => this.store.dispatch({ type: 'set_mode', mode: 'pill' }),
         onCardTap: (p) => this.cardTap(p),
         closed: s.closed,
+        photosEnabled: this.carePhotos,
+        onAttach: () => void this.attachPhotos(),
       });
     } else {
       this.panelHost.innerHTML = '';
@@ -762,6 +772,40 @@ class WidgetElement extends HTMLElement {
     this.store.dispatch({ type: 'set_mode', mode: 'call' });
     this.voiceMode.start();
     this.ambience.start();
+  }
+
+  /** Photo proof: pick → resize/re-encode → upload → tell the shopper and Olivia. */
+  private async attachPhotos(): Promise<void> {
+    if (this.attaching) return;
+    const files = await pickPhotos();
+    if (files.length === 0) return;
+    this.attaching = true;
+    const sid = this.store.get().sessionId;
+    let ok = 0;
+    try {
+      for (const f of files.slice(0, MAX_PHOTOS)) {
+        let res: UploadResult;
+        try {
+          const photo = await preparePhoto(f);
+          res = await uploadPhoto({ apiBase: this.apiBase, merchantId: this.merchantId, sessionId: sid, photo });
+        } catch {
+          res = { ok: false, message: "That file isn't a photo we can read. Try a JPEG or PNG." };
+        }
+        if (res.ok) ok += 1;
+        else this.store.dispatch({ type: 'receipt', text: res.message, ok: false });
+      }
+    } finally {
+      this.attaching = false;
+    }
+    if (ok === 0) return;
+    this.store.dispatch({ type: 'receipt', text: `${STRINGS.photoAttached}${ok > 1 ? ` (${ok})` : ''}`, ok: true });
+    if (this.store.get().mode === 'call' && this.voiceMode.publishData) {
+      // Voice: the voice-agent tells Olivia so she can acknowledge it.
+      const bytes = new TextEncoder().encode(encodeWidgetMessage({ type: 'care_photo', sessionId: sid, count: ok }));
+      void this.voiceMode.publishData(bytes);
+    } else {
+      this.userText(ok > 1 ? `I've attached ${ok} photos.` : "I've attached a photo.", 'text');
+    }
   }
 
   private userText(text: string, mode: 'voice' | 'text') {

@@ -630,6 +630,29 @@ export const SHADOW_CSS = `
 .input-row .send:active:not(:disabled) { transform: translateY(0) scale(0.96); }
 .input-row .send:disabled { opacity: 0.4; cursor: not-allowed; }
 .input-row .send :where(svg) { width: 14px; height: 14px; }
+.input-row .attach {
+  width: 36px; height: 36px; flex: none;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+  display: grid; place-items: center;
+  transition: background 150ms ease-out, transform 150ms ease-out;
+}
+.input-row .attach:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
+.input-row .attach:active:not(:disabled) { transform: scale(0.96); }
+.input-row .attach:disabled { opacity: 0.4; cursor: not-allowed; }
+.input-row .attach :where(svg) { width: 16px; height: 16px; }
+.call-attach {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin: 0 16px 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #fafafa; font: inherit; font-size: 13px; cursor: pointer;
+}
+.call-attach:hover { background: rgba(255,255,255,0.1); }
+.call-attach :where(svg) { width: 16px; height: 16px; }
 
 .checkout-cta {
   display: block;

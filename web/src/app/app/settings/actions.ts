@@ -53,3 +53,17 @@ export async function saveWebhook(formData: FormData) {
     .where(eq(merchants.id, session.merchant.id));
   revalidatePath('/app/settings');
 }
+
+const CareSchema = z.object({ supportEmail: z.string().trim().email().max(200).or(z.literal('')) });
+
+// Customer Care PRD: where shopper replies go ("reply-to" on every care email).
+export async function saveCareSettings(formData: FormData) {
+  const hdrs = await headers();
+  const session = await getDashboardSession({ headers: hdrs });
+  if (!session?.merchant) throw new Error('unauthorized');
+  const parsed = CareSchema.parse({ supportEmail: formData.get('supportEmail') ?? '' });
+  await db.update(merchants)
+    .set({ supportEmail: parsed.supportEmail || null })
+    .where(eq(merchants.id, session.merchant.id));
+  revalidatePath('/app/settings');
+}

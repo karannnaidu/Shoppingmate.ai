@@ -16,6 +16,21 @@ afterEach(() => {
   delete process.env.CASE_CAPTURE;
 });
 
+describe('validateCaseOpen() — customer care types', () => {
+  it('feedback needs no contact details or consent', () => {
+    expect(validateCaseOpen({ type: 'feedback', summary: 'Loved the Sleep Mantra, slept well', sentiment: 'positive' })).toMatchObject({
+      ok: true,
+      value: { type: 'feedback', contactPhone: null, contactEmail: null, consent: false, orderId: null },
+    });
+  });
+  it('cancellations and returns need the order number, which becomes orderId', () => {
+    const cancel = { type: 'cancellation_request', summary: 'Wants to cancel, ordered by mistake', contact: { email: 'a@b.com' }, consent: true };
+    expect(validateCaseOpen(cancel)).toMatchObject({ ok: false, reason: expect.stringMatching(/order number/) });
+    expect(validateCaseOpen({ ...cancel, details: { order_number: '#1043' } })).toMatchObject({ ok: true, value: { orderId: '1043' } });
+    expect(validateCaseOpen({ ...cancel, type: 'return_refund', details: {} })).toMatchObject({ ok: false });
+  });
+});
+
 describe('validateCaseOpen()', () => {
   it('accepts a complete tracking case and normalises the phone', () => {
     const v = validateCaseOpen(ok, '+91');

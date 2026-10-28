@@ -18,6 +18,7 @@ import { runNightlyQa } from './jobs/nightlyQa.js';
 import { runScanSiteTemplates } from './jobs/scanSiteTemplates.js';
 import { runDriftDetect } from './cron/driftDetect.js';
 import { runPlaybookRefresh } from './cron/refreshPlaybooks.js';
+import { purgeCarePhotos } from './cron/purgeCarePhotos.js';
 import { downloadKbObject } from './r2-download.js';
 
 const worker = new Worker<OnboardingJobData>(
@@ -236,6 +237,13 @@ const playbookWorker = new Worker(
   { connection: createRedisConnection(), concurrency: 1 },
 );
 
+// Customer Care PRD: delete shopper photo proof older than 180 days (5am UTC).
+const carePurgeQueue = new Queue('care-photo-purge', { connection: createRedisConnection() });
+await carePurgeQueue.add('daily', {}, { repeat: { pattern: '0 5 * * *' } });
+const carePurgeWorker = new Worker('care-photo-purge', async () => purgeCarePhotos(), { connection: createRedisConnection(), concurrency: 1 });
+carePurgeWorker.on('completed', (job, rv) => logger.info({ jobId: job.id, result: rv }, 'care-photo-purge completed'));
+carePurgeWorker.on('failed', (job, err) => logger.error({ jobId: job?.id, err: err.message }, 'care-photo-purge failed'));
+
 playbookWorker.on('ready', () => logger.info('brand-playbook-refresh worker ready'));
 playbookWorker.on('completed', (job) => logger.info({ jobId: job.id }, 'brand-playbook-refresh completed'));
 playbookWorker.on('failed', (job, err) =>
@@ -252,6 +260,8 @@ const shutdown = async (signal: string) => {
     driftQueue.close(),
     playbookWorker.close(),
     playbookQueue.close(),
+    carePurgeWorker.close(),
+    carePurgeQueue.close(),
     templateScanWorker.close(),
     qaWorker.close(),
     insightsWorker.close(),

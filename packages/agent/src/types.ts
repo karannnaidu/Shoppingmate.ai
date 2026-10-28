@@ -30,6 +30,8 @@ export type WidgetMessage =
   | { type: 'start_voice'; sessionId: string }
   /** Widget-measured call startup (ms since the visitor tapped Call). */
   | { type: 'voice_timing'; sessionId: string; timings: Record<string, number> }
+  // Customer Care PRD: the shopper attached photo proof (uploaded to /v1/care/upload).
+  | { type: 'care_photo'; sessionId: string; count: number }
   | {
       type: 'visitor_action';
       sessionId: string;
