@@ -96,16 +96,22 @@ export function validateCaseOpen(args: Record<string, unknown>, defaultCc = '+91
   >;
   const rawPhone = str(contact.phone ?? args.phone, 40);
   const rawEmail = str(contact.email ?? args.email, 120).toLowerCase();
-  const contactPhone = rawPhone ? normalizePhone(rawPhone, defaultCc) : null;
+  let contactPhone = rawPhone ? normalizePhone(rawPhone, defaultCc) : null;
   if (rawPhone && !contactPhone)
     return { ok: false, reason: 'that phone number looks incomplete — ask them to repeat it' };
-  const contactEmail = rawEmail ? (EMAIL_RE.test(rawEmail) ? rawEmail : null) : null;
+  let contactEmail = rawEmail ? (EMAIL_RE.test(rawEmail) ? rawEmail : null) : null;
   if (rawEmail && !contactEmail)
     return { ok: false, reason: 'that email address looks wrong — ask them to spell it' };
   // Feedback needs no follow-up, so contact details are optional.
   const needsContact = type !== 'feedback';
   if (needsContact && !contactPhone && !contactEmail) {
     return { ok: false, reason: 'ask for a phone number or email so the team can follow up' };
+  }
+  // Feedback without consent (the contact may have been auto-filled from an
+  // earlier booking): log the feedback, just without a way to contact them.
+  if (!needsContact && args.consent !== true) {
+    contactPhone = null;
+    contactEmail = null;
   }
   if ((needsContact || contactPhone || contactEmail) && args.consent !== true) {
     return {

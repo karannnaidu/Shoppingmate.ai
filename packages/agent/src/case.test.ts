@@ -138,3 +138,10 @@ describe('validateCaseOpen — field names the model actually uses', () => {
     expect(r).toMatchObject({ ok: true, value: { orderId: '48214' } });
   });
 });
+
+describe('validateCaseOpen — feedback never blocks on consent', () => {
+  it('logs feedback without the contact when consent was not given', () => {
+    const r = validateCaseOpen({ type: 'feedback', summary: 'Loved the team last time', contact: { name: 'QA', phone: '98765 43210' }, consent: false });
+    expect(r).toMatchObject({ ok: true, value: { type: 'feedback', contactPhone: null } });
+  });
+});
