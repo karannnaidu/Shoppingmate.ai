@@ -14,7 +14,7 @@ export function Logo({ className = "" }: { className?: string }) {
         <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-cyan ring-2 ring-background" />
       </span>
       <span className="text-[15px] font-semibold tracking-tight">
-        shoppingmate<span className="text-text-muted">.ai</span>
+        shoppingmate<span className="text-text-muted">.shop</span>
       </span>
     </div>
   );

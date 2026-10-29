@@ -22,6 +22,9 @@ try {
     insert into merchants (id, name, domain, allowed_domains, status, adapter_config, plan, business_type)
     values (${MERCHANT_ID}, 'Demo Store (sample data)', 'demo.shoppingmate.shop', ${['demo.shoppingmate.shop']}, 'live', ${sql.json({})}, 'starter', 'beauty')
     on conflict (id) do update set name = excluded.name`;
+  // Past onboarding, so reviewers see the full dashboard (Billing still shows
+  // plan changes and conversation packs through Razorpay).
+  await sql`update merchants set billing_status = 'active', last_widget_ping = now() where id = ${MERCHANT_ID}`;
 
   let [user] = await sql`select id from users where email = ${EMAIL}`;
   if (!user) {
