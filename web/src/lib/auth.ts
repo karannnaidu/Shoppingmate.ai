@@ -33,7 +33,10 @@ function getAuth(): AuthInstance {
       ...(process.env.AUTH_TRUSTED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     ],
     secret: process.env.BETTER_AUTH_SECRET,
-    emailAndPassword: { enabled: false },
+    // Password sign-in exists only for accounts we create ourselves (e.g. the
+    // payment-gateway reviewer's demo login). Nobody can sign up with a
+    // password — brand owners keep using magic links.
+    emailAndPassword: { enabled: true, disableSignUp: true },
     socialProviders:
       googleClientId && googleClientSecret
         ? {

@@ -5,6 +5,7 @@ import { MailCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { PasswordSignIn } from '@/components/auth/PasswordSignIn';
 
 // Shared magic-link form for /login and /signup (same endpoint, different
 // copy + callback). Includes a clear "check your inbox" state with resend.
@@ -139,6 +140,7 @@ export function MagicLinkForm({
             {loading ? 'Sending…' : mode === 'login' ? 'Email me a sign-in link' : 'Create my account'}
           </Button>
         </form>
+        {mode === 'login' && <PasswordSignIn callbackURL={callbackURL} />}
         <p className="text-center text-sm text-text-muted">
           {mode === 'login' ? (
             <>
