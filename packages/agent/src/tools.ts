@@ -762,7 +762,7 @@ const DEMO_TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          plan_id: { type: 'string', enum: ['starter', 'growth', 'enterprise'] },
+          plan_id: { type: 'string', enum: ['starter', 'growth', 'scale', 'enterprise'] },
         },
         required: ['plan_id'],
       },

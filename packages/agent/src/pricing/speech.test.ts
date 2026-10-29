@@ -36,7 +36,13 @@ describe('formatPlanSpeech()', () => {
 
   it('renders the Growth plan', () => {
     expect(formatPlanSpeech(findPlan('growth')!)).toBe(
-      'Growth is sixty dollars per month for five hundred conversations.',
+      'Growth is ninety-nine dollars per month for three hundred fifty conversations.',
+    );
+  });
+
+  it('renders the Scale plan', () => {
+    expect(formatPlanSpeech(findPlan('scale')!)).toBe(
+      'Scale is two hundred ninety-nine dollars per month for one thousand conversations.',
     );
   });
 
