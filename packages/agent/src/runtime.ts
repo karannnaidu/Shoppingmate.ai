@@ -43,6 +43,8 @@ import { resolveVariant } from './variant.js';
 // smoke stays cheap. Both env-overridable; no code change to retune.
 const CHECKOUT_SIGNAL =
   /\b\d{6,}\b|@[\w.-]+\.\w|\b(check\s?out|place (the |my )?order|delivery address|pin\s?code)\b/i;
+const CARE_SIGNAL =
+  /\b(feedback|suggestion|thank(s| you)|loved|great experience|complain\w*|damaged|broken|wrong (item|size|product)|refund|return(ing)?|cancel\w*|where is my (order|parcel|package)|track(ing)?|book(ing)?|reserv\w*|appointment|schedule|meeting|demo|call ?back|quote|estimate|enquir\w*|inquir\w*)\b/i;
 // Tools that only fire during the checkout flow — calling one means we're in
 // checkout, so the session sticks to the precise model from then on.
 const CHECKOUT_FLOW_TOOLS = new Set([
@@ -66,7 +68,10 @@ export function pickTurnModel(
   // no keyword) are still captured accurately. Otherwise gate on the signal.
   const isCheckoutTurn =
     inCheckout === true || (message.type === 'user_text' && CHECKOUT_SIGNAL.test(message.text));
-  return isCheckoutTurn ? precise : cheap;
+  // A request for the team (feedback, complaint, booking, order help) must end in
+  // case.open — the cheap model often just replies "thanks!" and logs nothing.
+  const isCareTurn = message.type === 'user_text' && CARE_SIGNAL.test(message.text);
+  return isCheckoutTurn || isCareTurn ? precise : cheap;
 }
 const MAX_TOOL_LOOP_ITERATIONS = 8;
 const RETRY_LIMIT_PER_TOOL = 3;

@@ -1095,3 +1095,27 @@ describe('toHostAction (page-control mapping)', () => {
     });
   });
 });
+
+describe('pickTurnModel — requests for the team', () => {
+  const orig = { ...process.env };
+  afterEach(() => {
+    process.env = { ...orig };
+  });
+  const m = (text: string) => ({ type: 'user_text', sessionId: 's', text, mode: 'text' }) as const;
+  it('uses the precise model for feedback, complaints, bookings and order help', () => {
+    process.env.OPENROUTER_MODEL = 'cheap/x';
+    process.env.OPENROUTER_CHECKOUT_MODEL = 'precise/y';
+    for (const t of [
+      'Just wanted to say thanks: the team was lovely last time, great experience!',
+      'My order arrived damaged, I want a refund',
+      'Can I book a table for 4 this Saturday?',
+      'I would like to schedule a demo meeting with your team',
+      'Where is my order?',
+      'Please cancel my order',
+      'Some feedback: the checkout page is confusing',
+    ]) {
+      expect(pickTurnModel(m(t), undefined), t).toBe('precise/y');
+    }
+    expect(pickTurnModel(m('do you have this in blue?'), undefined)).toBe('cheap/x');
+  });
+});

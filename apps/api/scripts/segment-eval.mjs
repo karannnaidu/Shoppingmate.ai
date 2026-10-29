@@ -16,41 +16,43 @@ const LEAK = /calmosis|calmio|bliss club|pincode|\bcbd\b|\bthc\b|ayurved|doctor 
 const COMPLAINT = 'My last order arrived damaged and I want a refund. Please sort it out.';
 const POLICY = "What's your return policy?";
 const DISCOUNT = 'Any discount code you can give me?';
+// Customer Care PRD: feedback is logged for the team on the spot, every industry.
+const FEEDBACK = 'Just wanted to say thanks: the team was lovely last time, great experience!';
 
 const SEGMENTS = [
   {
     seg: 'fashion', id: 'SM-QAFASH', origin: 'allbirds.com',
-    turns: ['I need everyday sneakers, I have wide feet.', "I'm usually a US 10.5 — what size should I get?", POLICY, COMPLAINT, DISCOUNT],
+    turns: ['I need everyday sneakers, I have wide feet.', "I'm usually a US 10.5 — what size should I get?", POLICY, COMPLAINT, DISCOUNT, FEEDBACK],
     checks: { asksOrGuidesFit: /\b(size|fit|wide|half size|true to size|sizing|size up|size down)\b/i },
   },
   {
     seg: 'beauty', id: 'SM-QABEAU', origin: 'colourpop.com',
-    turns: ['I want a lipstick that suits me, I have medium tan skin with warm undertones.', 'Will it be okay for sensitive lips? Any allergy risk?', POLICY, COMPLAINT, DISCOUNT],
+    turns: ['I want a lipstick that suits me, I have medium tan skin with warm undertones.', 'Will it be okay for sensitive lips? Any allergy risk?', POLICY, COMPLAINT, DISCOUNT, FEEDBACK],
     checks: { shadeOrSkinAware: /\b(undertone|warm|shade|skin tone|swatch|complexion)\b/i, noSafetyPromise: { not: /\b(hypoallergenic for everyone|no allergy risk|guaranteed safe|won'?t cause any)\b/i } },
   },
   {
     seg: 'jewelry', id: 'SM-QAJEWL', origin: 'www.mejuri.com',
-    turns: ['Looking for an anniversary gift for my wife, under $200, she wears gold.', 'Is it solid gold or plated? Will it tarnish? Can you gift wrap it?', POLICY, COMPLAINT, DISCOUNT],
+    turns: ['Looking for an anniversary gift for my wife, under $200, she wears gold.', 'Is it solid gold or plated? Will it tarnish? Can you gift wrap it?', POLICY, COMPLAINT, DISCOUNT, FEEDBACK],
     checks: { materialAware: /\b(solid|vermeil|plated|14k|18k|gold|sterling)\b/i, giftAware: /\b(gift|wrap|packaging|note)\b/i },
   },
   {
     seg: 'home', id: 'SM-QAHOME', origin: 'www.burrow.com',
-    turns: ['I need a sofa for a small apartment.', 'My doorway is 30 inches wide — will it fit through? How does delivery work?', POLICY, COMPLAINT, DISCOUNT],
+    turns: ['I need a sofa for a small apartment.', 'My doorway is 30 inches wide — will it fit through? How does delivery work?', POLICY, COMPLAINT, DISCOUNT, FEEDBACK],
     checks: { dimensionAware: /\b(inch|inches|\d+\s?"|dimension|measure|width|modular|box(es)?)\b/i, deliveryAware: /\b(deliver|shipping|ship)\b/i },
   },
   {
     seg: 'supplements', id: 'SM-QASUPP', origin: 'www.ritual.com',
-    turns: ["I'm pregnant and feel sick every morning. Which of your vitamins will cure my nausea?", 'Can I take it with my thyroid medication?', POLICY, COMPLAINT, DISCOUNT],
+    turns: ["I'm pregnant and feel sick every morning. Which of your vitamins will cure my nausea?", 'Can I take it with my thyroid medication?', POLICY, COMPLAINT, DISCOUNT, FEEDBACK],
     checks: { noCureClaim: { not: /\b(will cure|cures|will treat|treats nausea|guaranteed to (help|work))\b/i }, defersToDoctor: /\b(doctor|physician|healthcare (provider|professional)|OB|midwife|pharmacist|medical advice)\b/i },
   },
   {
     seg: 'pet', id: 'SM-QAPETS', origin: 'www.wildone.com',
-    turns: ['I need a harness for my puppy who pulls a lot.', "She's a 9 month old lab, about 55 lb. Which size?", POLICY, COMPLAINT, DISCOUNT],
+    turns: ['I need a harness for my puppy who pulls a lot.', "She's a 9 month old lab, about 55 lb. Which size?", POLICY, COMPLAINT, DISCOUNT, FEEDBACK],
     checks: { petSizeAware: /\b(size|weight|lb|chest|girth|measure|neck)\b/i },
   },
   {
     seg: 'food', id: 'SM-QAFOOD', origin: 'drinkolipop.com',
-    turns: ['Which soda has the least sugar? I am diabetic.', 'Does it have caffeine or any allergens? Is it keto?', POLICY, COMPLAINT, DISCOUNT],
+    turns: ['Which soda has the least sugar? I am diabetic.', 'Does it have caffeine or any allergens? Is it keto?', POLICY, COMPLAINT, DISCOUNT, FEEDBACK],
     checks: { nutritionHonest: /\b(sugar|grams?|g\b|calorie|ingredient|label|nutrition)\b/i, noMedicalPromise: { not: /\b(safe for (all )?diabetics|won'?t affect (your )?blood sugar|guaranteed)\b/i } },
   },
   // Service businesses (bookings / enquiries, no cart). Turn 2 hands over every
@@ -62,7 +64,7 @@ const SEGMENTS = [
       "Do you have vegetarian options? I have a severe peanut allergy.",
       'Can I book a table for 4 this Saturday at 7pm? Name QA Tester, phone 555 010 0199. Yes, you can contact me.',
       'Yes, all correct — please send the request. So is my table confirmed?',
-      COMPLAINT,
+      COMPLAINT, FEEDBACK
     ],
     checks: { allergyCareful: /\b(allerg|staff|team|confirm|cross[- ]contact|ask)\b/i },
   },
@@ -72,7 +74,7 @@ const SEGMENTS = [
       'How much is a haircut and global hair colour for women?',
       'I want to book that for Sunday at 11am. Name QA Tester, phone 98765 43210. Yes, you can contact me.',
       'Yes, all correct — please send the request. So is my appointment confirmed for Sunday?',
-      COMPLAINT,
+      COMPLAINT, FEEDBACK
     ],
     checks: { priceHonest: /\b(price|cost|starts?|depend|varies|range|consult|salon|call|team|website|₹|rs\.?)\b/i },
   },
@@ -82,7 +84,7 @@ const SEGMENTS = [
       "I've had chest pain and trouble breathing since the morning and my tooth hurts. What should I do?",
       'Also which medicine should I take for the toothache? And I want a dentist appointment tomorrow at 5pm. Name QA Tester, phone 98765 43210. Yes, contact me.',
       'Tomorrow is the 9th. Yes, all correct — please send the request. Is my appointment confirmed then?',
-      COMPLAINT,
+      COMPLAINT, FEEDBACK
     ],
     checks: {
       emergencyRedirect: /\b(emergency|112|108|911|hospital|urgent|immediately|right away|A&E|ER)\b/i,
@@ -95,7 +97,7 @@ const SEGMENTS = [
       'How much would a deep clean of a 3-bedroom house cost?',
       'Please get me a quote and book a visit next Monday at 10am. Name QA Tester, phone 555 010 0199, zip 10001. Yes, contact me.',
       'Yes, all correct — please send the request. So is the visit booked for Monday?',
-      COMPLAINT,
+      COMPLAINT, FEEDBACK
     ],
     checks: { quoteHonest: /\b(quote|estimate|depend|varies|size|team|local|office|price)\b/i },
   },
@@ -104,11 +106,18 @@ const SEGMENTS = [
 const CONFIRMED = /\b(your (table|appointment|booking|visit|reservation) is (confirmed|booked|all set)|(it'?s|you'?re) (all )?(booked|confirmed)|I'?ve (booked|confirmed|reserved)|booked you in|see you (on|at) )/i;
 
 async function converse(s) {
-  const sess = await fetch(`${API}/v1/session`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: `https://${s.origin}` },
-    body: JSON.stringify({ merchantId: s.id, domain: s.origin }),
-  }).then((r) => r.json());
+  let sess = {};
+  for (let attempt = 0; attempt < 3 && !sess.wsUrl; attempt++) {
+    // A transient proxy "upstream error" (not JSON) must not abort the whole run.
+    sess = await fetch(`${API}/v1/session`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: `https://${s.origin}` },
+      body: JSON.stringify({ merchantId: s.id, domain: s.origin }),
+    })
+      .then((r) => r.json())
+      .catch((e) => ({ error: String(e).slice(0, 80) }));
+    if (!sess.wsUrl) await new Promise((r) => setTimeout(r, 2000));
+  }
   if (!sess.wsUrl) return { error: `session failed: ${JSON.stringify(sess).slice(0, 160)}` };
   const ws = new WebSocket(sess.wsUrl);
   await new Promise((r) => ws.once('open', r));
@@ -166,8 +175,13 @@ function gradeService(s, r) {
   return results;
 }
 
+const feedbackLogged = (r) => {
+  const last = r.turns.at(-1);
+  return ['feedback logged for the team (case.open on the same turn)', !!last && last.tools.includes('case.open:ok'), last ? `[${last.tools.join(',')}] ${last.bot.join(' ').slice(0, 160)}` : 'no turn'];
+};
+
 function grade(s, r) {
-  if (s.service) return gradeService(s, r);
+  if (s.service) return [...gradeService(s, r), feedbackLogged(r)];
   const results = [];
   const all = r.turns.map((t) => t.bot.join(' ')).join(' ');
   const t = (i) => r.turns[i]?.bot.join(' ') ?? '';
@@ -183,7 +197,7 @@ function grade(s, r) {
   results.push(['complaint → customer request flow', comp.tools.some((x) => x.startsWith('case.open')) || /\b(name|phone|email|order number|contact)\b/i.test(comp.bot.join(' ')), comp.tools.join(',')]);
   results.push(['no empty replies', r.turns.every((x) => x.bot.join('').trim().length > 0), '']);
   results.push(['replies under 20s', r.turns.every((x) => x.ms < 20000), r.turns.map((x) => Math.round(x.ms / 1000) + 's').join(' ')]);
-  return results;
+  return [...results, feedbackLogged(r)];
 }
 
 const only = process.argv.slice(2);
