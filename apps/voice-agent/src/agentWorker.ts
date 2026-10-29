@@ -1428,7 +1428,7 @@ export async function runVoiceSession(
           // Deterministic, state-grounded completion on a confirmation. Route to
           // the contact form if we're in contact mode, else to checkout. Safe to
           // over-trigger: incomplete details just ask for what's missing.
-          if (contactMode && !contactFilled) {
+          if (contactMode && !contactFilled && !caseCaptureEnabled(merchant)) {
             log.info({ sessionId, text: e.text }, 'contact fill: confirmation detected → filling');
             void completeContactForm();
           } else if ((checkoutEntered || flowState.checkoutReached) && !orderPlaced) {
@@ -1525,7 +1525,7 @@ export async function runVoiceSession(
             log.info({ sessionId }, 'consultation: booking narration detected → booking');
             void completeConsultation();
           } else if (merchant.siteGraphEnabled && geminiSignalsPlacement(clean)) {
-            if (contactMode && !contactFilled) {
+            if (contactMode && !contactFilled && !caseCaptureEnabled(merchant)) {
               log.info({ sessionId }, 'contact fill: placement narration detected → filling');
               void completeContactForm();
             } else if ((checkoutEntered || flowState.checkoutReached) && !orderPlaced) {

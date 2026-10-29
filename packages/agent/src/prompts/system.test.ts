@@ -296,3 +296,17 @@ describe('demo (shoppingmate.shop) requests', () => {
     }
   });
 });
+
+describe('voice rules from the 2026-10-29 conversation review', () => {
+  it('Calmosis enquiries go to the team as a request, with the guardrails', async () => {
+    const { buildVoiceSystemInstruction, lookupPersona } = await import('../index.js');
+    const v = buildVoiceSystemInstruction(lookupPersona('sage'), { name: 'Calmosis', domain: 'calmosis.com', platform: null, businessType: null }, { customerCare: true });
+    expect(v).toMatch(/SENDING A MESSAGE \/ ENQUIRY TO THE TEAM/);
+    expect(v).not.toMatch(/tap "Send Message"/);
+    expect(v).toMatch(/NOT A RECREATIONAL PRODUCT/);
+    expect(v).toMatch(/EMAILS ON A CALL/);
+    expect(v).toMatch(/lone foreign word/);
+    const off = buildVoiceSystemInstruction(lookupPersona('sage'), { name: 'Calmosis', domain: 'calmosis.com', platform: null, businessType: null }, {});
+    expect(off).toMatch(/Contact us/);
+  });
+});
