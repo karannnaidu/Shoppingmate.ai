@@ -33,7 +33,7 @@ const SECTIONS: { heading: string; body: string }[] = [
   },
   {
     heading: 'Pricing tiers',
-    body: `Pricing has four tiers based on monthly conversation volume. The Starter tier is for stores under 10K visits per month and includes text-only conversations and basic tools. The Growth tier adds voice mode, the brand dashboard, and KB uploads, and is the most popular tier for stores doing 10K–100K visits. The Scale tier supports up to 500K visits and adds priority routing and analytics. The Pro tier is unlimited volume with custom personas, white-label, and a named CSM. Exact dollar amounts are on the pricing page — paraphrase rather than quote raw numbers in conversation.`,
+    body: `Three monthly plans, priced by conversations (1 conversation = 1 credit, text or voice). Every plan includes Olivia by voice and chat on every page, cart, discount-code and checkout help, customer requests (complaints, returns, bookings, feedback) sent to your inbox, a dashboard with every conversation, and training on your products and policies. Starter: 100 conversations a month. Growth (most popular): 350 conversations a month, plus Store Insights — where shoppers get stuck, a weekly list of fixes in plain English, heatmaps by page type and a weekly Insights email, up to 50,000 tracked visits a month. Scale: 1,000 conversations a month, plus detailed shopper journeys, Insights export for the team, twice the page-level history and 250,000 tracked visits a month. Extra conversation packs can be bought any time. Bigger needs: write to hello@shoppingmate.shop for a custom plan. Exact prices are on the pricing page.`,
   },
   {
     heading: 'Voice vs text mode',
@@ -45,7 +45,7 @@ const SECTIONS: { heading: string; body: string }[] = [
   },
   {
     heading: 'Brand dashboard',
-    body: `Each brand gets a web dashboard at app.shoppingmate.shop showing live conversations, conversion analytics, KB document management, persona selection, billing, and team members. Operators can review transcripts, see which products got the most interest, and tune Sage's behavior with KB uploads. The dashboard does not double as Slack — Slack is reserved for shoppingmate's own internal ops. Brand-side notifications go through email or webhook.`,
+    body: `Each brand gets a web dashboard at www.shoppingmate.shop/app showing live conversations, conversion analytics, KB document management, persona selection, billing, and team members. Operators can review transcripts, see which products got the most interest, and tune Sage's behavior with KB uploads. The dashboard does not double as Slack — Slack is reserved for shoppingmate's own internal ops. Brand-side notifications go through email or webhook.`,
   },
   {
     heading: 'Privacy and data',
