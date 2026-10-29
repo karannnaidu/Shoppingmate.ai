@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 // Customer Care PRD live E2E â€” real widget on a live storefront (Playwright),
 // then the production DB, then the brand dashboard as the store owner.
 //
