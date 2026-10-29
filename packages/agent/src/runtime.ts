@@ -540,7 +540,12 @@ export async function* runTurn(
       history.push({
         role: 'tool',
         tool_call_id: call.id,
-        content: JSON.stringify(envelope),
+        // A failed request must never be reported as sent: say so in the result
+        // itself (the model once replied "all set" right after an error).
+        content:
+          call.name === 'case.open' && !envelope.ok
+            ? JSON.stringify({ ...envelope, logged: false, note: 'NOT logged. Do not tell the visitor it was logged, sent or submitted. Ask for what the reason says, then call case.open again.' })
+            : JSON.stringify(envelope),
       });
     }
   }

@@ -116,3 +116,25 @@ describe('service site without a catalog', () => {
     expect(names).toContain('site.navigate');
   });
 });
+
+describe('validateCaseOpen — field names the model actually uses', () => {
+  const contact = { name: 'Test Founder', email: 'a@b.com' };
+  it('accepts a booking whose date/time is under any date-ish key', () => {
+    for (const key of ['preferred_datetime', 'meeting_time', 'requested_slot', 'day']) {
+      const r = validateCaseOpen({ type: 'booking', summary: 'Demo meeting', details: { [key]: 'next Tuesday 3pm IST' }, contact, consent: true });
+      expect(r.ok, key).toBe(true);
+    }
+  });
+  it('accepts a booking whose date/time is only in the summary', () => {
+    const r = validateCaseOpen({ type: 'booking', summary: 'Wants a demo call next Tuesday at 3pm IST', details: { company: 'Glow Labs' }, contact, consent: true });
+    expect(r.ok).toBe(true);
+  });
+  it('still asks when no date or time was given at all', () => {
+    const r = validateCaseOpen({ type: 'booking', summary: 'Wants a demo call', details: { company: 'Glow Labs' }, contact, consent: true });
+    expect(r).toMatchObject({ ok: false });
+  });
+  it('finds the order number under other keys', () => {
+    const r = validateCaseOpen({ type: 'cancellation_request', summary: 'Cancel please', details: { order_no: '#48214' }, contact, consent: true });
+    expect(r).toMatchObject({ ok: true, value: { orderId: '48214' } });
+  });
+});

@@ -53,6 +53,10 @@ function str(v: unknown, max = 500): string {
   return typeof v === 'string' ? v.trim().slice(0, max) : typeof v === 'number' ? String(v) : '';
 }
 
+// A date or time said in words: "next Tuesday at 3pm", "tomorrow", "12 Nov", "15:30".
+const WHEN_IN_TEXT =
+  /\b(today|tomorrow|tonight|next (week|month)|(mon|tues?|wed(nes)?|thu(rs)?|fri|sat(ur)?|sun)(day)?|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|\b\d{1,2}(:\d{2})?\s?(am|pm)\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}(st|nd|rd|th)\b/i;
+
 export function validateCaseOpen(args: Record<string, unknown>, defaultCc = '+91'): CaseValidation {
   const type = (CASE_TYPES as readonly string[]).includes(String(args.type))
     ? (String(args.type) as CaseOpenType)
@@ -70,7 +74,9 @@ export function validateCaseOpen(args: Record<string, unknown>, defaultCc = '+91
       if (s) details[k.slice(0, 40)] = s;
     }
   }
-  const orderId = (details.order_number ?? details.orderNumber ?? details.order_id ?? '').replace(/^#/, '').trim() || null;
+  // The model names fields freely (order_no, orderId, order…) — match by meaning.
+  const orderKey = Object.keys(details).find((k) => /order.?(n(o|um(ber)?)|id)$|^order$/i.test(k));
+  const orderId = (orderKey ? details[orderKey] ?? '' : '').replace(/^#/, '').trim() || null;
   if (type === 'order_tracking' && !orderId) {
     return { ok: false, reason: 'ask for their order number before opening a tracking request' };
   }
@@ -78,7 +84,9 @@ export function validateCaseOpen(args: Record<string, unknown>, defaultCc = '+91
     return { ok: false, reason: 'ask for their order number (it is on their confirmation email) before raising this request' };
   }
   if (type === 'booking') {
-    const when = details.date ?? details.preferred_date ?? details.time ?? details.preferred_time ?? details.when;
+    const when =
+      Object.entries(details).find(([k, v]) => /date|time|when|day|slot|schedule/i.test(k) && v.trim())?.[1] ??
+      (WHEN_IN_TEXT.test(summary) ? summary : undefined);
     if (!when) return { ok: false, reason: 'ask for their preferred date and time before sending the booking request' };
   }
 
