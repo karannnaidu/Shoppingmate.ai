@@ -491,7 +491,17 @@ export async function* runTurn(
           },
         });
       }
-      yield { type: 'tool_result', toolName: call.name, ok: envelope.ok };
+      // case.open: the reference (or what's missing) rides along so voice can
+      // tell the visitor the real outcome — the voice model never sees this call.
+      const caseSummary =
+        call.name === 'case.open'
+          ? envelope.ok
+            ? String((envelope.value as { reference?: string } | null)?.reference ?? '')
+            : 'reason' in envelope
+              ? envelope.reason
+              : 'failed'
+          : '';
+      yield { type: 'tool_result', toolName: call.name, ok: envelope.ok, ...(caseSummary ? { summary: caseSummary } : {}) };
       if (envelope.ok && (call.name === 'products.search' || call.name === 'products.get')) {
         const cards = toCards(envelope.value);
         if (cards.length > 0) {

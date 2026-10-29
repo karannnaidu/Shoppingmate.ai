@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { loadSession } from '@shoppingmate/agent';
-import { caseEmail, db, latestSessionCase, ownerEmails, recordCaseEvent, schema, sendCareEmail } from '@shoppingmate/db';
+import { caseEmail, db, latestSessionCase, recordCaseEvent, schema, sendCareEmail, teamRecipients } from '@shoppingmate/db';
 import { childLogger, env } from '@shoppingmate/shared';
 import { and, eq, gt, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -96,7 +96,7 @@ careRoute.post('/upload', async (c) => {
   if (existing) {
     void (async () => {
       await recordCaseEvent(existing.id, 'photos_added', '1 photo added by the customer', 'customer');
-      const owners = await ownerEmails(merchantId);
+      const owners = (await teamRecipients(merchantId)).to;
       const [kase] = await db.select().from(schema.supportCases).where(eq(schema.supportCases.id, existing.id)).limit(1);
       if (owners.length === 0 || !kase) return;
       const brand = merchant.name ?? merchant.domain ?? 'your store';

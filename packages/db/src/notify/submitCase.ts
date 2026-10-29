@@ -79,6 +79,24 @@ export async function ownerEmails(merchantId: string): Promise<string[]> {
   return rows.map((r) => r.email).filter(Boolean);
 }
 
+/**
+ * Who hears about a new request: the store's support email + its owners. A
+ * store with neither (no owner linked yet, e.g. our own demo) falls back to our
+ * ops inbox (OPS_TICKET_EMAILS) so a request is never silently dropped.
+ */
+export function pickTeamRecipients(supportEmail: string | null | undefined, owners: string[], ops: string | undefined): { to: string[]; fallback: boolean } {
+  const brand = [...new Set([supportEmail ?? '', ...owners].map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')))];
+  if (brand.length > 0) return { to: brand, fallback: false };
+  const opsList = (ops ?? '').split(',').map((e) => e.trim()).filter((e) => e.includes('@'));
+  return { to: opsList, fallback: true };
+}
+
+export async function teamRecipients(merchantId: string): Promise<{ to: string[]; fallback: boolean; owners: string[] }> {
+  const [m] = await db.select({ supportEmail: merchants.supportEmail }).from(merchants).where(eq(merchants.id, merchantId)).limit(1);
+  const owners = await ownerEmails(merchantId);
+  return { ...pickTeamRecipients(m?.supportEmail, owners, process.env.OPS_TICKET_EMAILS), owners };
+}
+
 export async function submitSupportCase(
   args: SubmitCaseArgs,
 ): Promise<{ ok: true; id: number } | { ok: false; reason: string }> {
@@ -101,10 +119,19 @@ export async function submitSupportCase(
       .from(merchants)
       .where(eq(merchants.id, args.merchantId));
     const brand = m?.name ?? m?.domain ?? 'your store';
-    const owners = await ownerEmails(args.merchantId);
-    if (owners.length > 0) {
+    const team = await teamRecipients(args.merchantId);
+    const owners = team.owners;
+    if (team.to.length > 0) {
       const { subject, html } = caseEmail(args, brand, { id, photos });
-      await sendCareEmail({ from: process.env.RESEND_FROM ?? 'shoppingmate <onboarding@resend.dev>', to: owners, subject, html });
+      const sent = await sendCareEmail({
+        from: process.env.RESEND_FROM ?? 'shoppingmate <onboarding@resend.dev>',
+        to: team.to,
+        subject: team.fallback ? `[no owner linked: ${brand} ${args.merchantId}] ${subject}` : subject,
+        html,
+      });
+      if (!sent) console.error('[case] team email failed', { id, merchantId: args.merchantId });
+    } else {
+      console.error('[case] nobody to notify — no support email, owner or OPS_TICKET_EMAILS', { id, merchantId: args.merchantId });
     }
     // Customer Care PRD: the shopper gets a copy with the reference number.
     if (args.contactEmail) {

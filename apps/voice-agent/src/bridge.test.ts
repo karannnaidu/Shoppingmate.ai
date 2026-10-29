@@ -318,3 +318,24 @@ describe('bridge — duplicate cart-add safety net', () => {
     expect(seen).toEqual(['added', 'blocked:duplicate', 'added']);
   });
 });
+
+describe('createBridge — case.open outcome reaches the voice model', () => {
+  it('passes the reference on success and the reason on failure', async () => {
+    const onCaseResult = vi.fn();
+    const deps: BridgeDeps = {
+      ...baseDeps(),
+      onCaseResult,
+      runTurn: fakeRunTurn([
+        { type: 'tool_result', toolName: 'case.open', ok: false, summary: 'need a phone number or email' },
+        { type: 'tool_result', toolName: 'case.open', ok: true, summary: '#31' },
+        { type: 'tool_result', toolName: 'products.search', ok: true },
+        { type: 'end_of_turn' },
+      ]) as unknown as BridgeDeps['runTurn'],
+    };
+    await createBridge(deps).handleUserText('book a demo meeting');
+    expect(onCaseResult.mock.calls).toEqual([
+      [false, 'need a phone number or email'],
+      [true, '#31'],
+    ]);
+  });
+});

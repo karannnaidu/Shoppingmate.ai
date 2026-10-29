@@ -68,6 +68,8 @@ export type BridgeDeps = {
   // voice mode the executor's spoken error is suppressed, so the worker uses this
   // to ground Gemini honestly (and alert on 'exhausted' = out-of-credits 402).
   onExecutorError?: (kind: 'exhausted' | 'error') => void;
+  /** case.open ran on the side channel: ok + "#ref", or not ok + what's missing. */
+  onCaseResult?: (ok: boolean, summary: string) => void;
 };
 
 export type Bridge = {
@@ -341,8 +343,10 @@ async function routeEvent(event: AgentEvent, deps: BridgeDeps): Promise<void> {
       // the worker which grounds Gemini honestly (and alerts on 'exhausted').
       deps.onExecutorError?.(event.kind);
       return;
-    case 'thinking':
     case 'tool_result':
+      if (event.toolName === 'case.open') deps.onCaseResult?.(event.ok, event.summary ?? '');
+      return;
+    case 'thinking':
     case 'end_of_turn':
       return;
     default: {

@@ -776,6 +776,15 @@ export async function runVoiceSession(
       // corrects instead of lying. 'exhausted' = out-of-credits 402: also record a
       // dedicated metric + error log so the outage is visible immediately (it has
       // silently broken cart/checkout for days before). Top up restores it.
+      // The side channel logged (or failed to log) a request — tell Olivia the
+      // real outcome so she never claims a booking/request that didn't happen.
+      onCaseResult: (ok, summary) => {
+        log.info({ sessionId, ok, summary }, 'voice case.open result');
+        const instruction = ok
+          ? `SYSTEM: the visitor's request is now logged with the team, reference ${summary}. In one short sentence tell them it's logged, give the reference number, and say the team will get back to them (a booking or cancellation is a request the team confirms — never say it's confirmed).`
+          : `SYSTEM: the visitor's request is NOT logged yet: ${summary}. Ask them for exactly that, briefly, in their language. Do NOT say it's logged or booked.`;
+        gemini.speak(instruction).catch((err) => log.warn({ err }, 'case result grounding failed'));
+      },
       onExecutorError: (kind) => {
         void gemini
           .speak(

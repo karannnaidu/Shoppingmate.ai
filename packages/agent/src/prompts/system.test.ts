@@ -280,3 +280,19 @@ describe('CUSTOMER CARE section', () => {
     }
   });
 });
+
+describe('demo (shoppingmate.ai) requests', () => {
+  it('the demo assistant books meetings and takes enquiries with case.open', () => {
+    const prev = process.env.CASE_CAPTURE;
+    process.env.CASE_CAPTURE = '*';
+    try {
+      const p = buildSystemPrompt(merchant, { demoMode: true });
+      expect(p).toMatch(/case\.open/);
+      expect(p).toMatch(/demo (call|meeting)/i);
+      expect(p).toMatch(/type "?booking/i);
+      expect(p).toMatch(/feedback/i);
+    } finally {
+      process.env.CASE_CAPTURE = prev;
+    }
+  });
+});

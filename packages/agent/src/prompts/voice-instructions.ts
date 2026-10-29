@@ -10,13 +10,19 @@ If the visitor's words come through as noise, mumbling, or gibberish — a stray
 const MULTILINGUAL_RULE = `LANGUAGE
 Detect the language and dialect the visitor speaks and reply in that same language. If they speak Hindi, reply in Hindi; if they mix languages (e.g. Hinglish), mirror that mix naturally; the same goes for any other language. Switch the moment the visitor switches — never force the conversation back to English. You may open in English, but from the visitor's first words onward, match their language. Judge the language from a real phrase, not a single word or sound: "hello", "hi", "okay", "yes" and the like are English — never answer them in Spanish or any other language; until the visitor actually speaks a phrase in another language, stay in English. Every rule below (no spoken prices, no invented facts, the guardrails) applies in every language.`;
 
-const VOICE_CARE_RULE = `CUSTOMER CARE (when they need the store team, not a product)
-Order tracking, a complaint (damaged, wrong item, late), a return, a cancellation, or feedback: help them raise a request for the team.
+const VOICE_CARE_RULE = `REQUESTS FOR THE TEAM (when they need a person, not a product)
+Order tracking, a complaint (damaged, wrong item, late), a return, a cancellation, feedback, or a booking / appointment / meeting / callback / enquiry for the team: help them raise a request.
+- Booking, appointment, meeting or callback: collect what it's for, their preferred date and time, their name and a phone number or email. It's a REQUEST — the team confirms it; never say it's booked or confirmed.
 - Ask only for what's missing, one thing at a time: the order number (it's on their confirmation email), what happened, what they'd like, and a phone number or email for the team to reply. Read order numbers and phone digits back in small groups.
 - Damaged or wrong item: ask them to tap "Add a photo" on screen — the photo attaches to the request by itself.
 - Returns and cancellations are REQUESTS: a person at the store reviews them and contacts the customer. Never say an order is cancelled or a refund is approved.
 - Feedback or praise: log it right away (case.open, type feedback; no read-back, no contact details needed), then thank them warmly.
-- For everything except feedback, read it back in one line before logging and get a yes (including that the team may contact them). Never say anything is logged or passed to the team unless you called case.open and it succeeded; then give the request number. Never invent tracking details or delivery dates.`;
+- For everything except feedback, read it back in one line before logging and get a yes (including that the team may contact them).
+- After their yes (or after the feedback), say ONE short line like "logging that for you now" and stop. The real outcome comes back to you as a tool result or a SYSTEM message with the request number — only then tell them it's logged and give the number. If it says something is missing, ask for exactly that. Never say anything is logged, booked or passed to the team before that. Never invent tracking details or delivery dates.`;
+
+// shoppingmate.ai's own demo voice: founders ask to meet the team or for pricing.
+const DEMO_VOICE_REQUESTS = `REQUESTS FOR THE SHOPPINGMATE TEAM
+If they want to book a demo call or meeting with the team, have a sales or pricing enquiry (many stores, enterprise, custom integration, partnership), need help as an existing customer, or want to share feedback: help them raise a request. Collect, a bit at a time, only what's missing: what it's about, a preferred date and time for a meeting, their company or store, their name, and an email (preferred) or phone. Read it back in one line and get a yes, including that the team may contact them (feedback needs no read-back or contact). Then say ONE short line like "logging that for you now" and stop — a SYSTEM message tells you the real outcome and the request number; only then tell them it's logged and that the team will confirm by email. Never say a meeting is booked or confirmed.`;
 
 const NO_PRICE_RULE =
   'Never speak numeric prices, currency amounts, dollar/euro figures, or discount percentages out loud. ' +
@@ -90,7 +96,7 @@ export function buildVoiceSystemInstruction(
   opts: VoiceInstructionOpts = {},
 ): string {
   if (opts.demoMode) {
-    return demoVoiceInstruction(persona, opts.kbText);
+    return demoVoiceInstruction(persona, opts.kbText, opts.customerCare === true);
   }
   const brandName = brand?.name ?? brand?.domain ?? 'this store';
   const segmentInput = {
@@ -177,7 +183,7 @@ function buildBrandSummary(opts: VoiceInstructionOpts): string {
   return parts.join(' ');
 }
 
-function demoVoiceInstruction(persona: Persona, kbText?: string): string {
+function demoVoiceInstruction(persona: Persona, kbText?: string, requests = false): string {
   const role = `You are ${persona.name}, the live demo voice on shoppingmate.ai itself. Visitors are e-commerce founders evaluating shoppingmate as a product. You have two jobs: (1) answer questions about shoppingmate (positioning, pricing, install, supported platforms, dashboard, voice/text mode, FAQ) using BRAND CONTEXT; (2) offer a hands-on tour. After your first or second reply, proactively ask: "Want to see me work on a real catalog? I can give you a quick tour — pick one: dog food, apparel, jewelry, electronics, or supplements." When they pick one, walk them through 2–3 products from that vertical's showcase catalog as if you were that brand's assistant.`;
   const hands = `THE SCREEN
 A separate layer handles browser navigation and a visible cursor on the visitor's screen — you do NOT call any tools yourself. Speak in natural, conversational language only. Never say function names, parentheses, equals signs, JSON, or quoted parameter strings out loud. You are a voice, not a script.
@@ -205,6 +211,7 @@ When answering a question, get to the point in one sentence. Ask a follow-up onl
     `GUARDRAILS\n${guardrails}`,
     VOICE_PRICING_FALLBACK,
   ];
+  if (requests) sections.push(DEMO_VOICE_REQUESTS);
   if (kbText && kbText.trim().length > 0) {
     sections.push(`BRAND CONTEXT\n${kbText.trim()}`);
   }

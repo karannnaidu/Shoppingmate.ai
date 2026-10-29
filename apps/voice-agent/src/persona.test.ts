@@ -19,3 +19,17 @@ describe('resolveVoiceContext', () => {
     expect(resolveVoiceContext(undefined).voiceId).toBeTruthy();
   });
 });
+
+describe('requests for the team in voice', () => {
+  it('demo voice can take meeting requests and enquiries', () => {
+    const { systemInstruction } = resolveVoiceContext('sage', { name: 'shoppingmate', domain: 'shoppingmate.ai' }, { demoMode: true, customerCare: true });
+    expect(systemInstruction).toMatch(/book a demo|demo meeting/i);
+    expect(systemInstruction).toMatch(/enquir|inquir/i);
+    expect(systemInstruction).toMatch(/SYSTEM message/);
+  });
+  it('every store waits for the real outcome before saying a request is logged', () => {
+    const { systemInstruction } = resolveVoiceContext('sage', { name: 'Acme Dental', domain: 'acme.test' }, { customerCare: true });
+    expect(systemInstruction).toMatch(/meeting|appointment|callback/i);
+    expect(systemInstruction).toMatch(/SYSTEM message|tool result/i);
+  });
+});

@@ -1,5 +1,5 @@
-#!/usr/bin/env node
-// Customer Care PRD live E2E — real widget on a live storefront (Playwright),
+﻿#!/usr/bin/env node
+// Customer Care PRD live E2E â€” real widget on a live storefront (Playwright),
 // then the production DB, then the brand dashboard as the store owner.
 //
 //   DBURL=<postgres public url> node apps/api/scripts/care-live-e2e.mjs [scenario]
@@ -28,6 +28,14 @@ const SCRIPTS = {
     'My name is Test Shopper, email delivered@resend.dev, phone 9876543210. Yes, the team can contact me.',
   ],
   feedback: ['Just wanted to share some feedback: the Sleep Mantra really helped me sleep better, and delivery was quick. Thank you!'],
+  meeting: [
+    'Hi, I run a skincare brand on Shopify. Can I book a meeting with your team to see a demo? Next Tuesday at 3pm IST works for me.',
+    'I am Test Founder from Glow Labs, email delivered@resend.dev, phone 9876543210. Yes, you can contact me.',
+  ],
+  inquiry: [
+    'I have a question about enterprise pricing for 5 stores and custom integrations. Can someone from your team email me?',
+    'Test Founder, delivered@resend.dev. Yes please contact me.',
+  ],
   cancel: [
     'I want to cancel my order 48214, I ordered by mistake.',
     'Name Test Shopper, email delivered@resend.dev, phone 9876543210. Yes you can contact me.',
@@ -57,14 +65,14 @@ async function shopper() {
         if (ev.toolName === 'case.open' && ev.ok) cases.push(ev);
       } else if (ev.type === 'end_of_turn') onEnd?.();
     };
-    ws.on('framereceived', handle('⇐'));
-    ws.on('framesent', handle('⇒'));
+    ws.on('framereceived', handle('â‡'));
+    ws.on('framesent', handle('â‡’'));
   });
   page.on('response', async (r) => {
     if (r.url().includes('/v1/care/upload')) log('UPLOAD', r.status(), await r.text().catch(() => ''));
   });
 
-  await page.goto(SITE, { waitUntil: 'domcontentloaded' });
+  await page.goto(SITE, { waitUntil: 'domcontentloaded', timeout: 90_000 });
   await page.waitForSelector('shoppingmate-widget', { state: 'attached', timeout: 30_000 });
   await page.waitForTimeout(3000);
   const input = page.locator('shoppingmate-widget input[type="text"]').first();
@@ -149,7 +157,7 @@ async function dashboard(caseId) {
   await page.goto(`${DASH}/api/auth/magic-link/verify?token=${encodeURIComponent(token)}&callbackURL=${encodeURIComponent('/app/cases')}`);
   await page.waitForURL(/\/app\/cases/, { timeout: 30_000 });
   log('dashboard at', page.url());
-  const card = page.locator('li', { hasText: `#${caseId} ·` }).first();
+  const card = page.locator('li', { hasText: `#${caseId} Â·` }).first();
   await card.waitFor({ timeout: 20_000 });
   log('card text:', (await card.innerText()).replace(/\s+/g, ' ').slice(0, 400));
   const img = card.locator('img[alt^="Customer photo"]').first();
@@ -182,7 +190,7 @@ async function dashboard(caseId) {
     log('status after reply', st?.status);
   }
   await page.reload();
-  await page.locator('li', { hasText: `#${caseId} ·` }).first().screenshot({ path: SHOT('dash-after') });
+  await page.locator('li', { hasText: `#${caseId} Â·` }).first().screenshot({ path: SHOT('dash-after') });
   await page.goto(`${DASH}/app/settings#customer-care`);
   const careCard = page.locator('#customer-care');
   await careCard.waitFor({ timeout: 20_000 });

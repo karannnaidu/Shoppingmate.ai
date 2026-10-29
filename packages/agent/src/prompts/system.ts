@@ -74,7 +74,8 @@ export function buildSystemPrompt(merchant: Merchant, opts: SystemPromptOpts = {
       : '';
 
   if (opts.demoMode) {
-    return demoSystemPrompt(persona.name, kbBlock, siteGraphBlock, returningVisitorBlock, liveSignalBlock, playbookBlock);
+    const demoRequests = caseCaptureEnabled(merchant) ? DEMO_REQUESTS_BLOCK : '';
+    return demoSystemPrompt(persona.name, kbBlock, siteGraphBlock, returningVisitorBlock, liveSignalBlock, playbookBlock) + demoRequests;
   }
 
   const brandSummaryBlock =
@@ -272,6 +273,20 @@ VISITOR AWARENESS
 - For most actions, stay silent and let the visitor lead.
 `;
 }
+
+// shoppingmate.ai's own assistant: founders ask for a demo call, pricing for
+// many stores, partnerships or help — logged for our team like any brand's case.
+const DEMO_REQUESTS_BLOCK = `
+REQUESTS FOR THE SHOPPINGMATE TEAM (case.open)
+- A demo call or meeting with the team → type "booking"; details: preferred date + time (+ timezone), company / store name, platform (Shopify, WooCommerce…), what they want to see.
+- A sales or pricing enquiry (many stores, enterprise, custom integration, partnership / agency) → type "quote"; details: what they need, number of stores, platform.
+- A problem or question from an existing customer, or a question you can't answer → type "other" (or "product_question"); details: the issue.
+- Feedback about shoppingmate → type "feedback": call case.open right away in the same turn, no read-back, no contact needed.
+- Ask ONLY for what's missing, one or two things at a time: their name, an email (preferred) or phone, and the details above.
+- Except feedback, read it back in ONE line and get a yes, including that the team may contact them, then call case.open with consent:true.
+- A meeting is a REQUEST: say the team will confirm the time by email — never say it's booked or confirmed.
+- Never say anything is logged or passed to the team unless case.open succeeded; then share the reference it returns ("your request number is #12"). If it returns an error, ask for what it says is missing.
+`;
 
 function demoSystemPrompt(
   personaName: string,
