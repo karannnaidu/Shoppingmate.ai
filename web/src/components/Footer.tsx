@@ -41,7 +41,7 @@ export function Footer() {
               Your store, <span className="serif-em">finally</span> talking back.
             </p>
             <p className="mt-4 text-sm text-text-secondary">
-              Questions? <span className="text-text-primary">hello@shoppingmate.ai</span>
+              Questions? <span className="text-text-primary">hello@shoppingmate.shop</span>
             </p>
           </div>
 
@@ -64,7 +64,7 @@ export function Footer() {
         </div>
 
         <div className="mt-14 flex flex-col-reverse gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-text-muted">© {new Date().getFullYear()} shoppingmate.ai</p>
+          <p className="text-xs text-text-muted">© {new Date().getFullYear()} shoppingmate.shop</p>
           <p className="flex items-center gap-2 text-xs text-text-muted">
             <span className="rounded-full border border-border px-2 py-0.5 font-mono uppercase tracking-wider">v2.0</span>
             Never sees card details.

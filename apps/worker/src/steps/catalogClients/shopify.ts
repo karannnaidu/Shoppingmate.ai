@@ -2,7 +2,7 @@ import { childLogger } from '@shoppingmate/shared';
 
 const log = childLogger({ step: 'catalogSync.shopify' });
 const PAGE_SIZE = 250;
-const USER_AGENT = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.ai/bot)';
+const USER_AGENT = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.shop/bot)';
 
 export type NormalizedProduct = {
   sku: string;

@@ -4,12 +4,12 @@
 import { Room, RoomEvent } from '../../../node_modules/.pnpm/@livekit+rtc-node@0.13.27/node_modules/@livekit/rtc-node/dist/index.js';
 
 const API = 'https://api-production-1ea1.up.railway.app';
-const ORIGIN = 'https://shoppingmate.ai';
+const ORIGIN = 'https://shoppingmate.shop';
 
 const sessRes = await fetch(`${API}/v1/session`, {
   method: 'POST',
   headers: { 'content-type': 'application/json', origin: ORIGIN },
-  body: JSON.stringify({ merchantId: 'SM-XPK2EN', domain: 'shoppingmate.ai' }),
+  body: JSON.stringify({ merchantId: 'SM-XPK2EN', domain: 'shoppingmate.shop' }),
 });
 const sess = await sessRes.json();
 console.log('session ok:', sess.sessionId);

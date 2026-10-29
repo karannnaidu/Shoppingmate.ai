@@ -609,7 +609,7 @@ export async function runVoiceSession(
     const personaName = lookupPersona(voice.personaId).name;
     const greetingLine = `Hi, I'm ${personaName}, how can I help you?`;
     const kickoff = demoMode
-      ? 'The visitor just opened voice mode on shoppingmate.ai. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
+      ? 'The visitor just opened voice mode on shoppingmate.shop. Greet them warmly in one short sentence and offer the demo tour: pick a vertical (dog food, apparel, jewelry, electronics, or supplements).'
       : `The visitor just connected. Say exactly this sentence and nothing else, then wait for them: "${greetingLine}"`;
     // A cached greeting is only trusted if it actually says the persona's name.
     const greetingOk = (t: string) => demoMode || (t.includes(personaName) && t.length < 90);
@@ -1347,7 +1347,7 @@ export async function runVoiceSession(
           : bridge
               .handleUserText(e.text, { continues: e.continues })
               .catch((err) => log.warn({ err }, 'bridge.handleUserText failed'));
-        // Demo tour: when Sage is on shoppingmate.ai itself and the visitor
+        // Demo tour: when Sage is on shoppingmate.shop itself and the visitor
         // names a vertical, surface 3 showcase cards directly. Belt-and-
         // suspenders next to the bridge tool-loop in case Sonnet picks a
         // different action.

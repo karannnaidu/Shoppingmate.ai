@@ -83,7 +83,7 @@ describe('Bucket B proof — log capture', () => {
     const merchant = {
       id: 'SM-XPK2EN',
       name: 'shoppingmate',
-      domain: 'shoppingmate.ai',
+      domain: 'shoppingmate.shop',
     } as never;
 
     let lastSaved: SessionState | null = null;

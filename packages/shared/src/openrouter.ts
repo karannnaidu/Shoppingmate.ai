@@ -73,7 +73,7 @@ async function completion(
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${apiKey}`,
-          'http-referer': 'https://shoppingmate.ai',
+          'http-referer': 'https://shoppingmate.shop',
           'x-title': opts.title,
         },
         body: JSON.stringify({ ...body, messages: withoutExtraContent(body.messages as unknown[]) }),

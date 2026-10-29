@@ -33,7 +33,7 @@ function resolveCdnBase(): string {
   const override = (globalThis as unknown as { __SHOPPINGMATE_CDN_BASE__?: string })
     .__SHOPPINGMATE_CDN_BASE__;
   if (override && typeof override === 'string') return override.replace(/\/$/, '');
-  return 'https://cdn.shoppingmate.ai/v1/personas';
+  return 'https://cdn.shoppingmate.shop/v1/personas';
 }
 
 // Neutral placeholder used until bootstrap resolves the merchant's actual

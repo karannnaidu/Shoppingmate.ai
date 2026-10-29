@@ -4,5 +4,5 @@ export function buildInstallSnippet(merchantId: string): string {
   if (!MERCHANT_ID_RE.test(merchantId)) {
     throw new Error(`invalid merchantId: ${merchantId}`);
   }
-  return `<script src="https://cdn.shoppingmate.ai/gtag.js" data-merchant="${merchantId}" async></script>`;
+  return `<script src="https://cdn.shoppingmate.shop/gtag.js" data-merchant="${merchantId}" async></script>`;
 }

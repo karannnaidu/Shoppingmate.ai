@@ -55,9 +55,9 @@ describe('executeHostAction()', () => {
     const assignSpy = vi.fn();
     Object.defineProperty(window, 'location', {
       value: {
-        href: 'https://shoppingmate.ai/',
+        href: 'https://shoppingmate.shop/',
         assign: assignSpy,
-        origin: 'https://shoppingmate.ai',
+        origin: 'https://shoppingmate.shop',
         pathname: '/',
       },
       writable: true,
@@ -73,9 +73,9 @@ describe('executeHostAction()', () => {
     const assignSpy = vi.fn();
     Object.defineProperty(window, 'location', {
       value: {
-        href: 'https://shoppingmate.ai/',
+        href: 'https://shoppingmate.shop/',
         assign: assignSpy,
-        origin: 'https://shoppingmate.ai',
+        origin: 'https://shoppingmate.shop',
         pathname: '/',
       },
       writable: true,

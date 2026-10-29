@@ -513,7 +513,7 @@ export async function* runTurn(
           collectedCards.push(...cards);
           yield { type: 'cards', items: cards };
         }
-        // Demo-mode tour tracking: when shoppingmate.ai's own widget is in
+        // Demo-mode tour tracking: when shoppingmate.shop's own widget is in
         // demoMode and the visitor picks a vertical, the model issues a
         // products.search whose query matches a known vertical keyword. This
         // is the cleanest signal we have for "tour engagement" without adding

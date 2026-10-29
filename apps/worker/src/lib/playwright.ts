@@ -12,7 +12,7 @@ export async function getBrowser(): Promise<Browser> {
 export async function withContext<T>(fn: (ctx: BrowserContext) => Promise<T>): Promise<T> {
   const browser = await getBrowser();
   const ctx = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.ai/bot)',
+    userAgent: 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.shop/bot)',
     viewport: { width: 1280, height: 800 },
   });
   try {

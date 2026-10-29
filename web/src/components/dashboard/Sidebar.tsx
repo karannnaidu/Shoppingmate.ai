@@ -175,7 +175,7 @@ export function Sidebar({
         <div className="mt-4 flex flex-col gap-3">
           {store && <StoreCard store={store} />}
           <div className="flex items-center justify-between px-1">
-            <span className="text-[12px] text-text-muted">Help: hello@shoppingmate.ai</span>
+            <span className="text-[12px] text-text-muted">Help: hello@shoppingmate.shop</span>
             <ThemeToggle />
           </div>
         </div>

@@ -9,7 +9,7 @@
 //
 // Env:
 //   SHOPPINGMATE_API_BASE   (default prod api)
-//   WATCHDOG_MERCHANT_ID    (default SM-XPK2EN)   WATCHDOG_ORIGIN (default shoppingmate.ai)
+//   WATCHDOG_MERCHANT_ID    (default SM-XPK2EN)   WATCHDOG_ORIGIN (default shoppingmate.shop)
 //   PROBE_TIMEOUT_MS        (default 30000)
 //   OPS_ALERT_WEBHOOK_URL   Slack incoming webhook (optional)
 //   RAILWAY_API_TOKEN + RAILWAY_VOICE_SERVICE_ID + RAILWAY_ENVIRONMENT_ID  (optional; all 3 needed to auto-redeploy)
@@ -18,7 +18,7 @@ import { Room, RoomEvent } from '@livekit/rtc-node';
 
 const API = process.env.SHOPPINGMATE_API_BASE || 'https://api-production-1ea1.up.railway.app';
 const MERCHANT = process.env.WATCHDOG_MERCHANT_ID || 'SM-XPK2EN';
-const ORIGIN = process.env.WATCHDOG_ORIGIN || 'shoppingmate.ai';
+const ORIGIN = process.env.WATCHDOG_ORIGIN || 'shoppingmate.shop';
 const TIMEOUT = Number(process.env.PROBE_TIMEOUT_MS || 30000);
 
 const log = (...a) => console.log(`[watchdog ${new Date().toISOString()}]`, ...a);

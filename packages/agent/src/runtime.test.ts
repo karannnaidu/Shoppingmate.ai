@@ -474,7 +474,7 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       merchantId: 'SM-XPK2EN',
       allowedSpeechTokens: [],
     });
-    const merchant2 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as any;
+    const merchant2 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.shop' } as any;
     for await (const ev of runTurn(
       {
         loadAdapter: () => fakeAdapter(),
@@ -518,7 +518,7 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       });
     const recordRecommendation = vi.fn(async () => undefined);
     const session = makeBaseSession({ sessionId: 's-rec-1', merchantId: 'SM-XPK2EN' });
-    const merchant2 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as any;
+    const merchant2 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.shop' } as any;
     for await (const _ev of runTurn(
       {
         loadAdapter: () => fakeAdapter(),
@@ -554,7 +554,7 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       })
       .mockResolvedValueOnce({ text: 'Done — pulled up pricing.', toolCalls: [] });
     const session2 = makeBaseSession({ merchantId: 'SM-XPK2EN' });
-    const merchant3 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as any;
+    const merchant3 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.shop' } as any;
     for await (const _ev of runTurn(
       {
         loadAdapter: () => fakeAdapter(),
@@ -591,7 +591,7 @@ describe('runTurn — Bucket B host-action dispatch + pricing.quote', () => {
       })
       .mockResolvedValueOnce({ text: 'Taking you to checkout.', toolCalls: [] });
     const session2 = makeBaseSession({ merchantId: 'SM-XPK2EN' });
-    const merchant3 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as any;
+    const merchant3 = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.shop' } as any;
     for await (const _ev of runTurn(
       {
         loadAdapter: () => fakeAdapter(),

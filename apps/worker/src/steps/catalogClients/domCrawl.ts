@@ -4,7 +4,7 @@ import { withContext } from '../../lib/playwright.js';
 import type { CatalogClientResult, NormalizedProduct } from './shopify.js';
 
 const log = childLogger({ step: 'catalogSync.dom' });
-const USER_AGENT = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.ai/bot)';
+const USER_AGENT = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.shop/bot)';
 const PRODUCT_URL_REGEX = /\/(product|products|p|item|shop)\//i;
 const CONCURRENCY = 4;
 

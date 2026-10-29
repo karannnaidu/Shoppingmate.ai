@@ -2,8 +2,8 @@ import { WebSocket } from 'ws';
 
 const sessionRes = await fetch('https://api-production-1ea1.up.railway.app/v1/session', {
   method: 'POST',
-  headers: { 'content-type': 'application/json', origin: 'https://shoppingmate.ai' },
-  body: JSON.stringify({ merchantId: 'SM-XPK2EN', domain: 'shoppingmate.ai' }),
+  headers: { 'content-type': 'application/json', origin: 'https://shoppingmate.shop' },
+  body: JSON.stringify({ merchantId: 'SM-XPK2EN', domain: 'shoppingmate.shop' }),
 });
 const { wsUrl, sessionId } = await sessionRes.json();
 console.log('session ok:', sessionId);

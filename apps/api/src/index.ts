@@ -49,7 +49,7 @@ import { mountAgentWs } from './ws/agent.js';
 
 const app = new Hono();
 
-// CORS: widget runs on merchant origins (shoppingmate.ai, *.vercel.app, brand
+// CORS: widget runs on merchant origins (shoppingmate.shop, *.vercel.app, brand
 // shop domains). The per-route origin check still validates against the
 // merchant's allowedDomains; CORS just unblocks the browser preflight.
 app.use(

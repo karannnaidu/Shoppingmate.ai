@@ -1,4 +1,4 @@
-# shoppingmate.ai
+# shoppingmate.shop
 
 AI sales agent (voice + text) for D2C merchants. One `<script>` tag install.
 

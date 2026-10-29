@@ -22,7 +22,7 @@ describe('resolveVoiceContext', () => {
 
 describe('requests for the team in voice', () => {
   it('demo voice can take meeting requests and enquiries', () => {
-    const { systemInstruction } = resolveVoiceContext('sage', { name: 'shoppingmate', domain: 'shoppingmate.ai' }, { demoMode: true, customerCare: true });
+    const { systemInstruction } = resolveVoiceContext('sage', { name: 'shoppingmate', domain: 'shoppingmate.shop' }, { demoMode: true, customerCare: true });
     expect(systemInstruction).toMatch(/book a demo|demo meeting/i);
     expect(systemInstruction).toMatch(/enquir|inquir/i);
     expect(systemInstruction).toMatch(/SYSTEM message/);

@@ -644,7 +644,7 @@ function buildBaseToolSurface(merchant: Merchant): ToolDef[] {
 // Site-graph merchants (e.g. Calmosis) get navigation tools so the bot can
 // route the visitor between pages of their SPA. We don't expose the heuristic
 // tools (scroll_to / highlight / click / point_at / demo_click) outside the
-// shoppingmate.ai demo because those require selector resolution we haven't
+// shoppingmate.shop demo because those require selector resolution we haven't
 // built for arbitrary host sites yet.
 const SITE_NAV_TOOLS: ToolDef[] = [
   {
@@ -674,7 +674,7 @@ const DEMO_TOOLS: ToolDef[] = [
     function: {
       name: 'site.navigate',
       description:
-        "Navigate the visitor's browser to a same-origin path on shoppingmate.ai (demo-only).",
+        "Navigate the visitor's browser to a same-origin path on shoppingmate.shop (demo-only).",
       parameters: {
         type: 'object',
         properties: { path: { type: 'string', description: 'e.g. /pricing, /features' } },

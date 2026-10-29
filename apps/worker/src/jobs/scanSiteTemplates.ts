@@ -170,7 +170,7 @@ export async function runScanSiteTemplates(args: ScanArgs): Promise<ScanResult> 
     for (const [i, url] of urls.entries()) {
       for (const device of i === 0 ? (['desktop', 'mobile'] as const) : (['desktop'] as const)) {
         const ctx = await browser.newContext({
-          userAgent: 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.ai/bot)',
+          userAgent: 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.shop/bot)',
           viewport:
             device === 'desktop' ? { width: 1280, height: 900 } : { width: 390, height: 844 },
           isMobile: device === 'mobile',

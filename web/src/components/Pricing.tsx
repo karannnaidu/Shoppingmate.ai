@@ -201,7 +201,7 @@ export function Pricing({ hideHeading = false }: { hideHeading?: boolean }) {
             </div>
             <h4 className="mt-3 font-medium">Several stores or big volume?</h4>
             <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">
-              We&apos;ll set up a plan that fits. Write to <span className="text-text-primary">hello@shoppingmate.ai</span>.
+              We&apos;ll set up a plan that fits. Write to <span className="text-text-primary">hello@shoppingmate.shop</span>.
             </p>
           </div>
         </div>

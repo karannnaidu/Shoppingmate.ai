@@ -24,6 +24,14 @@ function getAuth(): AuthInstance {
       },
     }),
     baseURL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+    // Sign-in works on every address the site is served from (custom domain,
+    // apex, and the original vercel.app URL that existing links still use).
+    trustedOrigins: [
+      'https://www.shoppingmate.shop',
+      'https://shoppingmate.shop',
+      'https://shoppingmate-web.vercel.app',
+      ...(process.env.AUTH_TRUSTED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    ],
     secret: process.env.BETTER_AUTH_SECRET,
     emailAndPassword: { enabled: false },
     socialProviders:

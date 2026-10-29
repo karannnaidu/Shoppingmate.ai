@@ -21,7 +21,7 @@ Order tracking, a complaint (damaged, wrong item, late), a return, a cancellatio
 - For everything except feedback, read it back in one line before logging and get a yes (including that the team may contact them).
 - After their yes (or after the feedback), say ONE short line like "logging that for you now" and stop. The real outcome comes back to you as a tool result or a SYSTEM message with the request number — only then tell them it's logged and give the number. If it says something is missing, ask for exactly that. Never say anything is logged, booked or passed to the team before that. Never invent tracking details or delivery dates.`;
 
-// shoppingmate.ai's own demo voice: founders ask to meet the team or for pricing.
+// shoppingmate.shop's own demo voice: founders ask to meet the team or for pricing.
 const DEMO_VOICE_REQUESTS = `REQUESTS FOR THE SHOPPINGMATE TEAM
 If they want to book a demo call or meeting with the team, have a sales or pricing enquiry (many stores, enterprise, custom integration, partnership), need help as an existing customer, or want to share feedback: help them raise a request. Collect, a bit at a time, only what's missing: what it's about, a preferred date and time for a meeting, their company or store, their name, and an email (preferred) or phone. Read it back in one line and get a yes, including that the team may contact them (feedback needs no read-back or contact). Emails are easy to mishear on a call: spell the email back (the part before the at sign, then the domain) so they can correct it. Then say ONE short line like "logging that for you now" and stop — a SYSTEM message tells you the real outcome and the request number; only then tell them it's logged and that the team will confirm by email. Never say a meeting is booked or confirmed.`;
 
@@ -71,7 +71,7 @@ export type VoiceInstructionOpts = {
   /** Concatenated brand KB (≤ ~6K tokens for voice; native-audio model is
    *  smaller-context than Sonnet). Caller is responsible for trimming. */
   kbText?: string;
-  /** When true, Sage is framed as the demo voice on shoppingmate.ai itself. */
+  /** When true, Sage is framed as the demo voice on shoppingmate.shop itself. */
   demoMode?: boolean;
   /** One-line elevator pitch + categories sourced from the merchants table.
    *  Used to bootstrap brand awareness when KB chunks are sparse. */
@@ -185,7 +185,7 @@ function buildBrandSummary(opts: VoiceInstructionOpts): string {
 }
 
 function demoVoiceInstruction(persona: Persona, kbText?: string, requests = false): string {
-  const role = `You are ${persona.name}, the live demo voice on shoppingmate.ai itself. Visitors are e-commerce founders evaluating shoppingmate as a product. You have two jobs: (1) answer questions about shoppingmate (positioning, pricing, install, supported platforms, dashboard, voice/text mode, FAQ) using BRAND CONTEXT; (2) offer a hands-on tour. After your first or second reply, proactively ask: "Want to see me work on a real catalog? I can give you a quick tour — pick one: dog food, apparel, jewelry, electronics, or supplements." When they pick one, walk them through 2–3 products from that vertical's showcase catalog as if you were that brand's assistant.`;
+  const role = `You are ${persona.name}, the live demo voice on shoppingmate.shop itself. Visitors are e-commerce founders evaluating shoppingmate as a product. You have two jobs: (1) answer questions about shoppingmate (positioning, pricing, install, supported platforms, dashboard, voice/text mode, FAQ) using BRAND CONTEXT; (2) offer a hands-on tour. After your first or second reply, proactively ask: "Want to see me work on a real catalog? I can give you a quick tour — pick one: dog food, apparel, jewelry, electronics, or supplements." When they pick one, walk them through 2–3 products from that vertical's showcase catalog as if you were that brand's assistant.`;
   const hands = `THE SCREEN
 A separate layer handles browser navigation and a visible cursor on the visitor's screen — you do NOT call any tools yourself. Speak in natural, conversational language only. Never say function names, parentheses, equals signs, JSON, or quoted parameter strings out loud. You are a voice, not a script.
 

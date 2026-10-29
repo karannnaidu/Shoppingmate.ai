@@ -1,11 +1,11 @@
-// Idempotent seeder: ensure merchant SM-XPK2EN exists and shoppingmate.ai is
+// Idempotent seeder: ensure merchant SM-XPK2EN exists and shoppingmate.shop is
 // in its allowedDomains so the dogfood widget on the landing page can boot.
 // Run via: railway run --service api tsx apps/api/scripts/seed-shoppingmate-merchant.ts
 import { db, schema } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
 
 const ID = 'SM-XPK2EN';
-const DOMAIN = 'shoppingmate.ai';
+const DOMAIN = 'shoppingmate.shop';
 
 async function main() {
   const [existing] = await db
@@ -19,7 +19,7 @@ async function main() {
       id: ID,
       domain: DOMAIN,
       name: 'shoppingmate (dogfood)',
-      allowedDomains: [DOMAIN, 'www.shoppingmate.ai', 'shoppingmate-web.vercel.app'],
+      allowedDomains: [DOMAIN, 'www.shoppingmate.shop', 'shoppingmate-web.vercel.app'],
       status: 'live',
       personaId: 'calm-clinician',
       adapterType: 'suggest',
@@ -30,7 +30,7 @@ async function main() {
     return;
   }
 
-  const wanted = new Set([DOMAIN, 'www.shoppingmate.ai', 'shoppingmate-web.vercel.app']);
+  const wanted = new Set([DOMAIN, 'www.shoppingmate.shop', 'shoppingmate-web.vercel.app']);
   const merged = Array.from(new Set([...(existing.allowedDomains ?? []), ...wanted]));
   await db
     .update(schema.merchants)

@@ -33,7 +33,7 @@ import { POST } from './route';
 describe('POST /api/install/verify', () => {
   it('returns ok=true when script tag found', async () => {
     server.use(
-      http.get('https://example.com', () => HttpResponse.html('<html><body><script async src="https://cdn.shoppingmate.ai/widget/v1.js" data-id="SM-TEST01"></script></body></html>')),
+      http.get('https://example.com', () => HttpResponse.html('<html><body><script async src="https://cdn.shoppingmate.shop/widget/v1.js" data-id="SM-TEST01"></script></body></html>')),
     );
     const req = new Request('http://localhost/api/install/verify', { method: 'POST' });
     const res = await POST(req);

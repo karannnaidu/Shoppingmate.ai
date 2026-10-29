@@ -88,7 +88,7 @@ describe('Bucket B integration — pricing tour end-to-end', () => {
     const merchant = {
       id: 'SM-XPK2EN',
       name: 'shoppingmate',
-      domain: 'shoppingmate.ai',
+      domain: 'shoppingmate.shop',
       personaId: 'concierge',
       adapterType: 'shopify',
     } as unknown as Merchant;

@@ -17,7 +17,7 @@ export type SystemPromptOpts = {
   /** Concatenated KB text inserted at BRAND_KB_SLOT. Caller is responsible for
    *  trimming to the desired token budget; this builder does no truncation. */
   kbText?: string;
-  /** When true, Sage is framed as the demo assistant ON shoppingmate.ai itself
+  /** When true, Sage is framed as the demo assistant ON shoppingmate.shop itself
    *  (selling shoppingmate to evaluators), with proactive vertical-tour
    *  scripting. Used for the SM-XPK2EN dogfood merchant. */
   demoMode?: boolean;
@@ -274,7 +274,7 @@ VISITOR AWARENESS
 `;
 }
 
-// shoppingmate.ai's own assistant: founders ask for a demo call, pricing for
+// shoppingmate.shop's own assistant: founders ask for a demo call, pricing for
 // many stores, partnerships or help — logged for our team like any brand's case.
 const DEMO_REQUESTS_BLOCK = `
 REQUESTS FOR THE SHOPPINGMATE TEAM (case.open)
@@ -296,7 +296,7 @@ function demoSystemPrompt(
   liveSignalBlock = '',
   playbookBlock = '',
 ): string {
-  return `You are ${personaName}, the live demo assistant on shoppingmate.ai itself. Visitors here are e-commerce founders and operators evaluating shoppingmate as a product. You have two jobs:
+  return `You are ${personaName}, the live demo assistant on shoppingmate.shop itself. Visitors here are e-commerce founders and operators evaluating shoppingmate as a product. You have two jobs:
 ${returningVisitorBlock}${liveSignalBlock}
 
 1) Answer any question about shoppingmate — positioning, pricing, install, supported platforms, the brand dashboard, voice/text mode, privacy, FAQ — using BRAND CONTEXT below. If a question is genuinely outside that, say so and offer to connect them with the team.
@@ -304,7 +304,7 @@ ${returningVisitorBlock}${liveSignalBlock}
 2) Offer a hands-on tour. After your first or second reply, proactively ask: "Want to see me work on a real catalog? I can give you a 60-second tour — pick one: dog food, apparel, jewelry, electronics, or supplements." When they pick a vertical, immediately call products.search with that vertical (e.g. "dog food", "supplements") so cards appear, then walk through 2–3 products as if you were that brand's shopping assistant.
 
 DRIVE THE BROWSER (REQUIRED)
-shoppingmate.ai is a multi-page marketing site. Real, navigable routes:
+shoppingmate.shop is a multi-page marketing site. Real, navigable routes:
 - "/" — home (hero, summary of everything)
 - "/pricing" — plan grid + FAQ
 - "/features" — features, how it works, privacy

@@ -1,7 +1,7 @@
 // Idempotent seeder: load the shoppingmate self-pitch KB directly into
 // brand_kb_chunks for the dogfood merchant. Bypasses the upload/R2 flow
 // because the demo merchant doesn't need a document trail — we just want
-// Sage on shoppingmate.ai to have positioning/pricing/FAQ context.
+// Sage on shoppingmate.shop to have positioning/pricing/FAQ context.
 //
 // Run via:
 //   pnpm --filter @shoppingmate/api tsx apps/api/scripts/seed-shoppingmate-kb.ts
@@ -45,7 +45,7 @@ const SECTIONS: { heading: string; body: string }[] = [
   },
   {
     heading: 'Brand dashboard',
-    body: `Each brand gets a web dashboard at app.shoppingmate.ai showing live conversations, conversion analytics, KB document management, persona selection, billing, and team members. Operators can review transcripts, see which products got the most interest, and tune Sage's behavior with KB uploads. The dashboard does not double as Slack — Slack is reserved for shoppingmate's own internal ops. Brand-side notifications go through email or webhook.`,
+    body: `Each brand gets a web dashboard at app.shoppingmate.shop showing live conversations, conversion analytics, KB document management, persona selection, billing, and team members. Operators can review transcripts, see which products got the most interest, and tune Sage's behavior with KB uploads. The dashboard does not double as Slack — Slack is reserved for shoppingmate's own internal ops. Brand-side notifications go through email or webhook.`,
   },
   {
     heading: 'Privacy and data',

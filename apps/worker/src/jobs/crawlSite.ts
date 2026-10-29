@@ -6,7 +6,7 @@ import { fetchSitemap, priorityPages, sameSiteLinks } from '../steps/siteGraph/s
 
 // Identify ourselves honestly (same as onboarding). Requests with no UA at all
 // are blocked by many hosts — Shake Shack's crawl returned 0 pages.
-const CRAWLER_UA = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.ai/bot)';
+const CRAWLER_UA = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.shop/bot)';
 
 export type CrawlSiteArgs = {
   merchantId: string;

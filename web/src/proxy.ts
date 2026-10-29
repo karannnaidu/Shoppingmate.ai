@@ -5,7 +5,7 @@ export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
 
-const APP_HOST = process.env.NEXT_PUBLIC_APP_HOST ?? 'app.shoppingmate.ai';
+const APP_HOST = process.env.NEXT_PUBLIC_APP_HOST ?? 'app.shoppingmate.shop';
 
 export async function proxy(req: NextRequest) {
   const url = req.nextUrl.clone();

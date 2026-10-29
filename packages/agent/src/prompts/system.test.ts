@@ -281,7 +281,7 @@ describe('CUSTOMER CARE section', () => {
   });
 });
 
-describe('demo (shoppingmate.ai) requests', () => {
+describe('demo (shoppingmate.shop) requests', () => {
   it('the demo assistant books meetings and takes enquiries with case.open', () => {
     const prev = process.env.CASE_CAPTURE;
     process.env.CASE_CAPTURE = '*';

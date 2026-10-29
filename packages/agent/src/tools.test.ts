@@ -274,7 +274,7 @@ describe('dispatchTool()', () => {
 
 describe('buildToolSurface (demo-merchant gate)', () => {
   it('exposes site.* + pricing.quote tools only when merchant.id === SHOPPINGMATE_DEMO_MERCHANT_ID', () => {
-    const demo = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.ai' } as unknown as Merchant;
+    const demo = { id: 'SM-XPK2EN', name: 'shoppingmate', domain: 'shoppingmate.shop' } as unknown as Merchant;
     const tools = buildToolSurface(demo);
     const names = tools.map((t) => t.function.name);
     expect(names).toEqual(

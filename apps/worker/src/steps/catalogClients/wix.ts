@@ -3,7 +3,7 @@ import type { CatalogClientResult, NormalizedProduct } from './shopify.js';
 
 const log = childLogger({ step: 'catalogSync.wix' });
 const PAGE_SIZE = 100;
-const USER_AGENT = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.ai/bot)';
+const USER_AGENT = 'Mozilla/5.0 (compatible; ShoppingmateBot/0.1; +https://shoppingmate.shop/bot)';
 const BASE_PATH = '/_api/wix-ecommerce-storefront-web/api/storefront/products';
 
 type WixProduct = {

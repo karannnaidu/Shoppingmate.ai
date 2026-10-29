@@ -1,5 +1,5 @@
 // Idempotent seeder: 25 demo products across 5 verticals attached to the
-// dogfood merchant (SM-XPK2EN). The shoppingmate.ai widget runs in demoMode
+// dogfood merchant (SM-XPK2EN). The shoppingmate.shop widget runs in demoMode
 // for this merchant; when a visitor picks a vertical, Sage searches the
 // catalog by vertical keyword (e.g. "dog food") and these rows surface as
 // real product cards with images, prices, and click-through URLs.
@@ -26,9 +26,9 @@ const unsplash = (id: string) =>
   `https://images.unsplash.com/${id}?w=800&h=800&fit=crop&auto=format&q=70`;
 // Click-through goes to a generic shoppingmate URL since these aren't real
 // products on a real store. Adapter is `suggest` — clicking a card on
-// shoppingmate.ai isn't expected to add to a real cart anyway.
+// shoppingmate.shop isn't expected to add to a real cart anyway.
 const url = (sku: string) =>
-  `https://shoppingmate.ai/demo/${sku.toLowerCase()}?utm_source=widget_showcase`;
+  `https://shoppingmate.shop/demo/${sku.toLowerCase()}?utm_source=widget_showcase`;
 
 type ShowcaseProduct = {
   sku: string;

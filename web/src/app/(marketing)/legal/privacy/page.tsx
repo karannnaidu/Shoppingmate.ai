@@ -178,8 +178,8 @@ export default function PrivacyPolicyPage() {
             </h2>
             <p>
               Merchants and their customers may request access or deletion of data we hold. Contact{" "}
-              <a className="underline" href="mailto:privacy@shoppingmate.ai">
-                privacy@shoppingmate.ai
+              <a className="underline" href="mailto:hello@shoppingmate.shop">
+                hello@shoppingmate.shop
               </a>
               . We respond within 30 days.
             </p>

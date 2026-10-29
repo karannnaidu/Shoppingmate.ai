@@ -19,7 +19,7 @@ async function defaultHaikuCall(prompt: string): Promise<string> {
     headers: {
       'content-type': 'application/json',
       authorization: `Bearer ${apiKey}`,
-      'http-referer': 'https://shoppingmate.ai',
+      'http-referer': 'https://shoppingmate.shop',
       'x-title': 'shoppingmate-adapter-smoke',
     },
     body: JSON.stringify({
