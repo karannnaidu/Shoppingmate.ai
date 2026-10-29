@@ -7,7 +7,28 @@ export const config = {
 
 const APP_HOST = process.env.NEXT_PUBLIC_APP_HOST ?? 'app.shoppingmate.shop';
 
+// Login cookies belong to one host, and sign-in links go to the canonical
+// domain — so a visitor on the old vercel.app address got signed in on www
+// and then asked to sign in again on vercel.app. Page visits there move to the
+// canonical domain; the widget script, API, webhooks and files stay put
+// (brands' installed snippets and payment webhooks still use that address).
+const CANONICAL_ORIGIN = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.shoppingmate.shop';
+const LEGACY_HOSTS = new Set(['shoppingmate-web.vercel.app', 'shoppingmate.shop']);
+
+function canonicalRedirect(req: NextRequest): NextResponse | null {
+  const { hostname, pathname, search } = req.nextUrl;
+  if (!LEGACY_HOSTS.has(hostname)) return null;
+  if (req.method !== 'GET' && req.method !== 'HEAD') return null;
+  if (pathname.startsWith('/api') || pathname.startsWith('/widget') || pathname.startsWith('/_next')) return null;
+  if (/\.[a-z0-9]+$/i.test(pathname)) return null; // static files (images, icons, scripts)
+  const target = new URL(`${pathname}${search}`, CANONICAL_ORIGIN);
+  if (target.hostname === hostname) return null;
+  return NextResponse.redirect(target, 308);
+}
+
 export async function proxy(req: NextRequest) {
+  const moved = canonicalRedirect(req);
+  if (moved) return moved;
   const url = req.nextUrl.clone();
   // Use hostname from the parsed URL (works in both prod and vitest environments).
   // req.headers.get('host') is null when NextRequest is constructed from a URL
