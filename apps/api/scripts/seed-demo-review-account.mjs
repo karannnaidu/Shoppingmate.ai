@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Demo login for payment-gateway / app-store reviewers (e.g. Razorpay KYC):
-// a separate "Demo Store" with sample data only — no real customer details —
+// a separate "Demo Store" with sample data only â€” no real customer details â€”
 // and a password login (password sign-in is enabled with sign-up disabled, so
 // only accounts created here can use it). Idempotent: re-running resets the
 // password and tops up the sample data.
-//   DBURL=… DEMO_PASSWORD=… node apps/api/scripts/seed-demo-review-account.mjs
+//   DBURL=â€¦ DEMO_PASSWORD=â€¦ node apps/api/scripts/seed-demo-review-account.mjs
 import { createRequire } from 'node:module';
 import { randomBytes, randomUUID } from 'node:crypto';
 
@@ -40,11 +40,11 @@ try {
   const [{ n }] = await sql`select count(*)::int as n from metric_events where merchant_id = ${MERCHANT_ID} and metric_name = 'conversationCompleted'`;
   if (n === 0) {
     const convs = [
-      { mode: 'text', outcome: 'converted', cart_adds: 1, checkout_reached: true, turns: 6, duration_sec: 140, attributed_cents: 2400,
+      { mode: 'text', outcome: 'purchased', cart_adds: 1, checkout_reached: true, turns: 6, duration_sec: 140, attributed_cents: 2400,
         transcript: [
           { role: 'agent', content: 'Hi! I can help you find the right product. What are you looking for?' },
           { role: 'user', content: 'A gentle moisturiser for dry skin.' },
-          { role: 'agent', content: 'Our Hydra Daily Cream suits dry skin — fragrance-free and light. Want me to add it to your cart?' },
+          { role: 'agent', content: 'Our Hydra Daily Cream suits dry skin â€” fragrance-free and light. Want me to add it to your cart?' },
           { role: 'user', content: 'Yes please, and take me to checkout.' },
           { role: 'agent', content: 'Added. Taking you to checkout now.' },
         ] },
@@ -52,14 +52,14 @@ try {
         transcript: [
           { role: 'agent', content: 'Hi, how can I help you today?' },
           { role: 'user', content: 'Do you ship to Mumbai and how long does it take?' },
-          { role: 'agent', content: 'Yes, we deliver across India — usually 3 to 5 days to Mumbai.' },
+          { role: 'agent', content: 'Yes, we deliver across India â€” usually 3 to 5 days to Mumbai.' },
         ] },
       { mode: 'text', outcome: 'abandoned', cart_adds: 0, checkout_reached: false, turns: 5, duration_sec: 95, attributed_cents: 0,
         transcript: [
           { role: 'user', content: 'My order arrived with a broken lid.' },
           { role: 'agent', content: "I'm sorry about that. Could you share your order number and a photo? I'll raise it for the team." },
           { role: 'user', content: 'Order 10234, photo attached.' },
-          { role: 'agent', content: "Thanks — it's logged as request #1 and the team will reach you by email." },
+          { role: 'agent', content: "Thanks â€” it's logged as request #1 and the team will reach you by email." },
         ] },
     ];
     for (const [i, c] of convs.entries()) {
@@ -70,7 +70,7 @@ try {
   const [{ c }] = await sql`select count(*)::int as c from support_cases where merchant_id = ${MERCHANT_ID}`;
   if (c === 0) {
     await sql`insert into support_cases (merchant_id, type, summary, details, contact_name, contact_email, consent, urgency, sentiment, order_id)
-      values (${MERCHANT_ID}, 'complaint', 'Order 10234 arrived with a broken lid — wants a replacement (sample)', ${sql.json({ product: 'Hydra Daily Cream', desired_resolution: 'Replacement' })}, 'Sample Customer', 'customer@example.com', true, 'high', 'negative', '10234'),
+      values (${MERCHANT_ID}, 'complaint', 'Order 10234 arrived with a broken lid â€” wants a replacement (sample)', ${sql.json({ product: 'Hydra Daily Cream', desired_resolution: 'Replacement' })}, 'Sample Customer', 'customer@example.com', true, 'high', 'negative', '10234'),
              (${MERCHANT_ID}, 'feedback', 'Loved the fast delivery and packaging (sample)', ${sql.json({})}, null, null, false, 'normal', 'positive', null)`;
   }
 
