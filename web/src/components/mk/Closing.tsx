@@ -170,7 +170,7 @@ export function MkFooter() {
     { h: 'Company', l: [['FAQ', '/faq'], ['Privacy', '/legal/privacy'], ['Log in', '/login'], ['Get started', '/signup']] },
   ];
   return (
-    <footer className="border-t border-[#f0f0f4] py-14">
+    <footer className="border-t border-[#f0f0f4] pb-32 pt-14 sm:pb-14">
       <Container className="flex flex-col gap-10 sm:flex-row sm:justify-between">
         <div className="max-w-[320px]">
           <Link href="/" className="flex items-center gap-2">
