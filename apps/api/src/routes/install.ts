@@ -1,7 +1,7 @@
 import { caseCaptureEnabled } from '@shoppingmate/agent';
 import { db, hasFeature, schema } from '@shoppingmate/db';
 import { createRedisConnection, onboardingQueue } from '@shoppingmate/jobs';
-import { childLogger } from '@shoppingmate/shared';
+import { childLogger, env } from '@shoppingmate/shared';
 import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -167,7 +167,8 @@ installRoute.post('/', async (c) => {
   return c.json(
     {
       // Customer Care PRD: photo proof wherever request capture is on.
-      care: caseCaptureEnabled(merchant) ? { photos: true } : null,
+      // Not on our own marketing demo (no orders there to send photos about).
+      care: caseCaptureEnabled(merchant) && body.merchantId !== env.SHOPPINGMATE_DEMO_MERCHANT_ID ? { photos: true } : null,
       insights: insightsOn
         ? { enabled: true, sampleRate: Math.min(1, Math.max(0, Number(process.env.INSIGHTS_SAMPLE_RATE ?? 1))) }
         : null,

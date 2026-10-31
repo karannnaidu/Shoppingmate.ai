@@ -25,14 +25,14 @@ const serif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "shoppingmate.shop — Your store, finally talking back",
+  title: "shoppingmate — Every shopper gets a salesperson",
   description:
-    "Olivia greets every shopper on your store, answers by voice or text, builds the cart, fills checkout and shows you every step. One line of code. Shopify, WooCommerce or any website.",
+    "Olivia answers questions, recommends the right product and walks shoppers to checkout — by voice or chat — on Shopify, WooCommerce or any website. Live in 60 seconds, from $30/month.",
   metadataBase: new URL("https://shoppingmate.shop"),
   openGraph: {
-    title: "shoppingmate.shop — Your store, finally talking back",
+    title: "shoppingmate — Every shopper gets a salesperson",
     description:
-      "A voice + text shopping assistant that sells on your store and shows its work. Installs in 60 seconds.",
+      "Olivia sells on your store by voice and chat — answers, recommends and walks shoppers to checkout. Live in 60 seconds.",
     type: "website",
   },
 };
