@@ -31,7 +31,7 @@ export const RELEASES: Release[] = [
       { kind: 'improved', text: 'Pricing now reads "Cart, discount-code and checkout help" — Olivia applies your codes; she never invents one.' },
       { kind: 'fixed', text: 'The photo button no longer appears on our own demo call.' },
     ],
-    commits: ['cc28b02', 'c7a5712', '67f1dec'],
+    commits: ['cc28b02', 'c7a5712', '67f1dec', 'a0d4ba5'],
   },
   {
     date: '2026-10-29',
