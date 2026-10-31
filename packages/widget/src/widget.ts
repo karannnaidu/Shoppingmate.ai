@@ -178,8 +178,27 @@ class WidgetElement extends HTMLElement {
   // for: set data-ambience="off" on the widget element, or pass false here.
   private ambience: Ambience = createAmbience(false);
 
+  // Public hook: a page's own "Talk to us" button can open the call or chat:
+  //   window.dispatchEvent(new CustomEvent('shoppingmate:open', { detail: { mode: 'call' } }))
+  // A click before the widget is ready is remembered and run once it is.
+  private ready = false;
+  private pendingOpen: 'call' | 'chat' | null = null;
+  private onOpenRequest = (e: Event) => {
+    const mode = (e as CustomEvent<{ mode?: string }>).detail?.mode === 'chat' ? 'chat' : 'call';
+    if (!this.ready) {
+      this.pendingOpen = mode;
+      return;
+    }
+    this.openFromPage(mode);
+  };
+  private openFromPage(mode: 'call' | 'chat') {
+    if (mode === 'chat') this.store.dispatch({ type: 'set_mode', mode: 'chat' });
+    else this.openCall();
+  }
+
   connectedCallback() {
     if (this.shadowRoot) return;
+    window.addEventListener('shoppingmate:open', this.onOpenRequest);
     const id = this.getAttribute('data-id');
     const api = this.getAttribute('data-api') ?? this.apiBase;
     if (!id) {
@@ -294,6 +313,7 @@ class WidgetElement extends HTMLElement {
   };
 
   disconnectedCallback() {
+    window.removeEventListener('shoppingmate:open', this.onOpenRequest);
     document.removeEventListener('visibilitychange', this.onPageHidden);
     window.removeEventListener('pagehide', this.onPageHidden);
     this.socket?.close();
@@ -470,6 +490,12 @@ class WidgetElement extends HTMLElement {
     }
     this.voice = result.voice;
     this.carePhotos = result.care?.photos === true;
+    this.ready = true;
+    if (this.pendingOpen) {
+      const mode = this.pendingOpen;
+      this.pendingOpen = null;
+      queueMicrotask(() => this.openFromPage(mode));
+    }
     this.persona = getPersonaDisplay(result.personaId ?? result.voice?.personaId ?? null);
     // Apply the dashboard-configured launcher placement (unless the visitor has
     // dragged it somewhere, in which case their choice wins).

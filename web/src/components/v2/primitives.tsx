@@ -9,7 +9,7 @@ export function SerifEm({ children }: { children: ReactNode }) {
 
 export function Eyebrow({ children, tone = "violet" }: { children: ReactNode; tone?: "violet" | "signal" }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-elevated/80 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted backdrop-blur-sm">
+    <span className="inline-flex items-center gap-2 text-[15px] font-medium text-[var(--mk-accent,#5b3df5)]">
       <span className={`h-1.5 w-1.5 rounded-full ${tone === "signal" ? "bg-signal" : "bg-violet"}`} />
       {children}
     </span>

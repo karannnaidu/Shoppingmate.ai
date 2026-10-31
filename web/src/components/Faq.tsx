@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { SectionHead, SerifEm } from "./v2/primitives";
 
-const items = [
+export const FAQ_ITEMS = [
   {
     q: "Do I need an app, a plugin or a developer?",
     a: "No. You paste one line into your site (or ask whoever manages it to). It works on Shopify, WooCommerce and any other website — there's nothing to install or maintain.",
@@ -56,7 +56,7 @@ export function Faq() {
         />
 
         <div className="mt-14 grid gap-2.5">
-          {items.map((it, i) => {
+          {FAQ_ITEMS.map((it, i) => {
             const expanded = open === i;
             return (
               <motion.div

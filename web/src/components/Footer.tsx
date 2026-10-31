@@ -30,7 +30,7 @@ const cols = [
   },
 ];
 
-export function Footer() {
+export function LegacyFooter() {
   return (
     <footer className="relative border-t border-border bg-surface-muted/40">
       <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
@@ -74,3 +74,6 @@ export function Footer() {
     </footer>
   );
 }
+
+// 2026-10-31 redesign: every marketing page uses the new footer.
+export { MkFooter as Footer } from './mk/Closing';

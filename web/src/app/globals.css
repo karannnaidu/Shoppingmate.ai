@@ -1,6 +1,6 @@
 @import "tailwindcss";
 /* `dark:` follows the site's theme toggle (.dark on <html>), not the OS setting. */
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *):not(:where(.mk, .mk *)));
 
 /* V2.0 palette — warm paper (light) / ink + ivory (dark). Violet stays the brand
    accent; signal green means live / done / money (matches the widget's ticks
@@ -89,7 +89,9 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  overflow-x: hidden;
+  /* clip (not hidden): hides sideways overflow without turning body into a
+     scroll container, so position:sticky and window scrolling keep working. */
+  overflow-x: clip;
 }
 
 /* ---- V2 primitives ------------------------------------------------------ */
@@ -373,3 +375,49 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .dash-enter { animation: none; }
 }
+
+
+/* ── Marketing site (2026-10-31 redesign): light-only, one accent. ───────────
+   The .mk wrapper re-declares the light tokens even when <html> is .dark (the
+   dashboard's saved theme), and the dark: variant skips this subtree. */
+.mk {
+  --background: #ffffff;
+  --foreground: #0b0b10;
+  --surface: #ffffff;
+  --surface-muted: #f5f5f7;
+  --surface-elevated: #ffffff;
+  --border: #e8e8ee;
+  --border-strong: #d6d6de;
+  --text-primary: #0b0b10;
+  --text-secondary: #4a4a55;
+  --text-muted: #6e6e7a;
+  --mk-accent: #5b3df5;
+  --mk-accent-ink: #ffffff;
+  --mk-accent-soft: rgba(91, 61, 245, 0.08);
+  --mk-glow: 0 10px 40px -8px rgba(91, 61, 245, 0.55), 0 2px 6px rgba(91, 61, 245, 0.25);
+  --mk-panel-shadow: 0 1px 2px rgba(11, 11, 16, 0.04), 0 24px 60px -24px rgba(11, 11, 16, 0.18);
+  background: #ffffff;
+  color: #0b0b10;
+  color-scheme: light;
+}
+.mk ::selection { background: rgba(91, 61, 245, 0.18); }
+.mk-h1 { font-weight: 600; letter-spacing: -0.045em; line-height: 0.98; }
+.mk-h2 { font-weight: 600; letter-spacing: -0.04em; line-height: 1.02; }
+.mk-halftone {
+  background-image: radial-gradient(circle at center, var(--mk-accent) 1.1px, transparent 1.6px);
+  background-size: 9px 9px;
+}
+@keyframes mk-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.mk-marquee { animation: mk-marquee 40s linear infinite; }
+@keyframes mk-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@keyframes mk-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.mk-reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.mk-reveal.is-in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .mk-marquee { animation: none; }
+  .mk-reveal { opacity: 1; transform: none; transition: none; }
+}
+/* Inner marketing pages reuse older sections: same new look, no new markup. */
+.mk .serif-em { font-family: inherit; font-style: normal; letter-spacing: inherit; color: var(--mk-accent); }
+.mk .aurora, .mk .grid-bg { display: none; }
+.mk .grain::after { display: none; }

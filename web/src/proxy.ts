@@ -12,7 +12,10 @@ const APP_HOST = process.env.NEXT_PUBLIC_APP_HOST ?? 'app.shoppingmate.shop';
 // and then asked to sign in again on vercel.app. Page visits there move to the
 // canonical domain; the widget script, API, webhooks and files stay put
 // (brands' installed snippets and payment webhooks still use that address).
-const CANONICAL_ORIGIN = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.shoppingmate.shop';
+// Only a real https site address counts (a dev .env may set http://localhost).
+const CANONICAL_ORIGIN = /^https:\/\//.test(process.env.NEXT_PUBLIC_APP_URL ?? '')
+  ? (process.env.NEXT_PUBLIC_APP_URL as string)
+  : 'https://www.shoppingmate.shop';
 const LEGACY_HOSTS = new Set(['shoppingmate-web.vercel.app', 'shoppingmate.shop']);
 
 function canonicalRedirect(req: NextRequest): NextResponse | null {

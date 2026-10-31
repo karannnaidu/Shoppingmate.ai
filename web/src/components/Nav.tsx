@@ -16,7 +16,7 @@ const links = [
   { href: "/faq", label: "FAQ" },
 ];
 
-export function Nav() {
+export function LegacyNav() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -126,3 +126,6 @@ export function Nav() {
     </header>
   );
 }
+
+// 2026-10-31 redesign: every marketing page uses the floating pill nav.
+export { MkNav as Nav } from './mk/Nav';

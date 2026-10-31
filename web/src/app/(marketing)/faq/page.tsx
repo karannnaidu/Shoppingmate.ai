@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { Nav } from "@/components/Nav";
 import { PageHeader } from "@/components/PageHeader";
 import { SerifEm } from "@/components/v2/primitives";
-import { Faq } from "@/components/Faq";
-import { Cta } from "@/components/Cta";
+import { MkFaq, MkFinalCta } from "@/components/mk/Closing";
 import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
@@ -26,8 +25,8 @@ export default function FaqPage() {
           secondaryHref="/demo"
           secondaryLabel="Talk to Olivia"
         />
-        <Faq />
-        <Cta />
+        <MkFaq />
+        <MkFinalCta />
       </main>
       <Footer />
     </>

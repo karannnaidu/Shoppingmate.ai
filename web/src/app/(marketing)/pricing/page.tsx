@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import { Nav } from "@/components/Nav";
 import { PageHeader } from "@/components/PageHeader";
 import { SerifEm } from "@/components/v2/primitives";
-import { Pricing } from "@/components/Pricing";
-import { Faq } from "@/components/Faq";
-import { Cta } from "@/components/Cta";
+import { MkFaq, MkFinalCta, MkPricing } from "@/components/mk/Closing";
 import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
@@ -32,9 +30,9 @@ export default function PricingPage() {
             { value: "$0.30", label: "per extra" },
           ]}
         />
-        <Pricing hideHeading />
-        <Faq />
-        <Cta />
+        <MkPricing heading={false} />
+        <MkFaq />
+        <MkFinalCta />
       </main>
       <Footer />
     </>

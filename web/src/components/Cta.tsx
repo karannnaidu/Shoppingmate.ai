@@ -8,7 +8,7 @@ import Link from "next/link";
 const CDN_BASE = process.env.NEXT_PUBLIC_WIDGET_CDN_BASE || 'https://shoppingmate-web.vercel.app';
 const snippet = `<script async\n  src="${CDN_BASE}/widget/v1.js"\n  data-id="SM-XXXX"></script>`;
 
-export function Cta() {
+export function LegacyCta() {
   const [copied, setCopied] = useState(false);
 
   return (
@@ -100,3 +100,6 @@ export function Cta() {
     </section>
   );
 }
+
+// 2026-10-31 redesign: marketing pages close with the new final call to action.
+export { MkFinalCta as Cta } from './mk/Closing';
