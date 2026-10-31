@@ -409,12 +409,14 @@ body {
 }
 @keyframes mk-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .mk-marquee { animation: mk-marquee 40s linear infinite; }
+@keyframes mk-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes mk-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 @keyframes mk-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .mk-reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
 .mk-reveal.is-in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .mk-marquee { animation: none; }
+  .mk [style*='mk-float'] { animation: none !important; }
   .mk-reveal { opacity: 1; transform: none; transition: none; }
 }
 /* Inner marketing pages reuse older sections: same new look, no new markup. */

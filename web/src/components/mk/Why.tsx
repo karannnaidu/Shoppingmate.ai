@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useRef, useState } from 'react';
 import { MessageCircleQuestion } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Container, Eyebrow, H2, Lead, Reveal } from './ui';
@@ -31,22 +32,49 @@ const QUESTIONS = [
 ];
 
 function VisitorGrid() {
-  // 100 visitors on a typical store: ~2 buy.
+  // 100 visitors on a typical store: ~2 buy. Dots fill in as it scrolls into
+  // view, then the two buyers pop in the accent.
+  const ref = useRef<HTMLDivElement>(null);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setOn(true);
+      return;
+    }
+    const io = new IntersectionObserver(([e]) => {
+      if (e?.isIntersecting) {
+        setOn(true);
+        io.disconnect();
+      }
+    }, { threshold: 0.3 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   return (
-    <div className="grid grid-cols-10 gap-1.5 sm:gap-2" role="img" aria-label="Out of 100 visitors, about 2 buy">
-      {Array.from({ length: 100 }).map((_, i) => (
-        <span
-          key={i}
-          className={cn('aspect-square rounded-full', i === 23 || i === 67 ? 'bg-[var(--mk-accent)]' : 'bg-[#e6e6ee]')}
-        />
-      ))}
+    <div ref={ref} className="grid grid-cols-10 gap-1.5 sm:gap-2" role="img" aria-label="Out of 100 visitors, about 2 buy">
+      {Array.from({ length: 100 }).map((_, i) => {
+        const buyer = i === 23 || i === 67;
+        return (
+          <span
+            key={i}
+            className={cn(
+              'aspect-square rounded-full transition-[opacity,transform,background-color] duration-500',
+              on ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
+              buyer && on ? 'bg-[var(--mk-accent)] shadow-[0_0_0_6px_rgba(91,61,245,0.12)]' : 'bg-[#e6e6ee]',
+            )}
+            style={{ transitionDelay: on ? `${buyer ? 1300 : i * 9}ms` : '0ms' }}
+          />
+        );
+      })}
     </div>
   );
 }
 
 export function MkWhy() {
   return (
-    <section className="py-24 sm:py-32">
+    <section className="py-16 sm:py-32">
       <Container>
         <div className="grid items-center gap-14 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
           <Reveal>
@@ -80,7 +108,7 @@ export function MkWhy() {
           </Reveal>
         </div>
 
-        <Reveal className="mt-24">
+        <Reveal className="mt-16 sm:mt-24">
           <div className="text-center">
             <H2 className="mx-auto max-w-[820px]">The questions that cost you the sale — answered on the spot.</H2>
           </div>

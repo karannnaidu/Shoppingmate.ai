@@ -102,6 +102,36 @@ function StoreMock({ step }: { step: number }) {
   );
 }
 
+// Phones: the product the shopper is looking at, docked on top of the call.
+function MiniProduct({ step }: { step: number }) {
+  const inCart = step >= SCRIPT.length + 1 ? 1 : 0;
+  return (
+    <div className="relative z-10 -mb-5 flex w-[92%] items-center gap-3 rounded-2xl border border-[#ececf2] bg-white p-3 shadow-[0_18px_40px_-18px_rgba(11,11,16,0.35)]">
+      <div className="relative h-16 w-14 shrink-0 overflow-hidden rounded-xl bg-[#faf7f2]">
+        <div className="absolute left-1/2 top-1 origin-top -translate-x-1/2 scale-[0.32]">
+          <Bottle />
+        </div>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold tracking-[0.14em] text-[#9a8a74]">LUMEN SKIN</p>
+        <p className="truncate text-[14.5px] font-semibold text-[#0b0b10]">Barrier Repair Cream</p>
+        <p className="text-[13px] text-[#4a4a55]">$48.00 · 50 ml</p>
+      </div>
+      <span className="relative inline-flex items-center gap-1 rounded-full bg-[#f5f5f7] px-2.5 py-1.5 text-[12px] font-medium text-[#0b0b10]">
+        <ShoppingBag className="h-3.5 w-3.5" />
+        <span
+          className={cn(
+            'grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-semibold transition-all duration-500',
+            inCart ? 'scale-110 bg-[var(--mk-accent)] text-white' : 'bg-[#e3e3ea] text-[#6e6e7a]',
+          )}
+        >
+          {inCart}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function CallPanel({ step }: { step: number }) {
   const lines = SCRIPT.slice(0, Math.min(step, SCRIPT.length));
   const ticks = Math.max(0, Math.min(STEPS.length, step - SCRIPT.length));
@@ -171,7 +201,7 @@ function CallPanel({ step }: { step: number }) {
 export function MkHero() {
   const step = useScript();
   return (
-    <section className="relative overflow-hidden pb-16 pt-32 sm:pb-24 sm:pt-40">
+    <section className="relative overflow-hidden pb-14 pt-28 sm:pb-24 sm:pt-40">
       <div
         aria-hidden
         className="mk-halftone pointer-events-none absolute left-1/2 top-0 h-[520px] w-[1100px] -translate-x-1/2 opacity-[0.22]"
@@ -196,12 +226,17 @@ export function MkHero() {
         <p className="mt-5 text-[14px] text-[#6e6e7a]">Live in 60 seconds · No app or plugin · From $30/month</p>
       </Container>
 
-      <Container className="relative mt-16 sm:mt-20">
+      <Container className="relative mt-12 sm:mt-20">
         <div className="relative mx-auto max-w-[1060px]">
-          <div className="pr-0 lg:pr-[220px]">
+          <div className="hidden lg:block lg:pr-[220px]">
             <StoreMock step={step} />
           </div>
-          <div className="mt-[-40px] flex justify-center px-4 lg:absolute lg:-bottom-10 lg:right-0 lg:mt-0 lg:px-0">
+          <div className="hidden lg:absolute lg:-bottom-10 lg:right-0 lg:block">
+            <CallPanel step={step} />
+          </div>
+          {/* Phones: same live demo, sized for the screen, gently floating. */}
+          <div className="mx-auto flex max-w-[380px] flex-col items-center lg:hidden" style={{ animation: 'mk-float 6s ease-in-out infinite' }}>
+            <MiniProduct step={step} />
             <CallPanel step={step} />
           </div>
         </div>

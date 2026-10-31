@@ -5,7 +5,7 @@ import { Check, Plus } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { PLAN_CREDITS } from '@/lib/plan-credits';
 import { FAQ_ITEMS } from '@/components/Faq';
-import { AccentButton, Container, Eyebrow, H2, InkButton, Lead, Reveal, TalkButton } from './ui';
+import { AccentButton, Carousel, Container, Eyebrow, H2, InkButton, Lead, Reveal, TalkButton } from './ui';
 
 const TIERS = [
   {
@@ -31,7 +31,7 @@ const TIERS = [
 
 export function MkPricing({ heading = true }: { heading?: boolean }) {
   return (
-    <section id="pricing" className="scroll-mt-24 bg-[#fbfbfd] py-24 sm:py-32" data-tour-stop="pricing">
+    <section id="pricing" className="scroll-mt-24 bg-[#fbfbfd] py-16 sm:py-32" data-tour-stop="pricing">
       <Container>
         {heading && (
           <Reveal className="mx-auto max-w-[760px] text-center">
@@ -40,7 +40,8 @@ export function MkPricing({ heading = true }: { heading?: boolean }) {
             <Lead className="mx-auto mt-5 max-w-[560px]">One conversation is one shopper&apos;s visit with Olivia — voice or chat, same price. Change or cancel any time.</Lead>
           </Reveal>
         )}
-        <div className="mt-14 grid gap-4 lg:grid-cols-3">
+        <div className="mt-14">
+          <Carousel label="Plans" desktopClass="lg:grid lg:grid-cols-3 lg:gap-4" itemClass="w-[84%] sm:w-[56%]" startIndex={1}>
           {TIERS.map((t, i) => {
             const plan = PLAN_CREDITS[t.key]!;
             const per = (plan.price / plan.credits).toFixed(2);
@@ -49,7 +50,7 @@ export function MkPricing({ heading = true }: { heading?: boolean }) {
               <Reveal key={t.key} delay={i * 80}>
                 <div
                   className={cn(
-                    'relative flex h-full flex-col rounded-[26px] border bg-white p-7',
+                    'relative mt-4 flex h-full flex-col rounded-[26px] border bg-white p-7',
                     popular ? 'border-[var(--mk-accent)] shadow-[0_30px_70px_-30px_rgba(91,61,245,0.45)]' : 'border-[#ececf2]',
                   )}
                 >
@@ -86,6 +87,7 @@ export function MkPricing({ heading = true }: { heading?: boolean }) {
               </Reveal>
             );
           })}
+          </Carousel>
         </div>
         <p className="mt-8 text-center text-[14px] text-[#6e6e7a]">
           Cancel anytime · Secure payments by Razorpay · Extra conversations $0.30 each · Bigger store?{' '}
@@ -101,7 +103,7 @@ export function MkPricing({ heading = true }: { heading?: boolean }) {
 export function MkFaq() {
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <section id="faq" className="scroll-mt-24 py-24 sm:py-32">
+    <section id="faq" className="scroll-mt-24 py-16 sm:py-32">
       <Container className="grid gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <Reveal>
           <Eyebrow>Questions</Eyebrow>
@@ -144,7 +146,7 @@ export function MkFaq() {
 
 export function MkFinalCta() {
   return (
-    <section className="relative overflow-hidden py-28 sm:py-36">
+    <section className="relative overflow-hidden py-20 sm:py-36">
       <div
         aria-hidden
         className="mk-halftone pointer-events-none absolute inset-x-0 bottom-0 mx-auto h-[420px] max-w-[1100px] opacity-[0.2]"
@@ -166,8 +168,8 @@ export function MkFinalCta() {
 
 export function MkFooter() {
   const cols = [
-    { h: 'Product', l: [['How it works', '/#how'], ['What she does', '/#what'], ['Pricing', '/pricing'], ['Platforms', '/platforms'], ['Install', '/install']] },
-    { h: 'Company', l: [['FAQ', '/faq'], ['Privacy', '/legal/privacy'], ['Log in', '/login'], ['Get started', '/signup']] },
+    { h: 'Product', l: [['Features', '/features'], ['How it works', '/how-it-works'], ['Platforms', '/platforms'], ['Pricing', '/pricing'], ['Install', '/install'], ['Live demo', '/demo']] },
+    { h: 'Company', l: [['FAQ', '/faq'], ['Changelog', '/changelog'], ['Privacy', '/legal/privacy'], ['Log in', '/login'], ['Get started', '/signup']] },
   ];
   return (
     <footer className="border-t border-[#f0f0f4] pb-32 pt-14 sm:pb-14">

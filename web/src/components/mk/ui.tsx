@@ -134,3 +134,78 @@ export function Reveal({ children, className, delay = 0 }: { children: React.Rea
     </div>
   );
 }
+
+/**
+ * Phones: a swipeable row with scroll-snap, a peek of the next card and dots
+ * that follow the swipe. From `lg` up it is a plain grid (pass the grid classes
+ * via `desktopClass`). `startIndex` centres a card on first paint (no page jump).
+ */
+export function Carousel({
+  children,
+  desktopClass,
+  itemClass = 'w-[86%] sm:w-[58%]',
+  startIndex = 0,
+  label,
+  spans,
+}: {
+  children: React.ReactNode[];
+  desktopClass: string;
+  itemClass?: string;
+  startIndex?: number;
+  label: string;
+  /** Per-card desktop grid classes, e.g. lg:col-span-4. */
+  spans?: string[];
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(startIndex);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const first = el.children[startIndex] as HTMLElement | undefined;
+    if (first && startIndex > 0 && window.matchMedia('(max-width: 1023px)').matches) {
+      el.scrollLeft = first.offsetLeft - (el.clientWidth - first.clientWidth) / 2;
+    }
+    const onScroll = () => {
+      const kids = Array.from(el.children) as HTMLElement[];
+      const mid = el.scrollLeft + el.clientWidth / 2;
+      let best = 0;
+      let bestD = Infinity;
+      kids.forEach((k, i) => {
+        const d = Math.abs(k.offsetLeft + k.clientWidth / 2 - mid);
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      setActive(best);
+    };
+    onScroll();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [startIndex]);
+  return (
+    <div>
+      <div
+        ref={ref}
+        role="region"
+        aria-label={label}
+        className={cn(
+          '-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-5 px-5 pb-2 [scrollbar-width:none] sm:-mx-8 sm:px-8 [&::-webkit-scrollbar]:hidden',
+          'lg:mx-0 lg:overflow-visible lg:px-0 lg:pb-0',
+          desktopClass,
+        )}
+      >
+        {children.map((c, i) => (
+          <div key={i} className={cn('shrink-0 snap-center lg:w-auto lg:shrink', itemClass, spans?.[i])}>
+            {c}
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex justify-center gap-1.5 lg:hidden" aria-hidden>
+        {children.map((_, i) => (
+          <span key={i} className={cn('h-1.5 rounded-full transition-all duration-300', i === active ? 'w-6 bg-[#0b0b10]' : 'w-1.5 bg-[#d6d6de]')} />
+        ))}
+      </div>
+    </div>
+  );
+}

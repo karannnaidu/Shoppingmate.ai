@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import { Nav } from "@/components/Nav";
 import { PageHeader } from "@/components/PageHeader";
 import { SerifEm } from "@/components/v2/primitives";
-import { Features } from "@/components/Features";
-import { HowItWorks } from "@/components/HowItWorks";
-import { Privacy } from "@/components/Privacy";
+import { MkCapabilities } from "@/components/mk/Capabilities";
+import { MkWhy } from "@/components/mk/Why";
 import { Cta } from "@/components/Cta";
 import { Footer } from "@/components/Footer";
 
@@ -22,7 +21,7 @@ export default function FeaturesPage() {
                 <PageHeader
           eyebrow="Features"
           title={<>Everything Olivia does, <SerifEm>out of the box.</SerifEm></>}
-          subtitle="Voice and chat in one. She finds the right product, adds it to the cart, applies the best code and fills in checkout — and you see every step in your dashboard."
+          subtitle="Voice and chat in one. She finds the right product, adds it to the cart, applies your discount codes and fills in checkout — and you see every step in your dashboard."
           primaryHref="/signup"
           primaryLabel="Get started — from $30/mo"
           secondaryHref="/demo"
@@ -33,9 +32,8 @@ export default function FeaturesPage() {
             { value: "0", label: "card details seen" },
           ]}
         />
-        <Features />
-        <HowItWorks />
-        <Privacy />
+        <MkCapabilities />
+        <MkWhy />
         <Cta />
       </main>
       <Footer />

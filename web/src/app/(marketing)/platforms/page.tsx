@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { Nav } from "@/components/Nav";
 import { PageHeader } from "@/components/PageHeader";
 import { SerifEm } from "@/components/v2/primitives";
-import { Platforms } from "@/components/Platforms";
-import { HowItWorks } from "@/components/HowItWorks";
+import { MkPlatformGrid } from "@/components/mk/PlatformGrid";
 import { Cta } from "@/components/Cta";
 import { Footer } from "@/components/Footer";
 
@@ -32,8 +31,7 @@ export default function PlatformsPage() {
             { value: "Minutes", label: "to go live" },
           ]}
         />
-        <Platforms />
-        <HowItWorks />
+        <MkPlatformGrid />
         <Cta />
       </main>
       <Footer />

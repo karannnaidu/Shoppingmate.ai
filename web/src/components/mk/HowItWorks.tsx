@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, Inbox } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Container, Eyebrow, ExampleTag, H2, Panel } from './ui';
@@ -117,7 +117,8 @@ const R = 70;
 const TRACK = `M ${R} 10 H ${W - R} A ${R - 10} ${R - 10} 0 0 1 ${W - 10} ${R} V ${H - R} A ${R - 10} ${R - 10} 0 0 1 ${W - R} ${H - 10} H ${R} A ${R - 10} ${R - 10} 0 0 1 10 ${H - R} V ${R} A ${R - 10} ${R - 10} 0 0 1 ${R} 10 Z`;
 const AT = [0.62, 0.84, 0.02, 0.22, 0.42];
 
-function Loop({ active }: { active: number }) {
+function Loop({ active, compact = false }: { active: number; compact?: boolean }) {
+  const dotsId = `mk-dots-${useId().replace(/:/g, '')}`;
   const pathRef = useRef<SVGPathElement>(null);
   const [len, setLen] = useState(0);
   const [pos, setPos] = useState(AT[0]!);
@@ -146,14 +147,14 @@ function Loop({ active }: { active: number }) {
   const traveled = ((pos - AT[0]! + 1) % 1) * len;
   const labelAt = (f: number) => (pathRef.current && len ? pathRef.current.getPointAtLength(f * len) : null);
   return (
-    <div className="relative px-24 py-14">
+    <div className={cn('relative', compact ? 'px-[72px] py-7' : 'px-24 py-14')}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full overflow-visible" role="img" aria-label={`Step ${active + 1} of ${STEPS.length}: ${STEPS[active]?.tag}`}>
         <defs>
-          <pattern id="mk-dots" width="7" height="7" patternUnits="userSpaceOnUse">
+          <pattern id={dotsId} width="7" height="7" patternUnits="userSpaceOnUse">
             <circle cx="3.5" cy="3.5" r="1.1" fill="#d4d4de" />
           </pattern>
         </defs>
-        <path d={TRACK} fill="none" stroke="url(#mk-dots)" strokeWidth="26" />
+        <path d={TRACK} fill="none" stroke={`url(#${dotsId})`} strokeWidth="26" />
         <path
           ref={pathRef}
           d={TRACK}
@@ -169,20 +170,28 @@ function Loop({ active }: { active: number }) {
         <circle cx={pt.x} cy={pt.y} r="4" fill="#fff" />
       </svg>
       {/* Step pills: HTML over the SVG so they never clip. */}
-      <div className="pointer-events-none absolute inset-x-24 inset-y-14">
+      <div className={cn('pointer-events-none absolute', compact ? 'inset-x-[72px] inset-y-7' : 'inset-x-24 inset-y-14')}>
         {AT.map((f, i) => {
           const p = labelAt(f);
           if (!p) return null;
           const left = (p.x / W) * 100;
           const top = (p.y / H) * 100;
           const outside = p.x < W * 0.2 ? 'right' : p.x > W * 0.8 ? 'left' : p.y < H / 2 ? 'below' : 'above';
+          const g = compact ? 13 : 22;
           const shift =
-            outside === 'right' ? 'translate(calc(-100% - 22px), -50%)' : outside === 'left' ? 'translate(22px, -50%)' : outside === 'below' ? 'translate(-50%, calc(-100% - 22px))' : 'translate(-50%, 22px)';
+            outside === 'right'
+              ? `translate(calc(-100% - ${g}px), -50%)`
+              : outside === 'left'
+                ? `translate(${g}px, -50%)`
+                : outside === 'below'
+                  ? `translate(-50%, calc(-100% - ${g}px))`
+                  : `translate(-50%, ${g}px)`;
           return (
             <span
               key={i}
               className={cn(
-                'absolute whitespace-nowrap rounded-full border px-3 py-1 text-[13px] font-medium transition-colors duration-300',
+                'absolute whitespace-nowrap rounded-full border font-medium transition-colors duration-300',
+                compact ? 'px-2 py-0.5 text-[10.5px]' : 'px-3 py-1 text-[13px]',
                 i === active ? 'border-[#0b0b10] bg-[#0b0b10] text-white' : 'border-[#e8e8ee] bg-white text-[#6e6e7a]',
               )}
               style={{ left: `${left}%`, top: `${top}%`, transform: shift }}
@@ -212,14 +221,20 @@ export function MkHowItWorks() {
     return () => io.disconnect();
   }, []);
   return (
-    <section id="how" className="scroll-mt-24 bg-[#fbfbfd] py-24 sm:py-32">
+    <section id="how" className="scroll-mt-24 bg-[#fbfbfd] py-16 sm:py-32">
       <Container>
         <div className="max-w-[720px]">
           <Eyebrow>How it works</Eyebrow>
           <H2>Live on your store in a minute. Selling from the first visitor.</H2>
         </div>
-        <div className="mt-16 grid gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="flex min-w-0 flex-col gap-24 lg:gap-[30vh] lg:pb-[20vh]">
+        <div className="mt-10 grid gap-16 sm:mt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-16 lg:gap-[30vh] lg:pb-[20vh]">
+            {/* Phones: the same moving loop, docked under the nav while the steps scroll. */}
+            <div className="sticky top-[72px] z-20 -mx-5 -mb-8 px-5 lg:hidden">
+              <div className="mx-auto max-w-[340px] rounded-[24px] border border-[#ececf2] bg-white/90 shadow-[0_14px_40px_-20px_rgba(11,11,16,0.35)] backdrop-blur-md">
+                <Loop active={active} compact />
+              </div>
+            </div>
             {STEPS.map((s, i) => (
               <div
                 key={s.tag}
@@ -227,7 +242,7 @@ export function MkHowItWorks() {
                 ref={(el) => {
                   refs.current[i] = el;
                 }}
-                className={cn('transition-opacity duration-500', i === active ? 'lg:opacity-100' : 'lg:opacity-40')}
+                className={cn('transition-opacity duration-500', i === active ? 'opacity-100' : 'opacity-35')}
               >
                 <p className="text-[14px] font-medium text-[var(--mk-accent)]">
                   {String(i + 1).padStart(2, '0')} · {s.tag}
