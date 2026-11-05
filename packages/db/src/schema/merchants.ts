@@ -46,6 +46,10 @@ export const merchants = pgTable('merchants', {
   checkoutUrl: text('checkout_url'),
   couponFieldSelector: text('coupon_field_selector'),
   policyUrls: jsonb('policy_urls'),
+  // Website paths the owner told the assistant NOT to learn from (dashboard
+  // "Your website" sitemap). A value ending in "/" skips a whole folder
+  // ("/blog/"); anything else skips that one page ("/legal/terms/").
+  kbExcludedPaths: jsonb('kb_excluded_paths').$type<string[]>().notNull().default([]),
   personaId: text('persona_id').default('concierge').notNull(),
   // Initial launcher placement, controlled from the dashboard and delivered to
   // the widget in the /v1/install response. One of the widget POSITION_CLASSES

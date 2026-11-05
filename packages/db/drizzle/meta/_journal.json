@@ -190,6 +190,13 @@
       "when": 1793179634426,
       "tag": "0026_aromatic_archangel",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793907255114,
+      "tag": "0027_rescan_kb_exclusions",
+      "breakpoints": true
     }
   ]
 }

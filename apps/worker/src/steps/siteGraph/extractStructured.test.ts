@@ -82,7 +82,73 @@ describe('extractStructured', () => {
     expect(out.title).toBe('Kibble X');
     expect(out.intents[0].intentKey).toBe('add to cart');
     expect(out.media[0].mediaUrl).toBe('https://x.com/img.jpg');
-    expect(out.product).toBeNull();
+    // No Product JSON-LD, but a product URL: the page itself becomes the product.
+    expect(out.product?.sku).toBe('kibble-x');
+    expect(out.product?.title).toBe('Kibble X — high-protein');
+  });
+
+  // 2026-11-06: Calmosis launched Holistic Gummy with NO Product JSON-LD (only
+  // Organization/WebSite), so a re-scan never added it to the catalog.
+  it('builds a product from a product page that has no Product JSON-LD', async () => {
+    const html = `<html><head><title>Holistic Gummy — Ayurvedic Vijaya Wellness Gummy | Calmosis</title>
+      <meta name="description" content="India&#39;s premium Ayurvedic wellness gummy for calm &amp; sleep.">
+      <meta property="og:site_name" content="Calmosis">
+      <script type="application/ld+json">{"@type":"Organization","name":"Calmosis"}</script></head>
+      <body><h1>Holistic Gummy</h1><img src="/holistic-gummy/md/pack.webp" alt="Holistic Gummy — 10-Day Ritual">
+      <div>10-Day Ritual 10 gummies ₹500 ₹450 / gummy</div><div>₹4,500</div></body></html>`;
+    const withLlm = await extractStructured({
+      html,
+      url: 'https://calmosis.com/shop/holistic-gummy/',
+      llmCall: vi.fn().mockResolvedValue({
+        product: {
+          name: 'Holistic Gummy',
+          description: 'An Ayurvedic Vijaya gummy for calm and sleep.',
+          currency: 'INR',
+          options: [
+            { label: '10-Day Ritual (10 gummies)', price: 4500 },
+            { label: 'Monthly Ritual (30 gummies)', price: 12000 },
+          ],
+        },
+      }),
+    });
+    expect(withLlm.pageType).toBe('pdp');
+    expect(withLlm.product).toMatchObject({
+      sku: 'holistic-gummy',
+      title: 'Holistic Gummy',
+      priceCents: 450000,
+      currency: 'INR',
+      imageUrl: 'https://calmosis.com/holistic-gummy/md/pack.webp',
+      brand: 'Calmosis',
+    });
+    expect(withLlm.product?.description).toContain('Monthly Ritual (30 gummies) — ₹12,000');
+
+    // LLM down: still a product, from the heading + meta + first price shown.
+    const noLlm = await extractStructured({
+      html,
+      url: 'https://calmosis.com/shop/holistic-gummy/',
+      llmCall: vi.fn().mockRejectedValue(new Error('quota')),
+    });
+    // ₹500 / ₹450 are per-gummy prices; the only pack price shown is ₹4,500.
+    expect(noLlm.product).toMatchObject({ sku: 'holistic-gummy', title: 'Holistic Gummy', currency: 'INR', priceCents: 450000 });
+    expect(noLlm.product?.description).toContain("India's premium Ayurvedic wellness gummy");
+
+    // Several pack prices and no LLM: never guess one — list them instead.
+    const multi = await extractStructured({
+      html: html.replace('<div>₹4,500</div>', '<div>₹4,500</div><div>₹12,000</div>'),
+      url: 'https://calmosis.com/shop/holistic-gummy/',
+      llmCall: vi.fn().mockRejectedValue(new Error('quota')),
+    });
+    expect(multi.product?.priceCents).toBeNull();
+    expect(multi.product?.description).toContain('₹4,500, ₹12,000');
+  });
+
+  it('drops an LLM policy with an empty body instead of failing the read', async () => {
+    const out = await extractStructured({
+      html: '<html><body><p>short</p></body></html>',
+      url: 'https://x.com/our-promise',
+      llmCall: vi.fn().mockResolvedValue({ policy: { policyType: 'returns', summary: null, fullText: null } }),
+    });
+    expect(out.policy).toBeNull();
   });
 
   it('returns safe defaults on LLM parse failure (no deterministic URL signal)', async () => {

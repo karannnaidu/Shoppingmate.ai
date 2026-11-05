@@ -1,6 +1,6 @@
 import { db as defaultDb, schema } from '@shoppingmate/db';
 import { eq } from 'drizzle-orm';
-import { siteGraphCrawlQueue } from '@shoppingmate/jobs';
+import { enqueueSiteCrawl } from '@shoppingmate/jobs';
 
 export type DriftDetectArgs = {
   merchantId: string;
@@ -15,7 +15,7 @@ export async function runDriftDetect(args: DriftDetectArgs): Promise<DriftDetect
   const db = args.db ?? defaultDb;
   const fetchFn = args.fetchFn ?? fetch;
   const enqueueCrawl = args.enqueueCrawl ?? (async ({ merchantId }) => {
-    await siteGraphCrawlQueue.add('crawl', { merchantId });
+    await enqueueSiteCrawl(merchantId);
   });
 
   const pages = await db.query.sitePages.findMany({

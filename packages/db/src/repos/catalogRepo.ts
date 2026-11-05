@@ -63,7 +63,7 @@ const STOPWORDS = new Set(
 /**
  * "sofa for small apartment" → "sofa:* | small:* | apartment:*". Words are
  * lower-cased, stripped to [a-z0-9], stop-words dropped, and simple plurals
- * reduced ("sofas" → "sofa", "boxes" → "box") so the prefix matches both forms.
+ * reduced ("sofas" → "sofa", "boxes" → "box", "gummies" → "gummy") so the prefix matches both forms.
  * Returns null when nothing meaningful is left.
  */
 export function buildOrTsQuery(query: string): string | null {
@@ -72,7 +72,16 @@ export function buildOrTsQuery(query: string): string | null {
     .split(/\s+/)
     .map((w) => w.replace(/[^a-z0-9]/g, ''))
     .filter((w) => w.length >= 3 && !STOPWORDS.has(w))
-    .map((w) => (w.length > 4 && w.endsWith('es') && /(s|x|z|ch|sh)es$/.test(w) ? w.slice(0, -2) : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w));
+    .map((w) =>
+      // "gummies" → "gummy" (was "gummie", which never matched "Holistic Gummy").
+      w.length > 4 && w.endsWith('ies')
+        ? `${w.slice(0, -3)}y`
+        : w.length > 4 && w.endsWith('es') && /(s|x|z|ch|sh)es$/.test(w)
+          ? w.slice(0, -2)
+          : w.length > 3 && w.endsWith('s') && !w.endsWith('ss')
+            ? w.slice(0, -1)
+            : w,
+    );
   const unique = [...new Set(words)].slice(0, 8);
   return unique.length ? unique.map((w) => `${w}:*`).join(' | ') : null;
 }

@@ -24,3 +24,11 @@ export type {
   ChatToolsResult,
 } from './openrouter.js';
 export { signVoiceToken, verifyVoiceToken, voiceWsEnabled } from './voiceToken.js';
+export {
+  buildSitemapTree,
+  isPathExcluded,
+  normalizeExclusion,
+  pageKey,
+  pagePath,
+} from './sitemap.js';
+export type { SitemapFolder, SitemapPage, SitemapTree } from './sitemap.js';

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { siteGraphCrawlQueue, siteGraphExtractQueue } from '@shoppingmate/jobs';
+import { enqueueSiteCrawl, siteGraphExtractQueue } from '@shoppingmate/jobs';
 import { db, schema, metricNames } from '@shoppingmate/db';
 import type { NewProduct } from '@shoppingmate/db';
 import { and, eq } from 'drizzle-orm';
@@ -405,7 +405,7 @@ shopifyWebhookRoute.post('/products/update', async (c) => {
     upsertProduct: dbUpsertProduct,
     // Also refresh the site graph / KB (nav + policy pages) on a product edit.
     enqueueReindex: async (merchantId) => {
-      await siteGraphCrawlQueue.add('crawl', { merchantId });
+      await enqueueSiteCrawl(merchantId);
     },
   });
   return c.body(null, out.status as never);

@@ -1,5 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
-import { db as defaultDb, schema } from '@shoppingmate/db';
+import { db as defaultDb, schema, type CrawlStats } from '@shoppingmate/db';
+import { isPathExcluded, pageKey } from '@shoppingmate/shared';
 import { eq } from 'drizzle-orm';
 import { uploadObject as defaultUpload, siteGraphKey } from '../r2-upload.js';
 import { fetchSitemap, priorityPages, sameSiteLinks } from '../steps/siteGraph/sitemap.js';
@@ -67,7 +68,38 @@ export async function runCrawlSite(args: CrawlSiteArgs): Promise<CrawlSiteResult
     // Policy / FAQ / contact pages first (never in Shopify sitemaps), then the
     // sitemap's pages; the cap applies after, so they can't be crowded out.
     const seedUrls = [...priorityPages(rootUrl), ...urls];
-    const toFetch = Array.from(new Set(seedUrls)).slice(0, maxPages);
+    // One fetch per page: /about and /about/ are the same page (Calmosis's
+    // crawl read both, wasting the page budget and doubling the site map).
+    const discovered: string[] = [];
+    const duplicates: string[] = [];
+    const seenKeys = new Set<string>();
+    for (const u of seedUrls) {
+      const key = pageKey(u);
+      if (seenKeys.has(key)) {
+        if (!discovered.includes(u)) duplicates.push(u);
+        continue;
+      }
+      seenKeys.add(key);
+      discovered.push(u);
+    }
+    // Pages the owner told the assistant to skip are not fetched at all, so
+    // they don't eat the page budget either.
+    const excludedPaths = (merchant.kbExcludedPaths ?? []) as string[];
+    const excluded = discovered.filter((u) => isPathExcluded(u, excludedPaths));
+    const toFetch = discovered.filter((u) => !isPathExcluded(u, excludedPaths)).slice(0, maxPages);
+
+    // "Soft 404": many sites (SPAs, Calmosis) answer ANY path with 200 and the
+    // same not-found shell. Fetch one surely-missing URL and skip every page
+    // that's byte-identical to it — otherwise /menu, /book, /pages/faq… all
+    // land in the knowledge base as copies of the home page.
+    let notFoundHash: string | null = null;
+    try {
+      const probe = await uaFetch(`${new URL(rootUrl).origin}/__shoppingmate-not-a-page-${randomUUID().slice(0, 8)}`);
+      if (probe.ok) notFoundHash = createHash('sha256').update(Buffer.from(await probe.arrayBuffer())).digest('hex');
+    } catch {
+      /* no probe — keep everything */
+    }
+    const notFound: string[] = [];
 
     const sitemapKey = siteGraphKey(args.merchantId, crawlId, 'sitemap.xml');
     await uploadObject(sitemapKey, toFetch.join('\n'), 'text/plain');
@@ -83,6 +115,10 @@ export async function runCrawlSite(args: CrawlSiteArgs): Promise<CrawlSiteResult
         if (!res.ok) continue;
         body = Buffer.from(await res.arrayBuffer());
       } catch {
+        continue;
+      }
+      if (notFoundHash && createHash('sha256').update(body).digest('hex') === notFoundHash) {
+        notFound.push(url);
         continue;
       }
       const urlHash = createHash('sha256').update(url).digest('hex').slice(0, 16);
@@ -103,8 +139,11 @@ export async function runCrawlSite(args: CrawlSiteArgs): Promise<CrawlSiteResult
       pageCount += 1;
     }
 
+    // Fetched, not yet read: the extract job flips this to ok/failed. The
+    // dashboard used to say "Up to date" here even when every read crashed.
+    const stats: CrawlStats = { discovered, excluded, notFound, duplicates };
     await db.update(schema.siteCrawls)
-      .set({ status: 'ok', pageCount, finishedAt: now() })
+      .set({ status: 'extracting', pageCount, stats })
       .where(eq(schema.siteCrawls.id, crawlId));
     return { crawlId, status: 'ok', pageCount };
   } catch (err) {

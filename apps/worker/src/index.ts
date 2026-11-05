@@ -6,13 +6,13 @@ import {
   siteTemplateScanQueue,
 } from '@shoppingmate/jobs';
 import { db, hasFeature, schema } from '@shoppingmate/db';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { chat, logger, simpleChat } from '@shoppingmate/shared';
 import { Queue, Worker } from 'bullmq';
 import { onboardingHandler } from './handlers/onboarding.js';
 import { ingestKbDoc } from './jobs/ingestKbDoc.js';
 import { runCrawlSite } from './jobs/crawlSite.js';
-import { runExtractSiteGraph } from './jobs/extractSiteGraph.js';
+import { applyKbExclusions, runExtractSiteGraph } from './jobs/extractSiteGraph.js';
 import { runDailyInsights, runWeeklyInsights } from './jobs/insightsReport.js';
 import { runNightlyQa } from './jobs/nightlyQa.js';
 import { runScanSiteTemplates } from './jobs/scanSiteTemplates.js';
@@ -65,13 +65,54 @@ const siteGraphCrawlWorker = new Worker(
   { connection: createRedisConnection(), concurrency: 2 },
 );
 
+// Reads of the SAME store never overlap (they share page/media unique keys);
+// different stores still run side by side.
+const lockRedis = createRedisConnection();
+async function withMerchantLock<T>(merchantId: string, fn: () => Promise<T>): Promise<T> {
+  const key = `sm:site-graph:lock:${merchantId}`;
+  const token = `${process.pid}-${Date.now()}-${Math.random()}`;
+  const deadline = Date.now() + 45 * 60_000;
+  while ((await lockRedis.set(key, token, 'EX', 60 * 60, 'NX')) !== 'OK') {
+    if (Date.now() > deadline) throw new Error('site-graph lock timeout');
+    await new Promise((r) => setTimeout(r, 5_000));
+  }
+  try {
+    return await fn();
+  } finally {
+    if ((await lockRedis.get(key)) === token) await lockRedis.del(key);
+  }
+}
+
 const siteGraphExtractWorker = new Worker(
   'site-graph-extract',
-  async (job) => runExtractSiteGraph({
-    merchantId: job.data.merchantId as string,
-    crawlId: job.data.crawlId as string,
-    downloadObject: downloadKbObject,
-  }),
+  async (job) => {
+    const merchantId = job.data.merchantId as string;
+    if (job.name === 'apply-exclusions') {
+      const out = await withMerchantLock(merchantId, () => applyKbExclusions({ merchantId }));
+      logger.info({ merchantId, ...out }, 'kb exclusions applied');
+      return out;
+    }
+    const crawlId = job.data.crawlId as string;
+    return withMerchantLock(merchantId, async () => {
+      // A newer read finished while this one waited: it supersedes this one.
+      const [latest] = await db
+        .select({ id: schema.siteCrawls.id })
+        .from(schema.siteCrawls)
+        .where(eq(schema.siteCrawls.merchantId, merchantId))
+        .orderBy(desc(schema.siteCrawls.startedAt))
+        .limit(1);
+      if (latest && latest.id !== crawlId) {
+        await db
+          .update(schema.siteCrawls)
+          .set({ status: 'failed', errorSummary: 'superseded by a newer read', finishedAt: new Date() })
+          .where(eq(schema.siteCrawls.id, crawlId));
+        return { status: 'superseded' };
+      }
+      const out = await runExtractSiteGraph({ merchantId, crawlId, downloadObject: downloadKbObject });
+      logger.info({ merchantId, crawlId, ...out }, 'site-graph extract done');
+      return out;
+    });
+  },
   { connection: createRedisConnection(), concurrency: 2 },
 );
 

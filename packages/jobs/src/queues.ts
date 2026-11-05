@@ -37,7 +37,29 @@ export const siteTemplateScanQueue = new Queue<SiteTemplateScanJobData>('site-te
   },
 });
 
-export type SiteGraphExtractJobData = { merchantId: string; crawlId: string };
+/** extract = read a finished crawl; apply-exclusions = owner changed what to
+ *  skip (fast: prune + refresh the assistant's site summary, no re-read). */
+export type SiteGraphExtractJobData = { merchantId: string; crawlId?: string };
+
+/** One website read per store at a time: the dashboard button, the nightly
+ *  drift check, onboarding and Shopify webhooks all go through here. A read
+ *  already queued or running absorbs the new request (2026-11-05: three clicks
+ *  = three parallel reads that crashed into each other and emptied the
+ *  knowledge base). */
+export async function enqueueSiteCrawl(merchantId: string): Promise<{ queued: boolean }> {
+  const jobId = `crawl-${merchantId}`;
+  const existing = await siteGraphCrawlQueue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === 'waiting' || state === 'active' || state === 'delayed' || state === 'prioritized') {
+      return { queued: false };
+    }
+    await existing.remove().catch(() => undefined);
+  }
+  await siteGraphCrawlQueue.add('crawl', { merchantId }, { jobId, removeOnComplete: true, removeOnFail: true });
+  return { queued: true };
+}
+
 export const siteGraphExtractQueue = new Queue<SiteGraphExtractJobData>('site-graph-extract', {
   connection: createRedisConnection(),
   defaultJobOptions: {

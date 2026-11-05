@@ -1,5 +1,5 @@
 import { implementedAdapters } from '@shoppingmate/adapters';
-import { siteGraphCrawlQueue } from '@shoppingmate/jobs';
+import { enqueueSiteCrawl } from '@shoppingmate/jobs';
 import { db, schema } from '@shoppingmate/db';
 import { childLogger, decryptSecret } from '@shoppingmate/shared';
 import type { Job } from 'bullmq';
@@ -34,7 +34,7 @@ async function emitMetric(
  *  couldn't answer "what's your return policy?". Best-effort, never blocks. */
 async function queueSiteCrawl(merchantId: string): Promise<void> {
   try {
-    await siteGraphCrawlQueue.add('crawl', { merchantId });
+    await enqueueSiteCrawl(merchantId);
     log.info({ merchantId }, 'onboarding: site crawl queued');
   } catch (err) {
     log.warn({ merchantId, err: (err as Error).message }, 'onboarding: could not queue site crawl');

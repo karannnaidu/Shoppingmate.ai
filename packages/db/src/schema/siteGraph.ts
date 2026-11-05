@@ -3,8 +3,28 @@ import {
 } from 'drizzle-orm/pg-core';
 import { merchants } from './merchants.js';
 
-export const crawlStatuses = ['pending', 'running', 'ok', 'failed'] as const;
+// 'extracting' = pages fetched, the assistant is still reading them. Only 'ok'
+// means the knowledge base was actually rebuilt.
+export const crawlStatuses = ['pending', 'running', 'extracting', 'ok', 'failed'] as const;
 export type CrawlStatus = (typeof crawlStatuses)[number];
+
+/** Per-crawl bookkeeping shown on the dashboard "Your website" page. */
+export type CrawlStats = {
+  /** Every URL the crawl found (sitemap + priority pages), before skips. */
+  discovered?: string[];
+  /** URLs the owner told the assistant to skip (not fetched). */
+  excluded?: string[];
+  /** URLs that answered 200 but were the site's "page not found" shell. */
+  notFound?: string[];
+  /** Same page reached twice (e.g. /about and /about/) — read once. */
+  duplicates?: string[];
+  /** Pages the reader could not process, with the reason. */
+  failed?: Array<{ url: string; error: string }>;
+  /** Pages successfully read into the knowledge base. */
+  extracted?: number;
+  /** Products found on product pages. */
+  products?: number;
+};
 
 export const pageTypes = ['home', 'pdp', 'plp', 'collection', 'policy', 'faq', 'other'] as const;
 export type PageType = (typeof pageTypes)[number];
@@ -45,6 +65,7 @@ export const siteCrawls = pgTable(
     rootUrl: text('root_url').notNull(),
     pageCount: integer('page_count').notNull().default(0),
     errorSummary: text('error_summary'),
+    stats: jsonb('stats').$type<CrawlStats>(),
   },
   (t) => ({
     byMerchant: index('site_crawls_merchant_idx').on(t.merchantId, t.startedAt),

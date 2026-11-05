@@ -15,6 +15,10 @@ describe('buildOrTsQuery', () => {
     expect(buildOrTsQuery('gift boxes')).toBe('gift:* | box:*');
     expect(buildOrTsQuery('glass')).toBe('glass:*');
   });
+  it('reduces -ies plurals to -y so "gummies" finds "Holistic Gummy"', () => {
+    expect(buildOrTsQuery('do you have gummies')).toBe('gummy:*');
+    expect(buildOrTsQuery('accessories')).toBe('accessory:*');
+  });
   it('strips punctuation and returns null when nothing meaningful is left', () => {
     expect(buildOrTsQuery("I'm looking for the best")).toBeNull();
     expect(buildOrTsQuery('a to of')).toBeNull();
