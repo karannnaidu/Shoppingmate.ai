@@ -8,6 +8,8 @@ import { enqueueSiteCrawl, siteGraphExtractQueue } from '@shoppingmate/jobs';
 import { normalizeExclusion } from '@shoppingmate/shared/sitemap';
 
 const MAX_RULES = 500;
+/** A first full read of a big site can take hours; older than this = dead. */
+const READ_STUCK_AFTER_MS = 6 * 60 * 60_000;
 
 // "Your website" sitemap: the owner picks folders / pages the assistant should
 // NOT learn from. Newly-skipped pages leave the knowledge base right away (the
@@ -50,22 +52,19 @@ export async function POST(req: Request) {
   // Pages turned back on weren't fetched by the last read, so they need a new
   // one — unless a read is already running: starting another would cancel it
   // (newer read wins), so they're picked up on the next read instead.
+  const [latest] = await db
+    .select({ status: siteCrawls.status, startedAt: siteCrawls.startedAt })
+    .from(siteCrawls)
+    .where(eq(siteCrawls.merchantId, merchantId))
+    .orderBy(desc(siteCrawls.startedAt))
+    .limit(1);
+  const readInProgress = Boolean(
+    latest &&
+      ['pending', 'running', 'extracting'].includes(latest.status) &&
+      Date.now() - latest.startedAt.getTime() < READ_STUCK_AFTER_MS,
+  );
   let reread = false;
-  let readInProgress = false;
-  if (reincluded.length > 0) {
-    const [latest] = await db
-      .select({ status: siteCrawls.status, startedAt: siteCrawls.startedAt })
-      .from(siteCrawls)
-      .where(eq(siteCrawls.merchantId, merchantId))
-      .orderBy(desc(siteCrawls.startedAt))
-      .limit(1);
-    readInProgress = Boolean(
-      latest &&
-        ['pending', 'running', 'extracting'].includes(latest.status) &&
-        Date.now() - latest.startedAt.getTime() < 60 * 60_000,
-    );
-    if (!readInProgress) reread = (await enqueueSiteCrawl(merchantId)).queued;
-  }
+  if (reincluded.length > 0 && !readInProgress) reread = (await enqueueSiteCrawl(merchantId)).queued;
 
   return NextResponse.json({ ok: true, excluded: next, reread, readInProgress, reincluded });
 }

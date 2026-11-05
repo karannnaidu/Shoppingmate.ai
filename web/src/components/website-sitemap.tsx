@@ -86,7 +86,7 @@ export function WebsiteSitemap({
         out.reread
           ? 'Saved. Skipped pages are removed; pages you turned back on are being read again now.'
           : out.readInProgress
-            ? 'Saved. Skipped pages are removed when the current read finishes; pages you turned back on are picked up on your next read.'
+            ? 'Saved. Skipped pages are removed as soon as the current read finishes; any you turned back on are picked up on your next read.'
             : 'Saved. Your assistant has stopped using the pages you skipped.',
       );
       router.refresh();

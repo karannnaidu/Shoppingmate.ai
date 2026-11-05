@@ -6,8 +6,9 @@ import { db } from '@/lib/db';
 import { siteCrawls } from '@shoppingmate/db/schema';
 import { enqueueSiteCrawl } from '@shoppingmate/jobs';
 
-/** A read older than this that never finished is treated as dead. */
-const STUCK_AFTER_MS = 60 * 60_000;
+/** A read older than this that never finished is treated as dead (a first
+ *  full read of a big site can take hours). */
+const STUCK_AFTER_MS = 6 * 60 * 60_000;
 
 // One read at a time per store: a click while a read is queued, fetching or
 // still being read is absorbed (2026-11-05: three clicks = three parallel

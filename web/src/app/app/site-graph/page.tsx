@@ -53,7 +53,10 @@ export default async function SiteGraphPage({
     .limit(5);
   const latestCrawl = recentCrawls[0];
   const lastGood = recentCrawls.find((c) => c.status === 'ok');
-  const inFlight = latestCrawl && ['pending', 'running', 'extracting'].includes(latestCrawl.status);
+  const inFlight =
+    latestCrawl &&
+    ['pending', 'running', 'extracting'].includes(latestCrawl.status) &&
+    Date.now() - latestCrawl.startedAt.getTime() < 6 * 60 * 60_000;
 
   const pages = await db
     .select({ url: sitePages.url })
@@ -150,7 +153,7 @@ export default async function SiteGraphPage({
           </Button>
           {sp.read === 'started' ? (
             <p className="text-sm text-text-secondary" role="status">
-              Started. A full read can take up to half an hour — your assistant keeps using what it already knows until then. Refresh to see progress.
+              Started. A full read can take a while on a big site — your assistant keeps using what it already knows until then. Refresh to see progress.
             </p>
           ) : sp.read === 'busy' ? (
             <p className="text-sm text-text-secondary" role="status">
