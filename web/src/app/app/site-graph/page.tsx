@@ -150,7 +150,7 @@ export default async function SiteGraphPage({
           </Button>
           {sp.read === 'started' ? (
             <p className="text-sm text-text-secondary" role="status">
-              Started. This takes about 10 minutes — refresh this page to see progress.
+              Started. A full read can take up to half an hour — your assistant keeps using what it already knows until then. Refresh to see progress.
             </p>
           ) : sp.read === 'busy' ? (
             <p className="text-sm text-text-secondary" role="status">
