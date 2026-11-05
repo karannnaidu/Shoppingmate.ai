@@ -28,7 +28,7 @@ function retryable(err: unknown): boolean {
 }
 
 function overloaded(err: unknown): boolean {
-  return /503|overloaded|high demand|unavailable/i.test(String((err as Error)?.message ?? err));
+  return /\b503\b|overloaded|high demand|unavailable/i.test(String((err as Error)?.message ?? err));
 }
 
 export async function geminiExtractCall(prompt: string): Promise<unknown> {

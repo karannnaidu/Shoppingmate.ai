@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { db as defaultDb, schema, type CrawlStats, type PageType } from '@shoppingmate/db';
-import { isPathExcluded, pageKey } from '@shoppingmate/shared';
+import { isPathExcluded, logger, pageKey } from '@shoppingmate/shared';
 import { and, eq, inArray, isNull, isNotNull, notInArray } from 'drizzle-orm';
 import { loadSiteGraph, projectSonnetAddendum } from '@shoppingmate/site-graph';
 import { classifyByUrl, extractStructured, type ExtractedNavLink } from '../steps/siteGraph/extractStructured.js';
@@ -94,9 +94,20 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
     };
     let extracted = 0;
     let productCount = 0;
+    // Pages read OK this time that turned out NOT to sell anything: a product
+    // an earlier read created from them is stale.
+    const productlessUrls: string[] = [];
 
     let sinceCheck = 0;
+    let earlySummaryDone = false;
+    const startedMs = Date.now();
     for (const art of artifacts) {
+      // Products + core pages are done (blog posts come last): refresh the
+      // assistant's site summary now rather than only after the whole read.
+      if (!earlySummaryDone && readPriority(art.url) === 3 && extracted > 0) {
+        earlySummaryDone = true;
+        await reproject(db, args.merchantId, merchant.siteGraphVersion ?? 0).catch(() => undefined);
+      }
       if (args.isSuperseded && ++sinceCheck >= 5) {
         sinceCheck = 0;
         if (await args.isSuperseded()) {
@@ -190,6 +201,7 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
           });
         }
 
+        if (!page.product) productlessUrls.push(art.url);
         if (page.product && !seenSkus.has(page.product.sku)) {
           seenSkus.add(page.product.sku);
           productCount += 1;
@@ -255,6 +267,19 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
           }).onConflictDoNothing();
         }
         extracted += 1;
+        if (extracted % 10 === 0) {
+          logger.info(
+            {
+              merchantId: args.merchantId,
+              crawlId: args.crawlId,
+              extracted,
+              failed: failed.length,
+              of: artifacts.length,
+              avgMs: Math.round((Date.now() - startedMs) / extracted),
+            },
+            'site-graph extract progress',
+          );
+        }
       } catch (err) {
         keepUrls.add(art.url);
         failed.push({ url: art.url, error: (err instanceof Error ? err.message : String(err)).slice(0, 200) });
@@ -285,6 +310,17 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
           isNotNull(schema.faqEntries.sourceUrl),
         ),
       );
+    if (productlessUrls.length > 0) {
+      await db
+        .delete(schema.products)
+        .where(
+          and(
+            eq(schema.products.merchantId, args.merchantId),
+            eq(schema.products.source, 'site_graph'),
+            inArray(schema.products.productUrl, productlessUrls),
+          ),
+        );
+    }
     // Catalog products the owner skipped (their product page is excluded).
     if (excluded.length > 0) {
       const siteProducts = await db

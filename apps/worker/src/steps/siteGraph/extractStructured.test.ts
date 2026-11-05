@@ -74,7 +74,7 @@ describe('extractStructured', () => {
       media: [{ mediaUrl: 'https://x.com/img.jpg', originalAlt: '', role: 'product' }],
     });
     const out = await extractStructured({
-      html: '<html><body>Kibble X</body></html>',
+      html: '<html><body>Kibble X<button>Add to cart</button></body></html>',
       url: 'https://x.com/products/kibble-x',
       llmCall: fakeLlm,
     });
@@ -95,6 +95,7 @@ describe('extractStructured', () => {
       <meta property="og:site_name" content="Calmosis">
       <script type="application/ld+json">{"@type":"Organization","name":"Calmosis"}</script></head>
       <body><h1>Holistic Gummy</h1><img src="/holistic-gummy/md/pack.webp" alt="Holistic Gummy — 10-Day Ritual">
+      <button type="button"><span>Add to Cart</span></button>
       <div>10-Day Ritual 10 gummies ₹500 ₹450 / gummy</div><div>₹4,500</div></body></html>`;
     const withLlm = await extractStructured({
       html,
@@ -140,6 +141,15 @@ describe('extractStructured', () => {
     });
     expect(multi.product?.priceCents).toBeNull();
     expect(multi.product?.description).toContain('₹4,500, ₹12,000');
+  });
+
+  it('a category landing page under /shop/ (no buy button) is not a product', async () => {
+    const out = await extractStructured({
+      html: '<html><body><h1>Vijaya Oil — AYUSH-Licensed Oils</h1><a href="/shop/green-mantra/">Green Mantra</a></body></html>',
+      url: 'https://calmosis.com/shop/vijaya-oil/',
+      llmCall: vi.fn().mockResolvedValue({ product: { name: 'Vijaya Oil', options: [] } }),
+    });
+    expect(out.product).toBeNull();
   });
 
   it('drops an LLM policy with an empty body instead of failing the read', async () => {

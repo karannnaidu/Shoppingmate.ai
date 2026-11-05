@@ -143,6 +143,17 @@ function absUrl(src: string, pageUrl: string): string | null {
  * the page itself: the heading, meta description, the product's own image, and
  * the prices the reader found (LLM options first, else the first price shown).
  */
+/** Does the page let a shopper buy something here? Category / SEO landing
+ *  pages under /shop/ (Calmosis /shop/vijaya-oil/) have no buy button and must
+ *  not become catalog products. */
+export function hasBuyButton(html: string): boolean {
+  for (const m of html.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>|<input\b[^>]*type=["']submit["'][^>]*value=["']([^"']*)["']/gi)) {
+    const text = (m[1] ?? m[2] ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    if (/\b(add to (cart|bag|basket|order)|buy (now|once|it now)|order now|purchase)\b/i.test(text)) return true;
+  }
+  return false;
+}
+
 export function productFromPage(
   html: string,
   url: string,
@@ -150,7 +161,7 @@ export function productFromPage(
   llmProduct: LlmProduct | null | undefined,
 ): ExtractedProduct | null {
   const sku = slugFromUrl(url);
-  if (!sku) return null;
+  if (!sku || !hasBuyButton(html)) return null;
   const pageH1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1]?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const docTitle = /<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1];
   const firstPart = (t: string | null | undefined) => (t ? decodeEntities(t).split(/\s[—|–-]\s/)[0]?.trim() : '');
