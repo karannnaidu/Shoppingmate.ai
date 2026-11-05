@@ -64,7 +64,9 @@ export default async function SiteGraphPage({
   const catalog = await db
     .select({ productUrl: products.productUrl })
     .from(products)
-    .where(and(eq(products.merchantId, merchantId)));
+    // Only products read from the site: a hand-added one (Bliss Club) points at
+    // the home page and would badge it as a product.
+    .where(and(eq(products.merchantId, merchantId), eq(products.source, 'site_graph')));
   const catalogKeys = new Set(catalog.map((p) => (p.productUrl ? pageKey(p.productUrl) : '')).filter(Boolean));
 
   const [merchantRow] = await db
