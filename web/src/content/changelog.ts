@@ -30,8 +30,10 @@ export const RELEASES: Release[] = [
       { kind: 'new', text: '“Your website” now shows a sitemap of every page your assistant found, grouped by folder, with a tick box to skip a whole folder (say, your blog) or a single page.' },
       { kind: 'improved', text: 'The status shows “Reading now” until your pages are really learned, and the button can’t start a second read while one is running.' },
       { kind: 'improved', text: 'Your assistant treats your live catalog as the full list of what you sell, so new launches are offered straight away. Searching “gummies” now finds a gummy.' },
+      { kind: 'improved', text: 'Product pages are read first, so a new launch is learned within minutes even while the rest of a big site (like a long blog) is still being read.' },
+      { kind: 'fixed', text: 'Category and guide pages under your shop are no longer mistaken for products.' },
     ],
-    commits: ['59ad4d0'],
+    commits: ['59ad4d0', '6bb9bba', '5a7c43b', '8f3dcd0', 'c77e818', 'e5f6382', 'c4e3ac0', 'cd413c0', '81b1fe4', 'e1f3b1c'],
   },
   {
     date: '2026-10-31',
