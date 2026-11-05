@@ -72,13 +72,22 @@ async function withMerchantLock<T>(merchantId: string, fn: () => Promise<T>): Pr
   const key = `sm:site-graph:lock:${merchantId}`;
   const token = `${process.pid}-${Date.now()}-${Math.random()}`;
   const deadline = Date.now() + 45 * 60_000;
-  while ((await lockRedis.set(key, token, 'EX', 60 * 60, 'NX')) !== 'OK') {
+  // Short TTL + heartbeat: a container killed mid-read (deploy, crash) frees
+  // the store within ~3 minutes instead of blocking reads for an hour.
+  while ((await lockRedis.set(key, token, 'EX', 180, 'NX')) !== 'OK') {
     if (Date.now() > deadline) throw new Error('site-graph lock timeout');
     await new Promise((r) => setTimeout(r, 5_000));
   }
+  const heartbeat = setInterval(() => {
+    void lockRedis
+      .get(key)
+      .then((v) => (v === token ? lockRedis.expire(key, 180) : undefined))
+      .catch(() => undefined);
+  }, 60_000);
   try {
     return await fn();
   } finally {
+    clearInterval(heartbeat);
     if ((await lockRedis.get(key)) === token) await lockRedis.del(key);
   }
 }
@@ -93,22 +102,26 @@ const siteGraphExtractWorker = new Worker(
       return out;
     }
     const crawlId = job.data.crawlId as string;
-    return withMerchantLock(merchantId, async () => {
-      // A newer read finished while this one waited: it supersedes this one.
+    const isSuperseded = async () => {
       const [latest] = await db
         .select({ id: schema.siteCrawls.id })
         .from(schema.siteCrawls)
         .where(eq(schema.siteCrawls.merchantId, merchantId))
         .orderBy(desc(schema.siteCrawls.startedAt))
         .limit(1);
-      if (latest && latest.id !== crawlId) {
+      return Boolean(latest && latest.id !== crawlId);
+    };
+    return withMerchantLock(merchantId, async () => {
+      // A newer read started while this one waited (or a stalled old job was
+      // resumed after a deploy): it supersedes this one.
+      if (await isSuperseded()) {
         await db
           .update(schema.siteCrawls)
           .set({ status: 'failed', errorSummary: 'superseded by a newer read', finishedAt: new Date() })
           .where(eq(schema.siteCrawls.id, crawlId));
         return { status: 'superseded' };
       }
-      const out = await runExtractSiteGraph({ merchantId, crawlId, downloadObject: downloadKbObject });
+      const out = await runExtractSiteGraph({ merchantId, crawlId, downloadObject: downloadKbObject, isSuperseded });
       logger.info({ merchantId, crawlId, ...out }, 'site-graph extract done');
       return out;
     });

@@ -137,6 +137,20 @@ describe('runExtractSiteGraph', () => {
     expect(ops.find((o) => o.op === 'update' && o.table === 'siteCrawls')?.set.status).toBe('failed');
   });
 
+  it('an older read stops (without pruning) once a newer read exists', async () => {
+    const urls = Array.from({ length: 12 }, (_, i) => art(`https://x.com/p${i}`, i));
+    const { db, ops } = makeDb({ artifacts: urls });
+    const extractFn = vi.fn().mockResolvedValue(page());
+    const out = await runExtractSiteGraph({
+      merchantId: 'm1', crawlId: 'c1', db: db as never,
+      downloadObject: vi.fn().mockResolvedValue(Buffer.from('<html/>')), extractFn, visionFn: vi.fn(),
+      isSuperseded: vi.fn().mockResolvedValue(true),
+    });
+    expect(out.status).toBe('superseded');
+    expect(extractFn).toHaveBeenCalledTimes(4);
+    expect(ops.some((o) => o.op === 'delete' && o.table === 'sitePages')).toBe(false);
+  });
+
   it('writes site_nav_edges for links that resolve to another crawled page', async () => {
     const { db, ops } = makeDb({ artifacts: [art('https://x.com/', 1), art('https://x.com/shop', 2)] });
     const extractFn = vi.fn().mockImplementation(async ({ url }: { url: string }) =>

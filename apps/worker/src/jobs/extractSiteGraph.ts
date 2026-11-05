@@ -16,10 +16,13 @@ export type ExtractSiteGraphArgs = {
   extractFn?: typeof extractStructured;
   visionFn?: (url: string) => Promise<string>;
   visionCap?: number;
+  /** Checked every few pages: true when a newer read of this store exists, so
+   *  this (older) one stops instead of holding the store's lock for half an hour. */
+  isSuperseded?: () => Promise<boolean>;
 };
 
 export type ExtractSiteGraphResult = {
-  status: 'ok' | 'failed';
+  status: 'ok' | 'failed' | 'superseded';
   error?: string;
   extracted?: number;
   failed?: number;
@@ -84,7 +87,19 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
     let extracted = 0;
     let productCount = 0;
 
+    let sinceCheck = 0;
     for (const art of artifacts) {
+      if (args.isSuperseded && ++sinceCheck >= 5) {
+        sinceCheck = 0;
+        if (await args.isSuperseded()) {
+          // Leave the knowledge base as-is (nothing pruned); the newer read owns it.
+          await db
+            .update(schema.siteCrawls)
+            .set({ status: 'failed', errorSummary: 'superseded by a newer read', finishedAt: new Date() })
+            .where(eq(schema.siteCrawls.id, args.crawlId));
+          return { status: 'superseded', extracted };
+        }
+      }
       if (!art.contentType.includes('html')) continue;
       if (isPathExcluded(art.url, excluded)) continue;
       const key = pageKey(art.url);
