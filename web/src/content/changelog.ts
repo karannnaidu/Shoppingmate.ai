@@ -20,6 +20,20 @@ export type Release = {
 
 export const RELEASES: Release[] = [
   {
+    date: '2026-11-06',
+    title: 'Re-reading your website is reliable — and you choose what it learns',
+    summary:
+      'Launch a new product, press “Re-read my pages”, and your assistant learns it. You can now see every page it found, folder by folder, and keep any folder or page out.',
+    changes: [
+      { kind: 'fixed', text: 'Pressing “Re-read my pages” more than once could leave your assistant knowing only a handful of pages. A read can no longer wipe what it already knows — if a read fails, the last good copy stays in use.' },
+      { kind: 'fixed', text: 'New products whose pages don’t carry shopping data (like a fresh launch) are now picked up from the page itself — name, description, picture and pack prices.' },
+      { kind: 'new', text: '“Your website” now shows a sitemap of every page your assistant found, grouped by folder, with a tick box to skip a whole folder (say, your blog) or a single page.' },
+      { kind: 'improved', text: 'The status shows “Reading now” until your pages are really learned, and the button can’t start a second read while one is running.' },
+      { kind: 'improved', text: 'Your assistant treats your live catalog as the full list of what you sell, so new launches are offered straight away. Searching “gummies” now finds a gummy.' },
+    ],
+    commits: ['59ad4d0'],
+  },
+  {
     date: '2026-10-31',
     title: 'A new shoppingmate.shop — and Olivia one tap away',
     summary:
