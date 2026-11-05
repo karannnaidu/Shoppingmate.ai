@@ -1,9 +1,9 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { getDashboardSession } from '@/lib/session';
 import { db } from '@/lib/db';
-import { merchants } from '@shoppingmate/db/schema';
+import { merchants, siteCrawls } from '@shoppingmate/db/schema';
 import { enqueueSiteCrawl, siteGraphExtractQueue } from '@shoppingmate/jobs';
 import { normalizeExclusion } from '@shoppingmate/shared/sitemap';
 
@@ -46,8 +46,26 @@ export async function POST(req: Request) {
 
   await db.update(merchants).set({ kbExcludedPaths: next }).where(eq(merchants.id, merchantId));
   await siteGraphExtractQueue.add('apply-exclusions', { merchantId });
-  let reread = false;
-  if (reincluded.length > 0) reread = (await enqueueSiteCrawl(merchantId)).queued;
 
-  return NextResponse.json({ ok: true, excluded: next, reread, reincluded });
+  // Pages turned back on weren't fetched by the last read, so they need a new
+  // one — unless a read is already running: starting another would cancel it
+  // (newer read wins), so they're picked up on the next read instead.
+  let reread = false;
+  let readInProgress = false;
+  if (reincluded.length > 0) {
+    const [latest] = await db
+      .select({ status: siteCrawls.status, startedAt: siteCrawls.startedAt })
+      .from(siteCrawls)
+      .where(eq(siteCrawls.merchantId, merchantId))
+      .orderBy(desc(siteCrawls.startedAt))
+      .limit(1);
+    readInProgress = Boolean(
+      latest &&
+        ['pending', 'running', 'extracting'].includes(latest.status) &&
+        Date.now() - latest.startedAt.getTime() < 60 * 60_000,
+    );
+    if (!readInProgress) reread = (await enqueueSiteCrawl(merchantId)).queued;
+  }
+
+  return NextResponse.json({ ok: true, excluded: next, reread, readInProgress, reincluded });
 }

@@ -72,15 +72,22 @@ export function WebsiteSitemap({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ excluded }),
       });
-      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; reread?: boolean; error?: string };
+      const out = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        reread?: boolean;
+        readInProgress?: boolean;
+        error?: string;
+      };
       if (!res.ok || !out.ok) {
         setMessage(out.error ?? 'Could not save — please try again.');
         return;
       }
       setMessage(
         out.reread
-          ? 'Saved. Skipped pages are already removed; pages you turned back on are being read again now.'
-          : 'Saved. Your assistant has stopped using the pages you skipped.',
+          ? 'Saved. Skipped pages are removed; pages you turned back on are being read again now.'
+          : out.readInProgress
+            ? 'Saved. Skipped pages are removed when the current read finishes; pages you turned back on are picked up on your next read.'
+            : 'Saved. Your assistant has stopped using the pages you skipped.',
       );
       router.refresh();
     });
