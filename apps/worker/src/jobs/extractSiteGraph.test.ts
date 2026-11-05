@@ -28,7 +28,7 @@ vi.mock('@shoppingmate/site-graph', () => ({
   projectSonnetAddendum: vi.fn().mockReturnValue({ text: 'SITE MAP', truncated: false, truncatedSections: [] }),
 }));
 
-import { applyKbExclusions, runExtractSiteGraph } from './extractSiteGraph.js';
+import { applyKbExclusions, readPriority, runExtractSiteGraph } from './extractSiteGraph.js';
 
 type Op = { op: 'insert' | 'update' | 'delete' | 'select'; table: string; values?: any; set?: any };
 
@@ -183,6 +183,15 @@ describe('runExtractSiteGraph', () => {
     });
     const prod = ops.find((o) => o.op === 'insert' && o.table === 'products')?.values;
     expect(prod).toMatchObject({ sku: 'holistic-gummy', title: 'Holistic Gummy', productUrl: 'https://x.com/shop/holistic-gummy/', source: 'site_graph' });
+  });
+});
+
+describe('readPriority', () => {
+  it('reads products first and blog posts last', () => {
+    const urls = ['https://x.com/blog/a', 'https://x.com/about', 'https://x.com/faq', 'https://x.com/shop/holistic-gummy/'];
+    expect([...urls].sort((a, b) => readPriority(a) - readPriority(b))).toEqual([
+      'https://x.com/shop/holistic-gummy/', 'https://x.com/faq', 'https://x.com/about', 'https://x.com/blog/a',
+    ]);
   });
 });
 

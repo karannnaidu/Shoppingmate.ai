@@ -3,7 +3,8 @@ import { db as defaultDb, schema, type CrawlStats, type PageType } from '@shoppi
 import { isPathExcluded, pageKey } from '@shoppingmate/shared';
 import { and, eq, inArray, isNull, isNotNull, notInArray } from 'drizzle-orm';
 import { loadSiteGraph, projectSonnetAddendum } from '@shoppingmate/site-graph';
-import { extractStructured, type ExtractedNavLink } from '../steps/siteGraph/extractStructured.js';
+import { classifyByUrl, extractStructured, type ExtractedNavLink } from '../steps/siteGraph/extractStructured.js';
+import { looksLikePdpUrl } from '../steps/siteGraph/jsonLd.js';
 import { generateAltText, needsGeneratedAlt } from '../steps/siteGraph/vision.js';
 import { geminiExtractCall } from '../llm/geminiExtract.js';
 import { geminiVisionCall } from '../llm/geminiVision.js';
@@ -60,9 +61,15 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
   const crawl = await db.query.siteCrawls.findFirst({ where: eq(schema.siteCrawls.id, args.crawlId) });
   const stats: CrawlStats = { ...((crawl?.stats ?? {}) as CrawlStats) };
 
-  const artifacts = await db.query.crawlArtifacts.findMany({
-    where: eq(schema.crawlArtifacts.crawlId, args.crawlId),
-  });
+  // Shopper-critical pages first: products, then home / listing / policy /
+  // FAQ, blog posts last. A full read takes a while and products land in the
+  // catalog as soon as their page is read, so a new launch is learned in
+  // minutes rather than wherever it sits in the sitemap.
+  const artifacts = (
+    await db.query.crawlArtifacts.findMany({
+      where: eq(schema.crawlArtifacts.crawlId, args.crawlId),
+    })
+  ).sort((a, b) => readPriority(a.url) - readPriority(b.url));
 
   try {
     let visionCallsUsed = 0;
@@ -337,6 +344,13 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
       .where(eq(schema.siteCrawls.id, args.crawlId));
     throw err;
   }
+}
+
+export function readPriority(url: string): number {
+  if (looksLikePdpUrl(url)) return 0;
+  if (classifyByUrl(url) !== null) return 1;
+  if (/\/(blog|blogs|news|articles?|posts?|journal)(\/|$)/i.test(url)) return 3;
+  return 2;
 }
 
 /** Rebuild the assistant's site summary from the current graph and bump the version. */
