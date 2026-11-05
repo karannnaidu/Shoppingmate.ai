@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { simpleChat } from '@shoppingmate/shared';
+import { logger, simpleChat } from '@shoppingmate/shared';
 
 const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '');
 
@@ -49,11 +49,23 @@ export async function geminiExtractCall(prompt: string): Promise<unknown> {
       return JSON.parse(res.response.text());
     } catch (err) {
       lastErr = err;
-      if (!retryable(err)) throw err;
+      // Not an overload/quota error (bad/truncated JSON, safety block on a
+      // wellness/cannabis page, 400): another Gemini try won't help — go to
+      // OpenRouter. 2026-11-06: these failures were swallowed and pages like
+      // Holistic Gummy were read with no title, links or pack options.
+      if (!retryable(err)) break;
       if (!overloaded(err) && attempt === 0) await new Promise((r) => setTimeout(r, 15_000));
     }
   }
-  if (process.env.OPENROUTER_API_KEY) return openRouterExtract(prompt);
+  logger.warn({ err: String((lastErr as Error)?.message ?? lastErr).slice(0, 200) }, 'gemini extract failed; trying openrouter');
+  if (process.env.OPENROUTER_API_KEY) {
+    try {
+      return await openRouterExtract(prompt);
+    } catch (err) {
+      logger.warn({ err: String((err as Error)?.message ?? err).slice(0, 200) }, 'openrouter extract failed');
+      throw err;
+    }
+  }
   throw lastErr;
 }
 
