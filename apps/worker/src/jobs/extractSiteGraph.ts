@@ -67,6 +67,7 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
   try {
     let visionCallsUsed = 0;
     const seenHashes = new Set<string>();
+    const altByHash = new Map<string, string>();
     const seenSkus = new Set<string>();
     const seenPages = new Set<string>();
     const failed: Array<{ url: string; error: string }> = [];
@@ -137,6 +138,13 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
         keepUrls.add(art.url);
 
         // Replace this page's children (policies/nav edges are handled separately).
+        // Keep the alt text already generated for its images: a re-read must not
+        // pay for the same vision calls again.
+        const priorAlts = await db
+          .select({ contentHash: schema.mediaIndex.contentHash, generatedAlt: schema.mediaIndex.generatedAlt })
+          .from(schema.mediaIndex)
+          .where(eq(schema.mediaIndex.pageId, pageId));
+        for (const m of priorAlts) if (m.generatedAlt) altByHash.set(m.contentHash, m.generatedAlt);
         await db.delete(schema.pageIntents).where(eq(schema.pageIntents.pageId, pageId));
         await db.delete(schema.faqEntries).where(eq(schema.faqEntries.pageId, pageId));
         await db.delete(schema.mediaIndex).where(eq(schema.mediaIndex.pageId, pageId));
@@ -218,7 +226,11 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
           seenHashes.add(hash);
           let generatedAlt: string | null = null;
           let source: 'original' | 'generated' | 'enriched_original' = 'original';
-          if (needsGeneratedAlt(media) && visionCallsUsed < visionCap) {
+          const knownAlt = altByHash.get(hash);
+          if (knownAlt) {
+            generatedAlt = knownAlt;
+            source = media.originalAlt ? 'enriched_original' : 'generated';
+          } else if (needsGeneratedAlt(media) && visionCallsUsed < visionCap) {
             generatedAlt = await generateAltText({ imageUrl: media.mediaUrl, visionFn });
             if (generatedAlt) {
               source = media.originalAlt ? 'enriched_original' : 'generated';

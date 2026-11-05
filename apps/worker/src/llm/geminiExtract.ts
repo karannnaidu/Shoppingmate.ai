@@ -27,28 +27,34 @@ function retryable(err: unknown): boolean {
   return /\b(429|503)\b|quota|overloaded|high demand/i.test(String((err as Error)?.message ?? err));
 }
 
+function overloaded(err: unknown): boolean {
+  return /503|overloaded|high demand|unavailable/i.test(String((err as Error)?.message ?? err));
+}
+
 export async function geminiExtractCall(prompt: string): Promise<unknown> {
-  // 3 tries, 15s then 30s apart: flash-lite 503s ("high demand") in bursts, and
-  // a page read without the LLM loses its title, links and product options.
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // Overload (503 "high demand") comes in bursts that waiting doesn't fix:
+  // switch straight to the fallback model, then OpenRouter. Quota (429) gets
+  // one 15s back-off. Previously 15s+30s waits per page made a 178-page read
+  // take hours (2026-11-06 Calmosis re-read).
+  const models = [MODEL(), FALLBACK_MODEL()];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < models.length; attempt++) {
     await pace();
     try {
-      const model = client.getGenerativeModel({ model: attempt === 2 ? FALLBACK_MODEL() : MODEL() });
+      const model = client.getGenerativeModel({ model: models[attempt]! });
       const res = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
       });
       return JSON.parse(res.response.text());
     } catch (err) {
-      if (attempt < 2 && retryable(err)) {
-        await new Promise((r) => setTimeout(r, 15_000 * (attempt + 1)));
-        continue;
-      }
-      if (retryable(err) && process.env.OPENROUTER_API_KEY) return openRouterExtract(prompt);
-      throw err;
+      lastErr = err;
+      if (!retryable(err)) throw err;
+      if (!overloaded(err) && attempt === 0) await new Promise((r) => setTimeout(r, 15_000));
     }
   }
-  throw new Error('gemini extract: retries exhausted');
+  if (process.env.OPENROUTER_API_KEY) return openRouterExtract(prompt);
+  throw lastErr;
 }
 
 /** Last resort when Gemini is overloaded: the cheap OpenRouter tier. */
