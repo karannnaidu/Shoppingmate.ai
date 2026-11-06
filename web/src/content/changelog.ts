@@ -32,8 +32,10 @@ export const RELEASES: Release[] = [
       { kind: 'improved', text: 'Your assistant treats your live catalog as the full list of what you sell, so new launches are offered straight away. Searching “gummies” now finds a gummy.' },
       { kind: 'improved', text: 'Product pages are read first, so a new launch is learned within minutes even while the rest of a big site (like a long blog) is still being read.' },
       { kind: 'fixed', text: 'Category and guide pages under your shop are no longer mistaken for products.' },
+      { kind: 'new', text: 'Your assistant can add any product to the cart straight from its page — choosing the pack and finishing steps like a prescription choice with the shopper — so new launches are buyable in chat with no changes to your site.' },
+      { kind: 'fixed', text: 'Your assistant never says something is in the cart unless the cart actually shows it.' },
     ],
-    commits: ['59ad4d0', '6bb9bba', '5a7c43b', '8f3dcd0', 'c77e818', 'e5f6382', 'c4e3ac0', 'cd413c0', '81b1fe4', 'e1f3b1c'],
+    commits: ['59ad4d0', '6bb9bba', '5a7c43b', '8f3dcd0', 'c77e818', 'e5f6382', 'c4e3ac0', 'cd413c0', '81b1fe4', 'e1f3b1c', '937d301', '504620b', 'edb5525', '537d4d9'],
   },
   {
     date: '2026-10-31',
