@@ -36,7 +36,7 @@ export const RELEASES: Release[] = [
       { kind: 'fixed', text: 'Your assistant never says something is in the cart unless the cart actually shows it.' },
       { kind: 'improved', text: 'Calmosis: the retired Bliss Club membership is no longer offered — if a shopper asks, the assistant explains it has been retired and offers to find a current deal.' },
     ],
-    commits: ['59ad4d0', '6bb9bba', '5a7c43b', '8f3dcd0', 'c77e818', 'e5f6382', 'c4e3ac0', 'cd413c0', '81b1fe4', 'e1f3b1c', '937d301', '504620b', 'edb5525', '537d4d9'],
+    commits: ['59ad4d0', '6bb9bba', '5a7c43b', '8f3dcd0', 'c77e818', 'e5f6382', 'c4e3ac0', 'cd413c0', '81b1fe4', 'e1f3b1c', '937d301', '504620b', 'edb5525', '537d4d9', '142ebd9'],
   },
   {
     date: '2026-10-31',
