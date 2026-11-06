@@ -103,6 +103,14 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).not.toMatch(/cannot add .*cart/i);
   });
 
+  it('leads with Subscribe & Save for Holistic Gummy and adds via the Subscribe option', () => {
+    const p = buildSystemPrompt(calmosis);
+    expect(p).toMatch(/SUBSCRIBE & SAVE FIRST/);
+    expect(p).toMatch(/pause, skip or cancel anytime/i);
+    expect(p).toMatch(/can't be combined with coupons/i);
+    expect(p).toMatch(/page\.click "Subscribe"/);
+  });
+
   // 2026-11-06: Calmosis retired the Bliss Club membership.
   it('never pitches, explains or adds Bliss Club (discontinued)', () => {
     const p = buildSystemPrompt(calmosis);
