@@ -559,10 +559,7 @@ export async function* runTurn(
         yield { type: 'checkout_redirect', url: envelope.value };
       }
       if (envelope.ok && (call.name === 'cart.add' || call.name === 'cart.update')) cartProven = true;
-      if (envelope.ok && call.name === 'cart.get') {
-        const v = envelope.value as { count?: number; items?: unknown[] } | null;
-        if ((v?.count ?? 0) > 0 || (Array.isArray(v?.items) && v.items.length > 0)) cartProven = true;
-      }
+      if (envelope.ok && call.name === 'cart.get' && cartHasItems(envelope.value)) cartProven = true;
       if (envelope.ok) {
         const done = describeDoneAction(call.name, call.argumentsJson);
         if (done) actionsDoneThisTurn.push(done);
@@ -741,6 +738,19 @@ export type ToolCallState = {
  * consultation, cases) — the body of runTurn's tool loop, shared with voice so
  * Gemini Live can call the same tools directly ("one brain").
  */
+/** Does a cart.get result show at least one item? Host carts answer
+ *  `{ values: { count: "1", items: "sku x1" } }` (strings, widget host
+ *  action); adapter carts answer `{ count, items: [] }`. */
+export function cartHasItems(value: unknown): boolean {
+  const v = (value ?? {}) as Record<string, unknown>;
+  const src = (v.values && typeof v.values === 'object' ? v.values : v) as Record<string, unknown>;
+  const count = Number(src.count ?? 0);
+  if (Number.isFinite(count) && count > 0) return true;
+  const items = src.items;
+  if (Array.isArray(items)) return items.length > 0;
+  return typeof items === 'string' && items.trim().length > 0;
+}
+
 export async function executeToolCall(
   deps: RunTurnDeps,
   merchant: Merchant,

@@ -190,3 +190,14 @@ describe('claimsCartAdd', () => {
     ]) expect(claimsCartAdd(t)).toBe(false);
   });
 });
+
+describe('cartHasItems', () => {
+  it('reads host (string values) and adapter cart shapes', async () => {
+    const { cartHasItems } = await import('./runtime.js');
+    expect(cartHasItems({ ok: true, values: { count: '1', items: 'holistic-gummy-10day x1', subtotal: '4500' } })).toBe(true);
+    expect(cartHasItems({ ok: true, values: { count: '0', items: '', subtotal: '0' } })).toBe(false);
+    expect(cartHasItems({ count: 2, items: [{}, {}] })).toBe(true);
+    expect(cartHasItems({ items: [] })).toBe(false);
+    expect(cartHasItems(null)).toBe(false);
+  });
+});
