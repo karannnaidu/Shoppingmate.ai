@@ -97,6 +97,21 @@ const LEAKED_TOKEN_RE = /\b[a-z]+(?:_[a-z]+)+\b:?/gi;
 const TOOL_TRAILER_RE =
   /\b(?:site\.(?:navigate|scroll_to|highlight|click|point_at|demo_click)|products\.(?:search|get)|cart\.(?:add|update|get|open)|coupons?\.apply|checkout\.(?:url|fill|place)|consultation\.request|pricing\.quote)\b.*$/is;
 
+/** Does the reply tell the visitor something is now in their cart? Used to
+ *  hold the bot to proof (2026-11-06: it clicked "Add to Cart" on Calmosis,
+ *  missed the "Prescription required" step that popped up, and told the
+ *  shopper it was added while the cart stayed empty). Questions and offers
+ *  ("shall I add it?", "want me to add…") are not claims. */
+export function claimsCartAdd(text: string): boolean {
+  const t = text.replace(/\s+/g, ' ');
+  if (!t.trim()) return false;
+  const claim =
+    /\b(i'?ve|i have|i just|i)\s+(added|put|placed|dropped)\b[^.?!]{0,80}\b(cart|basket|bag)\b/i.test(t) ||
+    /\b(is|are|it'?s|they'?re)\s+(now\s+)?(in|added to)\s+your\s+(cart|basket|bag)\b/i.test(t) ||
+    /\badded to your (cart|basket|bag)\b/i.test(t);
+  return claim;
+}
+
 export function stripToolSyntax(input: string): string {
   return input
     .replace(TOOL_SYNTAX_RE, '')

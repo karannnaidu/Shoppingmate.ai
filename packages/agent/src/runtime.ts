@@ -12,6 +12,7 @@ import {
   redactPii,
   segmentSay,
   stripPrices,
+  claimsCartAdd,
   stripToolSyntax,
 } from './postprocess.js';
 import { type SystemPromptOpts, buildSystemPrompt } from './prompts/system.js';
@@ -408,6 +409,10 @@ export async function* runTurn(
   let toolCallsThisTurn = 0;
   const actionsDoneThisTurn: string[] = [];
   let nudgedForReply = false;
+  // Cart honesty: a reply that says "added to your cart" needs proof from THIS
+  // turn — a successful cart.add/cart.update, or cart.get showing items.
+  let cartProven = false;
+  let nudgedForCartProof = false;
   for (let iter = 0; iter < MAX_TOOL_LOOP_ITERATIONS; iter += 1) {
     llmCalls += 1;
     let attemptResult: ChatToolsResult | undefined;
@@ -459,6 +464,21 @@ export async function* runTurn(
         role: 'user',
         content:
           '(System: you used tools but sent no reply. Answer the visitor now in plain words.)',
+      });
+      continue;
+    }
+    if (
+      response.toolCalls.length === 0 &&
+      !cartProven &&
+      !nudgedForCartProof &&
+      claimsCartAdd(stripToolSyntax(response.text))
+    ) {
+      nudgedForCartProof = true;
+      history.push({ role: 'assistant', content: response.text });
+      history.push({
+        role: 'user',
+        content:
+          "(System: you told the visitor it's in their cart, but nothing this turn confirmed it. If you clicked a page button, call page.read — a step may have popped up (a choice to make, a form, a confirmation): ask the visitor about it, complete it, then call cart.get. Only say it's added if cart.get shows it. Do not repeat your previous message.)",
       });
       continue;
     }
@@ -538,6 +558,11 @@ export async function* runTurn(
         });
         yield { type: 'checkout_redirect', url: envelope.value };
       }
+      if (envelope.ok && (call.name === 'cart.add' || call.name === 'cart.update')) cartProven = true;
+      if (envelope.ok && call.name === 'cart.get') {
+        const v = envelope.value as { count?: number; items?: unknown[] } | null;
+        if ((v?.count ?? 0) > 0 || (Array.isArray(v?.items) && v.items.length > 0)) cartProven = true;
+      }
       if (envelope.ok) {
         const done = describeDoneAction(call.name, call.argumentsJson);
         if (done) actionsDoneThisTurn.push(done);
@@ -555,7 +580,16 @@ export async function* runTurn(
     }
   }
 
-  const responseText = response?.text ?? '';
+  let responseText = response?.text ?? '';
+  // Still claiming an add with no proof after the nudge: never let it through.
+  if (!cartProven && claimsCartAdd(stripToolSyntax(responseText))) {
+    await deps.recordMetric('agent.cart.unproven_claim_blocked', {
+      merchantId: merchant.id,
+      sessionId: session.sessionId,
+    });
+    responseText =
+      "I tried to add it, but I can't see it in your cart yet — there may be a step on the page to finish (like a choice to confirm). Take a look at the page, and tell me what you see so I can help you complete it.";
+  }
   const { text: stripped, hits } = stripPrices(
     stripToolSyntax(responseText),
     new Set(accumulatedAllowedTokens),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
+import { claimsCartAdd, redactPii, segmentSay, stripPrices, stripToolSyntax } from './postprocess.js';
 
 describe('stripPrices()', () => {
   it.each([
@@ -168,5 +168,25 @@ describe('stripPrices() with allowed speech tokens', () => {
     const { text, hits } = stripPrices(input, allowed);
     expect(text).toBe(input);
     expect(hits.length).toBe(0);
+  });
+});
+
+describe('claimsCartAdd', () => {
+  it('flags statements that something is now in the cart', () => {
+    for (const t of [
+      "Excellent! I've added the Holistic Gummy 10-day pack (one-time purchase) to your cart.",
+      'Done — I added Sleep Mantra to your cart.',
+      "It's now in your cart.",
+      'The Peace Mantra has been added to your cart!',
+    ]) expect(claimsCartAdd(t)).toBe(true);
+  });
+  it('ignores offers, questions and instructions', () => {
+    for (const t of [
+      'Want me to add it to your cart?',
+      'Shall I add the 10-day pack to your cart?',
+      'Select the 10-Day Ritual and tap "Add to cart".',
+      'Your cart is empty right now.',
+      '',
+    ]) expect(claimsCartAdd(t)).toBe(false);
   });
 });
