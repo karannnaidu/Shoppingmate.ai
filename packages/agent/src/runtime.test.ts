@@ -249,7 +249,7 @@ describe('runTurn() — happy path', () => {
     expect(says.join(' ')).toMatch(/the price on the card/);
   });
 
-  it('lets Calmosis speak the Bliss Club membership price (₹299) — it has no card', async () => {
+  it('no longer lets Calmosis speak a ₹299 price (Bliss Club retired) — prices go to the card', async () => {
     vi.mocked(chatTools).mockResolvedValueOnce({
       text: 'Bliss Club is ₹299 for 6 months — great value.',
       toolCalls: [],
@@ -278,8 +278,8 @@ describe('runTurn() — happy path', () => {
       .filter((e) => e.type === 'say')
       .map((e) => (e as { text: string }).text)
       .join(' ');
-    expect(says).toMatch(/₹299/);
-    expect(says).not.toMatch(/the price on the card/);
+    expect(says).not.toMatch(/₹299/);
+    expect(says).toMatch(/the price on the card/);
   });
 
   it('records agent.tool.retry_exhausted after 3 same-args invocations', async () => {

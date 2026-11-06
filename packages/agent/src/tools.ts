@@ -90,14 +90,13 @@ export const PRODUCT_LIVE_TOOL: ToolDef = {
 // Calmosis cart/coupon tools are HOST ACTIONS (executed by the widget against
 // the storefront's __shoppingmate*__ hooks), not adapter calls.
 const CALMOSIS_SKU_DESC =
-  'One of: peace-mantra, sleep-mantra, green-mantra, dog-mantra, or bliss-club (the Bliss Club membership)';
+  'One of: peace-mantra, sleep-mantra, green-mantra, dog-mantra';
 
 export const CALMOSIS_CANON_SKUS = [
   'peace-mantra',
   'sleep-mantra',
   'green-mantra',
   'dog-mantra',
-  'bliss-club',
 ] as const;
 
 /**
@@ -346,7 +345,7 @@ const PAGE_CONTROL_TOOLS: ToolDef[] = [
     function: {
       name: 'page.click',
       description:
-        "Click a button or control on the page by describing it (e.g. 'Continue to Payment', 'Join Bliss Club'). Use to press the store's own buttons — ALWAYS ask the visitor before clicking a submit/checkout button.",
+        "Click a button or control on the page by describing it (e.g. 'Continue to Payment', 'Pre-book Now'). Use to press the store's own buttons — ALWAYS ask the visitor before clicking a submit/checkout button.",
       parameters: {
         type: 'object',
         properties: { intent: { type: 'string' } },

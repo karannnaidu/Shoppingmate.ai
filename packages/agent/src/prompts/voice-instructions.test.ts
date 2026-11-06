@@ -80,7 +80,9 @@ describe('buildVoiceSystemInstruction', () => {
       domain: 'calmosis.com',
     });
     expect(out).toMatch(/introduce yourself/i);
-    expect(out).toMatch(/upsell|Bliss Club/i);
+    expect(out).toMatch(/upsell/i);
+    expect(out).toMatch(/Bliss Club membership is DISCONTINUED/);
+    expect(out).not.toMatch(/10% off everything/);
     // anti-priming: still no literal tool-call examples
     expect(out).not.toContain('coupon.apply(');
   });

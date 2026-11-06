@@ -36,7 +36,7 @@ describe('merchantCanMutateCart()', () => {
 
 describe('normalizeCalmosisSku()', () => {
   it('passes through the exact canonical SKUs', () => {
-    for (const sku of ['peace-mantra', 'sleep-mantra', 'green-mantra', 'dog-mantra', 'bliss-club']) {
+    for (const sku of ['peace-mantra', 'sleep-mantra', 'green-mantra', 'dog-mantra']) {
       expect(normalizeCalmosisSku(sku)).toBe(sku);
     }
   });
@@ -48,8 +48,8 @@ describe('normalizeCalmosisSku()', () => {
     expect(normalizeCalmosisSku('greenmantra')).toBe('green-mantra');
     expect(normalizeCalmosisSku('green_mantra')).toBe('green-mantra');
     expect(normalizeCalmosisSku('  PEACE  ')).toBe('peace-mantra');
-    expect(normalizeCalmosisSku('bliss club')).toBe('bliss-club');
-    expect(normalizeCalmosisSku('blissclub')).toBe('bliss-club');
+    // Bliss Club is retired: no longer coerced to a cart SKU.
+    expect(normalizeCalmosisSku('bliss club')).toBe('bliss club');
   });
 
   it('leaves a genuinely unknown reference unchanged (hook will reject honestly)', () => {

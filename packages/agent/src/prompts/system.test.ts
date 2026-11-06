@@ -96,7 +96,6 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     const p = buildSystemPrompt(calmosis);
     expect(p).toMatch(/BUYING ON CALMOSIS/);
     expect(p).toMatch(/cart\.add/);
-    expect(p).toMatch(/bliss club/i); // membership awareness (bliss-club)
     expect(p).toMatch(/one or more products/i); // multi-product allowed
     expect(p).not.toMatch(/one product per order/i);
     expect(p).toMatch(/₹250|cash on delivery/i);
@@ -104,32 +103,15 @@ describe('Calmosis purchase flow (SM-2SCCLZ)', () => {
     expect(p).not.toMatch(/cannot add .*cart/i);
   });
 
-  it('explains Bliss Club fully and correctly (10% not 20%, real benefits, ₹299/6mo)', () => {
+  // 2026-11-06: Calmosis retired the Bliss Club membership.
+  it('never pitches, explains or adds Bliss Club (discontinued)', () => {
     const p = buildSystemPrompt(calmosis);
-    // Authoritative benefits — the bot must be able to actually describe it.
-    expect(p).toMatch(/10%/);
-    expect(p).toMatch(/free delivery/i);
-    expect(p).toMatch(/early access/i);
-    expect(p).toMatch(/retreat/i);
-    expect(p).toMatch(/299/);
-    expect(p).toMatch(/6 months/i);
-    // The discount is 10% — the old 20% plan is gone; never quote 20%.
-    expect(p).not.toMatch(/20\s*%/);
-  });
-
-  it('shows the Bliss Club card via products.get (now in the catalog)', () => {
-    const p = buildSystemPrompt(calmosis);
-    // bliss-club now has a product card; the bot brings it up like any product.
-    expect(p).toMatch(/bliss club now has a product card/i);
-    expect(p).toMatch(/products\.get\(\{\s*sku:\s*["']bliss-club["']/);
-  });
-
-  it('tells the bot to enroll via cart.add({sku:"bliss-club"})', () => {
-    const p = buildSystemPrompt(calmosis);
-    // Bliss Club is added with cart.add (correct backend-matching attributes),
-    // not a fragile page.click on a membership button (multiple controls + a
-    // colliding "Join The Bliss Club" heading made the click unreliable).
-    expect(p).toMatch(/cart\.add\(\{\s*sku:\s*["']bliss-club["']/);
+    expect(p).toMatch(/BLISS CLUB IS DISCONTINUED/);
+    expect(p).toMatch(/NEVER pitch, recommend, upsell/);
+    expect(p).not.toMatch(/bliss-club/);
+    expect(p).not.toMatch(/299/);
+    expect(p).not.toMatch(/early access|retreat/i);
+    expect(p).not.toMatch(/or Bliss Club \(/);
   });
 
   it('includes the consultation intake flow and the consultation.request tool', () => {
