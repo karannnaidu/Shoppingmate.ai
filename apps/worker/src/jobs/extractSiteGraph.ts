@@ -294,6 +294,11 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
     if (extracted === 0 && seenPages.size > 0) {
       throw new Error(`no pages could be read (${failed[0]?.error ?? 'unknown error'})`);
     }
+    // The owner may have changed what to skip while this read ran (a full read
+    // can take hours): apply the CURRENT list, not the one from the start.
+    const current = await db.query.merchants.findFirst({ where: eq(schema.merchants.id, args.merchantId) });
+    const nowExcluded = ((current?.kbExcludedPaths ?? excluded) as string[]) ?? [];
+    for (const u of [...keepUrls]) if (isPathExcluded(u, nowExcluded)) keepUrls.delete(u);
     const keep = [...keepUrls];
     if (keep.length > 0) {
       await db
@@ -322,12 +327,12 @@ export async function runExtractSiteGraph(args: ExtractSiteGraphArgs): Promise<E
         );
     }
     // Catalog products the owner skipped (their product page is excluded).
-    if (excluded.length > 0) {
+    if (nowExcluded.length > 0) {
       const siteProducts = await db
         .select({ sku: schema.products.sku, productUrl: schema.products.productUrl })
         .from(schema.products)
         .where(and(eq(schema.products.merchantId, args.merchantId), eq(schema.products.source, 'site_graph')));
-      const drop = siteProducts.filter((p) => p.productUrl && isPathExcluded(p.productUrl, excluded)).map((p) => p.sku);
+      const drop = siteProducts.filter((p) => p.productUrl && isPathExcluded(p.productUrl, nowExcluded)).map((p) => p.sku);
       if (drop.length > 0) {
         await db
           .delete(schema.products)

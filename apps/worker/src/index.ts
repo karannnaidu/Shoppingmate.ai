@@ -97,9 +97,18 @@ const siteGraphExtractWorker = new Worker(
   async (job) => {
     const merchantId = job.data.merchantId as string;
     if (job.name === 'apply-exclusions') {
-      const out = await withMerchantLock(merchantId, () => applyKbExclusions({ merchantId }));
-      logger.info({ merchantId, ...out }, 'kb exclusions applied');
-      return out;
+      try {
+        const out = await withMerchantLock(merchantId, () => applyKbExclusions({ merchantId }));
+        logger.info({ merchantId, ...out }, 'kb exclusions applied');
+        return out;
+      } catch (err) {
+        // A long read holds the store: it applies the latest skips itself when
+        // it finishes, but re-check later too rather than failing for good.
+        if (!/lock timeout/.test((err as Error).message)) throw err;
+        await siteGraphExtractQueue.add('apply-exclusions', { merchantId }, { delay: 10 * 60_000 });
+        logger.info({ merchantId }, 'kb exclusions deferred: store busy reading');
+        return { deferred: true };
+      }
     }
     const crawlId = job.data.crawlId as string;
     const isSuperseded = async () => {
