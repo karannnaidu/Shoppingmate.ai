@@ -20,6 +20,15 @@ export type Release = {
 
 export const RELEASES: Release[] = [
   {
+    date: '2026-11-10',
+    title: 'An extra-small chat button',
+    summary: 'For stores that want the assistant present but out of the way, the launcher now comes in an extra-small size.',
+    changes: [
+      { kind: 'new', text: 'New “Extra small” launcher size in Settings → widget size, alongside Small, Medium and Large.' },
+    ],
+    commits: ['254d90b'],
+  },
+  {
     date: '2026-11-06',
     title: 'Re-reading your website is reliable — and you choose what it learns',
     summary:
