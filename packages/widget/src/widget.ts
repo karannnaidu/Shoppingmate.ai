@@ -44,7 +44,7 @@ const POSITION_CLASSES = new Set([
 
 // Launcher size, controllable from the dashboard (data-size / install response).
 // 'medium' is the default (no class); small/large map to CSS size-* classes.
-const SIZE_CLASSES = new Set(['small', 'medium', 'large']);
+const SIZE_CLASSES = new Set(['xs', 'small', 'medium', 'large']);
 
 // Resting launcher shrinks to just the avatar after this many idle ms so it
 // stops covering the host page's own CTAs. Any hover / focus / tap wakes it.
@@ -291,13 +291,13 @@ class WidgetElement extends HTMLElement {
     root.style.setProperty('--sm-accent', v);
   }
 
-  // Apply a dashboard-configured launcher size (small/medium/large).
+  // Apply a dashboard-configured launcher size (xs/small/medium/large).
   private applyServerSize(size: string): void {
     const root = this.rootEl;
     if (!root) return;
     const s = size.toLowerCase();
     if (!SIZE_CLASSES.has(s)) return;
-    root.classList.remove('size-small', 'size-large');
+    root.classList.remove('size-xs', 'size-small', 'size-large');
     if (s !== 'medium') root.classList.add(`size-${s}`);
   }
 

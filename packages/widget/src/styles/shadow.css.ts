@@ -694,6 +694,21 @@ export const SHADOW_CSS = `
 /* ---- Launcher size (merchant-configurable from the dashboard) ---- */
 /* Default (no class) is medium — the sizes above. small/large adjust the
    launcher's avatar, controls, call button, and labels. */
+.root.size-xs .tray { gap: 7px; padding: 4px 6px 4px 4px; }
+.root.size-xs.collapsed .tray.phase-resting { padding: 3px; gap: 0; }
+.root.size-xs.collapsed .tray.phase-resting:hover,
+.root.size-xs.collapsed .tray.phase-resting:focus-within { padding: 4px 6px 4px 4px; gap: 7px; }
+.root.size-xs .tray-avatar { width: 28px; height: 28px; }
+.root.size-xs .tray-avatar-fallback { font-size: 12px; }
+.root.size-xs .tray-presence { width: 8px; height: 8px; }
+.root.size-xs .tray-btn { width: 24px; height: 24px; }
+.root.size-xs .tray-btn :where(svg) { width: 11px; height: 11px; }
+.root.size-xs .tray-btn.tray-chat { width: 22px; height: 22px; }
+.root.size-xs .tray-btn.tray-chat :where(svg) { width: 10px; height: 10px; }
+.root.size-xs .tray-call { height: 26px; padding: 0 9px 0 7px; font-size: 11px; }
+.root.size-xs .tray-call :where(svg) { width: 12px; height: 12px; }
+.root.size-xs .tray-name { font-size: 11px; }
+.root.size-xs .tray-caption { font-size: 8px; }
 .root.size-small .tray-avatar { width: 34px; height: 34px; }
 .root.size-small .tray-btn { width: 28px; height: 28px; }
 .root.size-small .tray-btn :where(svg) { width: 12px; height: 12px; }

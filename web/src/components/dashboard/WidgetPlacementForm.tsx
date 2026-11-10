@@ -15,6 +15,7 @@ const POSITIONS = [
 ] as const;
 
 const SIZES = [
+  { value: 'xs', label: 'Extra small' },
   { value: 'small', label: 'Small' },
   { value: 'medium', label: 'Medium (default)' },
   { value: 'large', label: 'Large' },

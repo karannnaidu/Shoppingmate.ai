@@ -19,7 +19,7 @@ const WIDGET_POSITIONS = [
   'top-left',
 ] as const;
 
-const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
+const WIDGET_SIZES = ['xs', 'small', 'medium', 'large'] as const;
 const COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
 // All fields optional so the appearance form can save everything in one call.

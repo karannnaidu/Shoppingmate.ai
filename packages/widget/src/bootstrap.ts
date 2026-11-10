@@ -28,7 +28,7 @@ export type BootstrapResult =
       /** Dashboard-configured launcher placement (one of the widget position
        *  classes), or null to keep the host/default placement. */
       widgetPosition: string | null;
-      /** Dashboard-configured launcher size (small/medium/large), or null. */
+      /** Dashboard-configured launcher size (xs/small/medium/large), or null. */
       widgetSize: string | null;
       /** Dashboard-configured brand accent color (CSS color), or null. */
       widgetAccent: string | null;
